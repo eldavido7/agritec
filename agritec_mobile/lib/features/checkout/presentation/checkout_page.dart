@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:agritec_mobile/core/logistics/shipping_calculator.dart';
 import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
@@ -31,7 +32,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   String? _discountMessage;
   bool _isValidatingDiscount = false;
   bool _isPaying = false;
-  String? _selectedShippingId;
   String? _selectedAddressId;
 
   @override
@@ -75,25 +75,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       }
     }
     address ??= defaultAddress;
-    final shippingOptions = ref.watch(
-      sellerShippingOptionsProvider(widget.sellerId),
-    );
-    final activeShippingOptions = shippingOptions
-        .where((s) => s.enabled)
-        .toList();
-    ShippingOption? shipping;
-    for (final option in activeShippingOptions) {
-      if (option.id == _selectedShippingId) {
-        shipping = option;
-        break;
-      }
-    }
-    shipping ??= activeShippingOptions.isNotEmpty
-        ? activeShippingOptions.first
-        : null;
+    final shippingQuote = calculatePlatformShippingQuote(items: selectedGroup.items, buyerAddress: address);
     final subtotal = selectedGroup.sellerTotal;
     final discount = _appliedDiscountAmount;
-    final shippingFee = shipping?.price ?? 0;
+    final shippingFee = shippingQuote.shippingFee;
     final total = subtotal + shippingFee - discount;
     final money = NumberFormat.currency(
       locale: 'en_NG',
@@ -138,10 +123,14 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
                         'Selected: ${address.fullAddress}',
+                        softWrap: true,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Color(0xFF65706B)),
                       ),
                     ),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     key: ValueKey<String?>(
                       'addr-${_selectedAddressId ?? address?.id}',
                     ),
@@ -153,6 +142,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                           value: item.id,
                           child: Text(
                             '${item.label}: ${item.displayName}',
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -176,28 +166,21 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Shipping Option',
+                    'Shipping Breakdown',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
-                  if (activeShippingOptions.isEmpty)
-                    const Text('No shipping option available for this seller.')
-                  else
-                    DropdownButtonFormField<String>(
-                      initialValue: shipping?.id,
-                      items: [
-                        for (final option in activeShippingOptions)
-                          DropdownMenuItem(
-                            value: option.id,
-                            child: Text(
-                              '${option.name} (${money.format(option.price)})',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                      onChanged: (value) =>
-                          setState(() => _selectedShippingId = value),
-                    ),
+                  _line('Delivery region', shippingQuote.deliveryRegion),
+                  _line(
+                    'Chargeable weight',
+                    '${shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg',
+                  ),
+                  _line(
+                    'Shipping units',
+                    '${shippingQuote.shippingUnits} x ${money.format(shippingQuote.locationRate)}',
+                  ),
+                  const Divider(),
+                  _line('Shipping fee', money.format(shippingFee), bold: true),
                 ],
               ),
             ),
@@ -283,7 +266,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              onPressed: _isPaying || address == null || shipping == null
+              onPressed: _isPaying || address == null
                   ? null
                   : () async {
                       setState(() => _isPaying = true);
@@ -301,7 +284,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                           .createOrder(
                             group: selectedGroup,
                             buyerAddress: address!,
-                            shippingOption: shipping!,
+                            shippingQuote: shippingQuote,
                             discountAmount: discount,
                             discountCode: _appliedDiscountCode,
                           );
@@ -410,7 +393,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       if (discount.type == 'percentage') {
         discountAmount += ((lineSubtotal * discount.value) / 100).round();
       } else {
-        discountAmount += discount.value * line.quantity;
+        discountAmount += (discount.value * line.quantity).round();
       }
     }
 
@@ -433,18 +416,28 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+          Expanded(
+            flex: 5,
+            child: Text(
+              label,
+              softWrap: true,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              ),
             ),
           ),
-          const Spacer(),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 4,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              softWrap: true,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              ),
             ),
           ),
         ],
@@ -452,3 +445,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     );
   }
 }
+
+
+
+
+

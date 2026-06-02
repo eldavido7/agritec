@@ -126,7 +126,7 @@ class HomePage extends ConsumerWidget {
                         return _ProductTile(
                           product: product,
                           seller: seller,
-                          priceText: money.format(product.price),
+                          priceText: '${money.format(product.price)} per ${product.salesUnitLabel}',
                           isSaved: isSaved,
                           onTap: () {
                             Navigator.of(context).push(
@@ -810,3 +810,5 @@ class _SectionHeader extends StatelessWidget {
     );
   }
 }
+
+

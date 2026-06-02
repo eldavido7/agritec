@@ -1,3 +1,5 @@
+import 'package:agritec_mobile/core/logistics/logistics_models.dart';
+
 class HomeCategory {
   const HomeCategory({
     required this.id,
@@ -83,6 +85,7 @@ class HomeProduct {
     required this.images,
     required this.hasDiscount,
     required this.discountLabel,
+    required this.logistics,
   });
 
   final int id;
@@ -96,8 +99,10 @@ class HomeProduct {
   final List<String> images;
   final bool hasDiscount;
   final String? discountLabel;
+  final LogisticsMetadata logistics;
 
   String get imageUrl => images.first;
+  String get salesUnitLabel => logistics.salesUnit.label;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -111,6 +116,7 @@ class HomeProduct {
         'images': images,
         'hasDiscount': hasDiscount,
         'discountLabel': discountLabel,
+        ...logistics.toJson(),
       };
 
   factory HomeProduct.fromJson(Map<String, dynamic> json) {
@@ -126,6 +132,7 @@ class HomeProduct {
       images: (json['images'] as List<dynamic>).map((e) => e as String).toList(),
       hasDiscount: json['hasDiscount'] as bool,
       discountLabel: json['discountLabel'] as String?,
+      logistics: LogisticsMetadata.fromJson(json),
     );
   }
 }

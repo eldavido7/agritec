@@ -14,44 +14,6 @@ class ProductVariant {
   final int inventory;
 }
 
-class ShippingOption {
-  const ShippingOption({
-    required this.id,
-    required this.name,
-    required this.price,
-    required this.deliveryEstimate,
-    required this.coverageArea,
-    required this.enabled,
-  });
-
-  final String id;
-  final String name;
-  final int price;
-  final String deliveryEstimate;
-  final String coverageArea;
-  final bool enabled;
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'price': price,
-        'deliveryEstimate': deliveryEstimate,
-        'coverageArea': coverageArea,
-        'enabled': enabled,
-      };
-
-  factory ShippingOption.fromJson(Map<String, dynamic> json) {
-    return ShippingOption(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      price: (json['price'] as num).toInt(),
-      deliveryEstimate: json['deliveryEstimate'] as String,
-      coverageArea: json['coverageArea'] as String,
-      enabled: json['enabled'] as bool,
-    );
-  }
-}
-
 class ProductDiscount {
   const ProductDiscount({
     required this.code,
@@ -124,45 +86,6 @@ const _discountByProduct = <int, ProductDiscount>{
   ),
 };
 
-const _shippingBySeller = <String, List<ShippingOption>>{
-  'seller-kingsley': [
-    ShippingOption(
-      id: 'ship-kingsley-1',
-      name: 'Lagos Same Day',
-      price: 3500,
-      deliveryEstimate: 'Same day',
-      coverageArea: 'Lagos mainland and island',
-      enabled: true,
-    ),
-    ShippingOption(
-      id: 'ship-kingsley-2',
-      name: 'South West Bulk Delivery',
-      price: 12000,
-      deliveryEstimate: '2-4 business days',
-      coverageArea: 'Lagos, Ogun, Oyo, Osun',
-      enabled: true,
-    ),
-  ],
-  'seller-amina': [
-    ShippingOption(
-      id: 'ship-amina-1',
-      name: 'Kano Metro Dispatch',
-      price: 2500,
-      deliveryEstimate: '24 hours',
-      coverageArea: 'Kano city',
-      enabled: true,
-    ),
-    ShippingOption(
-      id: 'ship-amina-2',
-      name: 'Northern Wholesale Route',
-      price: 18000,
-      deliveryEstimate: '3-5 business days',
-      coverageArea: 'Kano, Kaduna, Katsina, Jigawa',
-      enabled: false,
-    ),
-  ],
-};
-
 final productVariantsProvider = Provider.family<List<ProductVariant>, int>((ref, productId) {
   return _variantsByProduct[productId] ?? const [];
 });
@@ -171,7 +94,3 @@ final productDiscountProvider = Provider.family<ProductDiscount?, int>((ref, pro
   return _discountByProduct[productId];
 });
 
-final sellerShippingOptionsProvider =
-    Provider.family<List<ShippingOption>, String>((ref, sellerId) {
-  return _shippingBySeller[sellerId] ?? const [];
-});

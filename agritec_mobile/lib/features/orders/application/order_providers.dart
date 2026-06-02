@@ -4,7 +4,7 @@ import 'package:agritec_mobile/core/storage/cache_providers.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
-import 'package:agritec_mobile/features/product/application/product_details_providers.dart';
+import 'package:agritec_mobile/core/logistics/logistics_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class MarketplaceOrder {
@@ -18,7 +18,7 @@ class MarketplaceOrder {
     required this.sellerLongitude,
     required this.buyerAddress,
     required this.items,
-    required this.shippingOption,
+    required this.shippingQuote,
     required this.subtotal,
     required this.discountAmount,
     required this.discountCode,
@@ -37,7 +37,7 @@ class MarketplaceOrder {
   final double sellerLongitude;
   final BuyerAddress buyerAddress;
   final List<CartLineItem> items;
-  final ShippingOption shippingOption;
+  final ShippingQuote shippingQuote;
   final int subtotal;
   final int discountAmount;
   final String? discountCode;
@@ -56,7 +56,7 @@ class MarketplaceOrder {
     'sellerLongitude': sellerLongitude,
     'buyerAddress': buyerAddress.toJson(),
     'items': items.map((item) => item.toJson()).toList(),
-    'shippingOption': shippingOption.toJson(),
+    'shippingQuote': shippingQuote.toJson(),
     'subtotal': subtotal,
     'discountAmount': discountAmount,
     'discountCode': discountCode,
@@ -81,9 +81,9 @@ class MarketplaceOrder {
       items: (json['items'] as List<dynamic>)
           .map((item) => CartLineItem.fromJson(item as Map<String, dynamic>))
           .toList(),
-      shippingOption: ShippingOption.fromJson(
-        json['shippingOption'] as Map<String, dynamic>,
-      ),
+      shippingQuote: json['shippingQuote'] is Map<String, dynamic>
+          ? ShippingQuote.fromJson(json['shippingQuote'] as Map<String, dynamic>)
+          : _legacyShippingQuote(json['shippingOption'] as Map<String, dynamic>?),
       subtotal: (json['subtotal'] as num).toInt(),
       discountAmount: (json['discountAmount'] as num).toInt(),
       discountCode: json['discountCode'] as String?,
@@ -97,6 +97,17 @@ class MarketplaceOrder {
   }
 }
 
+
+ShippingQuote _legacyShippingQuote(Map<String, dynamic>? json) {
+  final price = (json?['price'] as num?)?.toInt() ?? 0;
+  return ShippingQuote(
+    deliveryRegion: 'Legacy shipping',
+    totalChargeableWeightKg: 0,
+    shippingUnits: price > 0 ? 1 : 0,
+    locationRate: price,
+    shippingFee: price,
+  );
+}
 class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
   static const _cacheKeyPrefix = 'cache_orders_v1';
   bool _didHydrate = false;
@@ -140,18 +151,11 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
           isDefault: true,
         ),
         items: const [],
-        shippingOption: const ShippingOption(
-          id: 'ship-kingsley-1',
-          name: 'Lagos Same Day',
-          price: 3500,
-          deliveryEstimate: 'Same day',
-          coverageArea: 'Lagos mainland and island',
-          enabled: true,
-        ),
+        shippingQuote: const ShippingQuote(deliveryRegion: 'Outside Abuja', totalChargeableWeightKg: 28.5, shippingUnits: 3, locationRate: 10000, shippingFee: 30000),
         subtotal: 28500,
         discountAmount: 0,
         discountCode: null,
-        total: 32000,
+        total: 58500,
         timeline: const [
           'Order placed',
           'Payment confirmed',
@@ -180,18 +184,11 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
           isManualAddress: true,
         ),
         items: const [],
-        shippingOption: const ShippingOption(
-          id: 'ship-amina-1',
-          name: 'Kano Metro Dispatch',
-          price: 2500,
-          deliveryEstimate: '24 hours',
-          coverageArea: 'Kano city',
-          enabled: true,
-        ),
+        shippingQuote: const ShippingQuote(deliveryRegion: 'Outside Abuja', totalChargeableWeightKg: 8.2, shippingUnits: 1, locationRate: 10000, shippingFee: 10000),
         subtotal: 8200,
         discountAmount: 0,
         discountCode: null,
-        total: 10700,
+        total: 18200,
         timeline: const [
           'Order placed',
           'Payment confirmed',
@@ -233,13 +230,13 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
   MarketplaceOrder createOrder({
     required SellerCartGroup group,
     required BuyerAddress buyerAddress,
-    required ShippingOption shippingOption,
+    required ShippingQuote shippingQuote,
     required int discountAmount,
     String? discountCode,
   }) {
     final random = Random();
     final subtotal = group.sellerTotal;
-    final total = subtotal + shippingOption.price - discountAmount;
+    final total = subtotal + shippingQuote.shippingFee - discountAmount;
     final order = MarketplaceOrder(
       id: 'ORD${DateTime.now().millisecondsSinceEpoch}${random.nextInt(999)}',
       createdAt: DateTime.now(),
@@ -250,7 +247,7 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
       sellerLongitude: _sellerCoordinates[group.sellerId]?.$2 ?? 3.4722,
       buyerAddress: buyerAddress.copyWith(),
       items: group.items,
-      shippingOption: shippingOption,
+      shippingQuote: shippingQuote,
       subtotal: subtotal,
       discountAmount: discountAmount,
       discountCode: discountCode,
@@ -290,3 +287,6 @@ final orderByIdProvider = Provider.family<MarketplaceOrder?, String>((
   }
   return null;
 });
+
+
+

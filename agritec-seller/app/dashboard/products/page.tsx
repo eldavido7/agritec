@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { getSellerMockData, type SellerProduct } from "@/lib/mock-data";
+import { getSellerMockData, packageTypes, salesUnits, unitChargeableWeightKg, type ProductLogistics, type SellerProduct } from "@/lib/mock-data";
 import { Plus, Edit, Trash2, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatCurrency } from "@/lib/formatting";
 import { toast } from "sonner";
@@ -34,7 +34,16 @@ const itemVariants = {
 
 const ITEMS_PER_PAGE = 10;
 
-type Variant = { id: number; name: string; price: number; inventory: number };
+const defaultLogistics = {
+  salesUnit: "PIECE" as const,
+  unitWeightKg: 0,
+  unitLengthCm: 0,
+  unitWidthCm: 0,
+  unitHeightCm: 0,
+  packageType: "PIECE" as const,
+};
+
+type Variant = { id: number; name: string; price: number; inventory: number; logistics?: ProductLogistics };
 type Product = SellerProduct & { inventory: number };
 type ModalMode = "view" | "edit" | "create" | null;
 
@@ -111,6 +120,7 @@ export default function ProductsPage() {
         status: "Active",
         variants: [],
         images: [],
+        ...defaultLogistics,
       });
     } else if (product) {
       setFormData({ ...product });
@@ -168,6 +178,12 @@ export default function ProductsPage() {
                 "https://images.unsplash.com/photo-1586190251793-378ec6acda75?w=400&h=300&fit=crop",
               ],
         variants: hasVariants ? formData.variants : undefined,
+        salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
+        unitWeightKg: Number(formData.unitWeightKg) || defaultLogistics.unitWeightKg,
+        unitLengthCm: Number(formData.unitLengthCm) || defaultLogistics.unitLengthCm,
+        unitWidthCm: Number(formData.unitWidthCm) || defaultLogistics.unitWidthCm,
+        unitHeightCm: Number(formData.unitHeightCm) || defaultLogistics.unitHeightCm,
+        packageType: formData.packageType || defaultLogistics.packageType,
         dateAdded: new Date(),
         sellerId: seller.id,
       };
@@ -496,6 +512,22 @@ export default function ProductsPage() {
                         {getProductStatus(selectedProduct)}
                       </p>
                     </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Sales Unit
+                      </p>
+                      <p className="font-semibold text-foreground">
+                        {selectedProduct.salesUnit}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Chargeable Weight
+                      </p>
+                      <p className="font-semibold text-foreground">
+                        {unitChargeableWeightKg(selectedProduct).toFixed(1)} kg/unit
+                      </p>
+                    </div>
                   </div>
 
                   {selectedProduct.variants &&
@@ -698,6 +730,63 @@ export default function ProductsPage() {
                         />
                       </div>
                     )}
+
+                    <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Sales unit and logistics</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Buyers purchase by sales unit. Weight and dimensions are used only by platform delivery pricing.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                          <label className="text-sm font-medium text-foreground">Sales Unit</label>
+                          <select
+                            value={formData.salesUnit || defaultLogistics.salesUnit}
+                            onChange={(e) => setFormData({ ...formData, salesUnit: e.target.value as any })}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                          >
+                            {salesUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground">Package Type</label>
+                          <select
+                            value={formData.packageType || defaultLogistics.packageType}
+                            onChange={(e) => setFormData({ ...formData, packageType: e.target.value as any })}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                          >
+                            {packageTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground">Unit Weight (kg)</label>
+                          <Input type="number" min="0" step="0.1" placeholder="e.g. 2.5" value={formData.unitWeightKg || ""} onChange={(e) => setFormData({ ...formData, unitWeightKg: Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground">Length (cm)</label>
+                          <Input type="number" min="0" step="0.1" placeholder="e.g. 30" value={formData.unitLengthCm || ""} onChange={(e) => setFormData({ ...formData, unitLengthCm: Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground">Width (cm)</label>
+                          <Input type="number" min="0" step="0.1" placeholder="e.g. 20" value={formData.unitWidthCm || ""} onChange={(e) => setFormData({ ...formData, unitWidthCm: Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground">Height (cm)</label>
+                          <Input type="number" min="0" step="0.1" placeholder="e.g. 15" value={formData.unitHeightCm || ""} onChange={(e) => setFormData({ ...formData, unitHeightCm: Number(e.target.value) })} />
+                        </div>
+                      </div>
+                      <p className="text-xs font-medium text-primary">
+                        Chargeable weight preview: {unitChargeableWeightKg({
+                          salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
+                          unitWeightKg: Number(formData.unitWeightKg) || defaultLogistics.unitWeightKg,
+                          unitLengthCm: Number(formData.unitLengthCm) || defaultLogistics.unitLengthCm,
+                          unitWidthCm: Number(formData.unitWidthCm) || defaultLogistics.unitWidthCm,
+                          unitHeightCm: Number(formData.unitHeightCm) || defaultLogistics.unitHeightCm,
+                          packageType: formData.packageType || defaultLogistics.packageType,
+                        }).toFixed(1)} kg per sales unit
+                      </p>
+                    </div>
 
                     {/* Variant Toggle */}
                     <div className="border-t border-border pt-4">
@@ -955,3 +1044,6 @@ export default function ProductsPage() {
     </div>
   );
 }
+
+
+

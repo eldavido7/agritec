@@ -16,6 +16,7 @@ import {
   buyers,
   buyerAddresses,
   farmers,
+  platformShippingSettings,
   products as sellerProducts,
 } from "@/lib/mock-data";
 import { toast } from "sonner";
@@ -65,6 +66,29 @@ export function AddOrderDialog({
   const selectedBuyerAddress = selectedBuyerAddresses.find(
     (entry) => entry.id === selectedAddressId,
   );
+  const selectedQuantity = Math.max(1, Number(quantity) || 1);
+  const deliveryState = selectedBuyerAddress?.state || manualState;
+  const deliveryCity = selectedBuyerAddress?.city || manualCity;
+  const isAbuja = `${deliveryCity} ${deliveryState}`.toLowerCase().includes("abuja") || deliveryState.toLowerCase().includes("fct");
+  const unitVolumetricWeight = selectedProduct
+    ? (selectedProduct.unitLengthCm * selectedProduct.unitWidthCm * selectedProduct.unitHeightCm) /
+      platformShippingSettings.volumetricDivisor
+    : 0;
+  const unitChargeableWeight = selectedProduct
+    ? Math.max(selectedProduct.unitWeightKg, unitVolumetricWeight)
+    : 0;
+  const totalChargeableWeight = unitChargeableWeight * selectedQuantity;
+  const locationRate = isAbuja
+    ? platformShippingSettings.abujaRatePer10Kg
+    : platformShippingSettings.outsideAbujaRatePer10Kg;
+  const shippingUnits = Math.max(1, Math.ceil(totalChargeableWeight / platformShippingSettings.weightUnitSizeKg));
+  const shippingQuote = {
+    deliveryRegion: isAbuja ? "Abuja / FCT" : "Outside Abuja",
+    totalChargeableWeightKg: totalChargeableWeight,
+    shippingUnits,
+    locationRate,
+    shippingFee: shippingUnits * locationRate,
+  };
 
   const matchingBuyers = buyers
     .filter((buyer) =>
@@ -141,6 +165,8 @@ export function AddOrderDialog({
       quantity,
       unit: selectedProduct.variants[0]?.name || "unit",
       price: String(selectedProduct.price),
+      salesUnit: selectedProduct.salesUnit,
+      shippingQuote,
       deliveryAddress: selectedBuyerAddress
         ? {
             addressLine: selectedBuyerAddress.addressLine,
@@ -348,7 +374,7 @@ export function AddOrderDialog({
                   >
                     {product.name}
                     <span className="block text-xs text-muted-foreground">
-                      NGN {product.price.toLocaleString()} . {product.category}
+                      NGN {product.price.toLocaleString()} per {product.salesUnit} . {product.category}
                     </span>
                   </button>
                 ))}
@@ -372,11 +398,19 @@ export function AddOrderDialog({
               <Label>Price</Label>
               <div className="flex h-10 items-center rounded-md border border-border/50 px-3 text-sm text-muted-foreground">
                 {selectedProduct
-                  ? `NGN ${selectedProduct.price.toLocaleString()}`
+                  ? `${selectedProduct.price.toLocaleString()} NGN per ${selectedProduct.salesUnit}`
                   : "Auto assigned"}
               </div>
             </div>
           </div>
+
+          {selectedProduct ? (
+            <div className="rounded-md border border-border/50 bg-muted/40 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Platform shipping preview</p>
+              <p>{shippingQuote.deliveryRegion} . {shippingQuote.totalChargeableWeightKg.toFixed(1)} kg chargeable . {shippingQuote.shippingUnits} shipping unit(s)</p>
+              <p>Estimated shipping fee: NGN {shippingQuote.shippingFee.toLocaleString()}</p>
+            </div>
+          ) : null}
         </div>
 
         <DialogFooter>
@@ -397,3 +431,5 @@ export function AddOrderDialog({
     </Dialog>
   );
 }
+
+

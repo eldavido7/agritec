@@ -17,6 +17,47 @@ export const platformCategories = [
   { slug: "processed-farm-products", label: "Processed Farm Products" },
   { slug: "other", label: "Other" },
 ] as const;
+export const salesUnits = [
+  "PIECE", "KG", "BAG", "BASKET", "CRATE", "BOX", "BUNDLE", "TRAY", "PACK", "LITRE", "ANIMAL", "OTHER",
+] as const;
+
+export const packageTypes = [
+  "PIECE", "BAG", "BASKET", "CRATE", "BOX", "BUNDLE", "LIVE_ANIMAL", "OTHER",
+] as const;
+
+export const platformShippingSettings = {
+  abujaRatePer10Kg: 5000,
+  outsideAbujaRatePer10Kg: 10000,
+  weightUnitSizeKg: 10,
+  volumetricDivisor: 5000,
+};
+
+type SalesUnit = (typeof salesUnits)[number];
+type PackageType = (typeof packageTypes)[number];
+
+export type ProductLogistics = {
+  salesUnit: SalesUnit;
+  unitWeightKg: number;
+  unitLengthCm: number;
+  unitWidthCm: number;
+  unitHeightCm: number;
+  packageType: PackageType;
+};
+
+const logisticsForProduct = (name: string): ProductLogistics => {
+  const key = name.toLowerCase();
+  if (key.includes("tomato")) return { salesUnit: "BASKET", unitWeightKg: 18, unitLengthCm: 55, unitWidthCm: 38, unitHeightCm: 28, packageType: "BASKET" };
+  if (key.includes("rice")) return { salesUnit: "BAG", unitWeightKg: 25, unitLengthCm: 70, unitWidthCm: 45, unitHeightCm: 16, packageType: "BAG" };
+  if (key.includes("wheat")) return { salesUnit: "BAG", unitWeightKg: 20, unitLengthCm: 68, unitWidthCm: 42, unitHeightCm: 14, packageType: "BAG" };
+  if (key.includes("milk")) return { salesUnit: "LITRE", unitWeightKg: 1.1, unitLengthCm: 9, unitWidthCm: 9, unitHeightCm: 24, packageType: "PIECE" };
+  if (key.includes("plantain")) return { salesUnit: "BUNDLE", unitWeightKg: 7, unitLengthCm: 60, unitWidthCm: 32, unitHeightCm: 25, packageType: "BUNDLE" };
+  if (key.includes("yam")) return { salesUnit: "PIECE", unitWeightKg: 2.5, unitLengthCm: 35, unitWidthCm: 14, unitHeightCm: 12, packageType: "PIECE" };
+  if (key.includes("honey")) return { salesUnit: "PACK", unitWeightKg: 1.3, unitLengthCm: 11, unitWidthCm: 11, unitHeightCm: 18, packageType: "BOX" };
+  if (key.includes("corn")) return { salesUnit: "CRATE", unitWeightKg: 15, unitLengthCm: 60, unitWidthCm: 40, unitHeightCm: 25, packageType: "CRATE" };
+  if (key.includes("egg")) return { salesUnit: "TRAY", unitWeightKg: 2.2, unitLengthCm: 30, unitWidthCm: 30, unitHeightCm: 7, packageType: "CRATE" };
+  if (key.includes("pepper")) return { salesUnit: "BASKET", unitWeightKg: 10, unitLengthCm: 45, unitWidthCm: 35, unitHeightCm: 24, packageType: "BASKET" };
+  return { salesUnit: "OTHER", unitWeightKg: 1, unitLengthCm: 10, unitWidthCm: 10, unitHeightCm: 10, packageType: "OTHER" };
+};
 
 export const settings = {
   platformFee: 2.5,
@@ -95,6 +136,7 @@ export const products = [
     sellerId: "seller-kingsley",
     name: "Basmati Rice - Premium Grade",
     category: "Grains & Cereals",
+    ...logisticsForProduct("Basmati Rice - Premium Grade"),
     price: 28500,
     inventory: 250,
     status: "active",
@@ -110,6 +152,7 @@ export const products = [
     sellerId: "seller-kingsley",
     name: "Organic Wheat",
     category: "Grains & Cereals",
+    ...logisticsForProduct("Organic Wheat"),
     price: 17500,
     inventory: 180,
     status: "active",
@@ -124,6 +167,7 @@ export const products = [
     sellerId: "seller-kingsley",
     name: "Fresh Tomatoes",
     category: "Vegetables",
+    ...logisticsForProduct("Fresh Tomatoes"),
     price: 2200,
     inventory: 8,
     status: "active",
@@ -138,6 +182,7 @@ export const products = [
     sellerId: "seller-kingsley",
     name: "Milk - Full Cream",
     category: "Dairy",
+    ...logisticsForProduct("Milk - Full Cream"),
     price: 3500,
     inventory: 320,
     status: "active",
@@ -153,6 +198,7 @@ export const products = [
     sellerId: "seller-kingsley",
     name: "Plantain",
     category: "Vegetables",
+    ...logisticsForProduct("Plantain"),
     price: 850,
     inventory: 450,
     status: "active",
@@ -164,6 +210,7 @@ export const products = [
     sellerId: "seller-kingsley",
     name: "Yam",
     category: "Vegetables",
+    ...logisticsForProduct("Yam"),
     price: 2500,
     inventory: 9,
     status: "active",
@@ -175,6 +222,7 @@ export const products = [
     sellerId: "seller-kingsley",
     name: "Honey",
     category: "Other",
+    ...logisticsForProduct("Honey"),
     categoryNote: "Natural Sweeteners",
     price: 5500,
     inventory: 85,
@@ -187,6 +235,7 @@ export const products = [
     sellerId: "seller-amina",
     name: "Sweet Corn",
     category: "Grains & Cereals",
+    ...logisticsForProduct("Sweet Corn"),
     price: 1200,
     inventory: 640,
     status: "active",
@@ -201,6 +250,7 @@ export const products = [
     sellerId: "seller-amina",
     name: "Free Range Eggs",
     category: "Poultry",
+    ...logisticsForProduct("Free Range Eggs"),
     price: 4300,
     inventory: 210,
     status: "active",
@@ -215,6 +265,7 @@ export const products = [
     sellerId: "seller-amina",
     name: "Red Bell Pepper",
     category: "Vegetables",
+    ...logisticsForProduct("Red Bell Pepper"),
     price: 1800,
     inventory: 70,
     status: "active",
@@ -264,45 +315,6 @@ export const discounts = [
     isActive: true,
     usageLimit: 80,
     usageCount: 12,
-  },
-];
-
-export const shippingOptions = [
-  {
-    id: "ship-kingsley-1",
-    sellerId: "seller-kingsley",
-    name: "Lagos Same Day",
-    price: 3500,
-    deliveryEstimate: "Same day",
-    coverageArea: "Lagos mainland and island",
-    enabled: true,
-  },
-  {
-    id: "ship-kingsley-2",
-    sellerId: "seller-kingsley",
-    name: "South West Bulk Delivery",
-    price: 12000,
-    deliveryEstimate: "2-4 business days",
-    coverageArea: "Lagos, Ogun, Oyo, Osun",
-    enabled: true,
-  },
-  {
-    id: "ship-amina-1",
-    sellerId: "seller-amina",
-    name: "Kano Metro Dispatch",
-    price: 2500,
-    deliveryEstimate: "24 hours",
-    coverageArea: "Kano city",
-    enabled: true,
-  },
-  {
-    id: "ship-amina-2",
-    sellerId: "seller-amina",
-    name: "Northern Wholesale Route",
-    price: 18000,
-    deliveryEstimate: "3-5 business days",
-    coverageArea: "Kano, Kaduna, Katsina, Jigawa",
-    enabled: false,
   },
 ];
 
@@ -475,7 +487,7 @@ export const orders = [
     status: "completed" as OrderStatus,
     orderDate: "2024-05-20",
     deliveryDate: "2024-05-22",
-    shippingOptionId: "ship-kingsley-2",
+    shippingQuote: { deliveryRegion: "Outside Abuja", totalChargeableWeightKg: 1250, shippingUnits: 125, locationRate: 10000, shippingFee: 1250000 },
     deliveryAddressId: "baddr-001",
   },
   {
@@ -493,7 +505,7 @@ export const orders = [
     status: "in_transit" as OrderStatus,
     orderDate: "2024-05-23",
     deliveryDate: "2024-05-25",
-    shippingOptionId: "ship-kingsley-1",
+    shippingQuote: { deliveryRegion: "Abuja / FCT", totalChargeableWeightKg: 3600, shippingUnits: 360, locationRate: 5000, shippingFee: 1800000 },
     deliveryAddressId: "baddr-002",
   },
   {
@@ -511,7 +523,7 @@ export const orders = [
     status: "pending" as OrderStatus,
     orderDate: "2024-05-24",
     deliveryDate: "2024-05-26",
-    shippingOptionId: "ship-kingsley-1",
+    shippingQuote: { deliveryRegion: "Outside Abuja", totalChargeableWeightKg: 330, shippingUnits: 33, locationRate: 10000, shippingFee: 330000 },
     deliveryAddressId: "baddr-003",
   },
   {
@@ -529,7 +541,7 @@ export const orders = [
     status: "pending" as OrderStatus,
     orderDate: "2024-05-25",
     deliveryDate: "2024-05-28",
-    shippingOptionId: "ship-kingsley-2",
+    shippingQuote: { deliveryRegion: "Outside Abuja", totalChargeableWeightKg: 20000, shippingUnits: 2000, locationRate: 10000, shippingFee: 20000000 },
     deliveryAddressId: "baddr-004",
   },
   {
@@ -547,7 +559,7 @@ export const orders = [
     status: "completed" as OrderStatus,
     orderDate: "2024-05-18",
     deliveryDate: "2024-05-21",
-    shippingOptionId: "ship-amina-2",
+    shippingQuote: { deliveryRegion: "Outside Abuja", totalChargeableWeightKg: 525, shippingUnits: 53, locationRate: 10000, shippingFee: 530000 },
     deliveryAddressId: "baddr-005",
   },
   {
@@ -565,7 +577,7 @@ export const orders = [
     status: "in_transit" as OrderStatus,
     orderDate: "2024-05-23",
     deliveryDate: "2024-05-26",
-    shippingOptionId: "ship-amina-1",
+    shippingQuote: { deliveryRegion: "Outside Abuja", totalChargeableWeightKg: 132, shippingUnits: 14, locationRate: 10000, shippingFee: 140000 },
     deliveryAddressId: "baddr-006",
   },
   {
@@ -583,7 +595,7 @@ export const orders = [
     status: "pending" as OrderStatus,
     orderDate: "2024-05-25",
     deliveryDate: "2024-05-28",
-    shippingOptionId: "ship-amina-2",
+    shippingQuote: { deliveryRegion: "Outside Abuja", totalChargeableWeightKg: 1200, shippingUnits: 120, locationRate: 10000, shippingFee: 1200000 },
     deliveryAddressId: "baddr-007",
   },
 ];
@@ -964,3 +976,6 @@ function getOrdersBySeller(sellerId: string) {
 function getOrdersByBuyer(buyerId: string) {
   return orders.filter((order) => order.buyerId === buyerId);
 }
+
+
+

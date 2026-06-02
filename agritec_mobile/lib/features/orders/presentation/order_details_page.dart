@@ -223,8 +223,16 @@ class OrderDetailsPage extends ConsumerWidget {
                 children: [
                   _line('Subtotal', money.format(order.subtotal)),
                   _line(
-                    'Shipping (${order.shippingOption.name})',
-                    money.format(order.shippingOption.price),
+                    'Shipping (${order.shippingQuote.deliveryRegion})',
+                    money.format(order.shippingQuote.shippingFee),
+                  ),
+                  _line(
+                    'Chargeable weight',
+                    '${order.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg',
+                  ),
+                  _line(
+                    'Shipping units',
+                    '${order.shippingQuote.shippingUnits} x ${money.format(order.shippingQuote.locationRate)}',
                   ),
                   _line(
                     'Discount${order.discountCode != null ? ' (${order.discountCode})' : ''}',
@@ -510,3 +518,5 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
+
+

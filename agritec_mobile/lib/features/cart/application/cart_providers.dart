@@ -2,16 +2,26 @@ import 'package:agritec_mobile/core/storage/cache_providers.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/domain/home_models.dart';
+import 'package:agritec_mobile/features/product/application/product_details_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class CartNotifier extends Notifier<Map<int, int>> {
-  static const _cacheKeyPrefix = 'cache_cart_v1';
+String cartLineKey(int productId, {String? variantId}) {
+  if (variantId == null || variantId.isEmpty) return '$productId';
+  return '$productId:$variantId';
+}
+
+int productIdFromCartLineKey(String key) {
+  return int.tryParse(key.split(':').first) ?? -1;
+}
+
+class CartNotifier extends Notifier<Map<String, int>> {
+  static const _cacheKeyPrefix = 'cache_cart_v2';
 
   @override
-  Map<int, int> build() {
+  Map<String, int> build() {
     ref.watch(currentBuyerUserIdProvider);
     _hydrate();
-    return <int, int>{};
+    return <String, int>{};
   }
 
   String _cacheKey() {
@@ -19,19 +29,29 @@ class CartNotifier extends Notifier<Map<int, int>> {
     return '$_cacheKeyPrefix-$userId';
   }
 
+  String _legacyCacheKey() {
+    final userId = ref.read(currentBuyerUserIdProvider) ?? 'guest';
+    return 'cache_cart_v1-$userId';
+  }
+
   Future<void> _hydrate() async {
     final cache = await ref.read(localCacheServiceProvider.future);
-    final raw = cache.readJson(_cacheKey());
+    var raw = cache.readJson(_cacheKey());
+    raw ??= cache.readJson(_legacyCacheKey());
     if (raw == null) return;
     final entries = raw['items'];
     if (entries is! List<dynamic>) return;
-    final next = <int, int>{};
+    final next = <String, int>{};
     for (final item in entries) {
       if (item is! Map<String, dynamic>) continue;
-      final productIdRaw = item['productId'];
       final quantityRaw = item['quantity'];
-      if (productIdRaw is num && quantityRaw is num) {
-        next[productIdRaw.toInt()] = quantityRaw.toInt();
+      if (quantityRaw is! num) continue;
+      final lineKeyRaw = item['lineKey'];
+      final productIdRaw = item['productId'];
+      if (lineKeyRaw is String && lineKeyRaw.isNotEmpty) {
+        next[lineKeyRaw] = quantityRaw.toInt();
+      } else if (productIdRaw is num) {
+        next[cartLineKey(productIdRaw.toInt())] = quantityRaw.toInt();
       }
     }
     state = next;
@@ -41,60 +61,69 @@ class CartNotifier extends Notifier<Map<int, int>> {
     final cache = await ref.read(localCacheServiceProvider.future);
     final payload = {
       'items': state.entries
-          .map((entry) => {'productId': entry.key, 'quantity': entry.value})
+          .map(
+            (entry) => {
+              'lineKey': entry.key,
+              'productId': productIdFromCartLineKey(entry.key),
+              'quantity': entry.value,
+            },
+          )
           .toList(),
     };
     await cache.saveJson(_cacheKey(), payload);
   }
 
-  void addProduct(int productId) {
-    final current = state[productId] ?? 0;
-    state = {...state, productId: current + 1};
+  void addProduct(int productId, {String? variantId}) {
+    final key = cartLineKey(productId, variantId: variantId);
+    final current = state[key] ?? 0;
+    state = {...state, key: current + 1};
     _persist();
   }
 
-  void increment(int productId) {
-    final current = state[productId];
+  void increment(String lineKey) {
+    final current = state[lineKey];
     if (current == null) return;
-    state = {...state, productId: current + 1};
+    state = {...state, lineKey: current + 1};
     _persist();
   }
 
-  void decrement(int productId) {
-    final current = state[productId];
+  void decrement(String lineKey) {
+    final current = state[lineKey];
     if (current == null) return;
     if (current <= 1) {
-      remove(productId);
+      remove(lineKey);
       return;
     }
-    state = {...state, productId: current - 1};
+    state = {...state, lineKey: current - 1};
     _persist();
   }
 
-  void remove(int productId) {
+  void remove(String lineKey) {
     final copy = {...state};
-    copy.remove(productId);
+    copy.remove(lineKey);
     state = copy;
     _persist();
   }
 
   void clearSeller(String sellerId, List<HomeProduct> products) {
+    final sellerProductIds = products
+        .where((product) => product.sellerId == sellerId)
+        .map((product) => product.id)
+        .toSet();
     final copy = {...state};
-    for (final product in products) {
-      if (product.sellerId == sellerId) {
-        copy.remove(product.id);
-      }
-    }
+    copy.removeWhere(
+      (lineKey, _) => sellerProductIds.contains(productIdFromCartLineKey(lineKey)),
+    );
     state = copy;
     _persist();
   }
 
-  bool hasProduct(int productId) {
-    return state.containsKey(productId);
+  bool hasProduct(int productId, {String? variantId}) {
+    return state.containsKey(cartLineKey(productId, variantId: variantId));
   }
 }
 
-final cartProvider = NotifierProvider<CartNotifier, Map<int, int>>(
+final cartProvider = NotifierProvider<CartNotifier, Map<String, int>>(
   CartNotifier.new,
 );
 
@@ -121,32 +150,44 @@ class SellerCartGroup {
 
 class CartLineItem {
   const CartLineItem({
+    required this.lineKey,
     required this.product,
     required this.quantity,
     required this.sellerName,
     required this.farmName,
+    this.variantId,
+    this.variantName,
   });
 
+  final String lineKey;
   final HomeProduct product;
   final int quantity;
   final String sellerName;
   final String farmName;
+  final String? variantId;
+  final String? variantName;
 
   int get lineTotal => product.price * quantity;
 
   Map<String, dynamic> toJson() => {
-    'product': product.toJson(),
-    'quantity': quantity,
-    'sellerName': sellerName,
-    'farmName': farmName,
-  };
+        'lineKey': lineKey,
+        'product': product.toJson(),
+        'quantity': quantity,
+        'sellerName': sellerName,
+        'farmName': farmName,
+        'variantId': variantId,
+        'variantName': variantName,
+      };
 
   factory CartLineItem.fromJson(Map<String, dynamic> json) {
     return CartLineItem(
+      lineKey: (json['lineKey'] as String?) ?? '${(json['product'] as Map<String, dynamic>)['id']}',
       product: HomeProduct.fromJson(json['product'] as Map<String, dynamic>),
       quantity: (json['quantity'] as num).toInt(),
       sellerName: json['sellerName'] as String,
       farmName: json['farmName'] as String,
+      variantId: json['variantId'] as String?,
+      variantName: json['variantName'] as String?,
     );
   }
 }
@@ -159,7 +200,9 @@ final cartGroupsProvider = Provider<List<SellerCartGroup>>((ref) {
   final bySeller = <String, List<CartLineItem>>{};
 
   for (final entry in cart.entries) {
-    final productId = entry.key;
+    final lineKey = entry.key;
+    final productId = productIdFromCartLineKey(lineKey);
+    final variantId = lineKey.contains(':') ? lineKey.split(':').last : null;
     final quantity = entry.value;
     HomeProduct? product;
     for (final item in products) {
@@ -169,6 +212,34 @@ final cartGroupsProvider = Provider<List<SellerCartGroup>>((ref) {
       }
     }
     if (product == null) continue;
+
+    ProductVariant? variant;
+    if (variantId != null) {
+      for (final item in ref.watch(productVariantsProvider(product.id))) {
+        if (item.id == variantId) {
+          variant = item;
+          break;
+        }
+      }
+    }
+
+    final cartProduct = variant == null
+        ? product
+        : HomeProduct(
+            id: product.id,
+            sellerId: product.sellerId,
+            name: '${product.name} - ${variant.name}',
+            categorySlug: product.categorySlug,
+            category: product.category,
+            categoryNote: product.categoryNote,
+            price: variant.price,
+            inventory: variant.inventory,
+            images: product.images,
+            hasDiscount: product.hasDiscount,
+            discountLabel: product.discountLabel,
+            logistics: product.logistics,
+          );
+
     var seller = sellers.first;
     var sellerFound = false;
     for (final item in sellers) {
@@ -183,10 +254,13 @@ final cartGroupsProvider = Provider<List<SellerCartGroup>>((ref) {
     bySeller.putIfAbsent(product.sellerId, () => []);
     bySeller[product.sellerId]!.add(
       CartLineItem(
-        product: product,
+        lineKey: lineKey,
+        product: cartProduct,
         quantity: quantity,
         sellerName: seller.name,
         farmName: seller.farmName,
+        variantId: variantId,
+        variantName: variant?.name,
       ),
     );
   }

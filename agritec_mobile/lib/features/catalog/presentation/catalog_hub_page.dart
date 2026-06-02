@@ -150,7 +150,7 @@ class CatalogHubPage extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         subtitle: Text(
-                          '${seller.farmName} • ${money.format(product.price)}',
+                          '${seller.farmName} • ${money.format(product.price)} per ${product.salesUnitLabel}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -283,3 +283,5 @@ class CatalogHubPage extends ConsumerWidget {
     ).push(MaterialPageRoute<void>(builder: (_) => const CatalogListingPage()));
   }
 }
+
+

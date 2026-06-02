@@ -180,15 +180,15 @@ class CartPage extends ConsumerWidget {
                                             quantity: item.quantity,
                                             onIncrement: () => ref
                                                 .read(cartProvider.notifier)
-                                                .increment(item.product.id),
+                                                .increment(item.lineKey),
                                             onDecrement: () => ref
                                                 .read(cartProvider.notifier)
-                                                .decrement(item.product.id),
+                                                .decrement(item.lineKey),
                                           ),
                                           IconButton(
                                             onPressed: () => ref
                                                 .read(cartProvider.notifier)
-                                                .remove(item.product.id),
+                                                .remove(item.lineKey),
                                             icon: const Icon(
                                               Icons.delete_outline_rounded,
                                             ),
@@ -350,3 +350,4 @@ class _QtyControl extends StatelessWidget {
     );
   }
 }
+

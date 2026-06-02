@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { settings } from "@/lib/mock-data";
+import { platformShippingSettings, settings } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
@@ -23,6 +23,7 @@ const mockAdmins: Admin[] = [
 export default function SettingsPage() {
   const [platformFee, setPlatformFee] = useState(settings.platformFee);
   const [commissionRate, setCommissionRate] = useState(settings.commissionRate);
+  const [shippingSettings, setShippingSettings] = useState(platformShippingSettings);
   const [admins, setAdmins] = useState<Admin[]>(mockAdmins);
   const [newAdminUsername, setNewAdminUsername] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
@@ -143,6 +144,55 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+
+      {/* Platform Shipping */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle>Shipping Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            Delivery is calculated by the platform from product logistics metadata. Sellers do not create shipping options.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Abuja/FCT rate per shipping unit</label>
+              <Input type="number" value={shippingSettings.abujaRatePer10Kg} onChange={(e) => setShippingSettings({ ...shippingSettings, abujaRatePer10Kg: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">Applied when buyer city/state is Abuja or FCT.</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Outside Abuja rate per shipping unit</label>
+              <Input type="number" value={shippingSettings.outsideAbujaRatePer10Kg} onChange={(e) => setShippingSettings({ ...shippingSettings, outsideAbujaRatePer10Kg: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">Applied for all delivery addresses outside Abuja/FCT.</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Weight unit size (kg)</label>
+              <Input type="number" value={shippingSettings.weightUnitSizeKg} onChange={(e) => setShippingSettings({ ...shippingSettings, weightUnitSizeKg: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">Shipping units are calculated from total chargeable weight divided by this value.</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Advanced Logistics Settings</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Volumetric divisor is used internally to calculate space-based shipping weight from product dimensions. It normally should not be changed.
+              </p>
+            </div>
+            <div className="space-y-2 max-w-sm">
+              <label className="text-sm font-medium text-foreground">Volumetric divisor</label>
+              <Input type="number" value={shippingSettings.volumetricDivisor} onChange={(e) => setShippingSettings({ ...shippingSettings, volumetricDivisor: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">
+                Formula: volumetric weight = length x width x height / divisor. Chargeable weight is the greater of actual and volumetric weight.
+              </p>
+            </div>
+          </div>
+          <Button onClick={handleSaveConfig} className="w-full md:w-auto gap-2" disabled={isSavingConfig}>
+            {isSavingConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {isSavingConfig ? "Saving..." : isSaved ? "Saved!" : "Save Shipping Settings"}
+          </Button>
+        </CardContent>
+      </Card>
       {/* Admin Management */}
       <Card className="border-border/50">
         <CardHeader>
@@ -252,3 +302,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+

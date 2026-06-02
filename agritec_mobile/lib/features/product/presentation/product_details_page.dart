@@ -42,13 +42,14 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
         )
         .take(10)
         .toList();
-    final inCart = cart.containsKey(product.id);
-    final isSaved =
-        authenticated && ref.watch(wishlistProvider).contains(product.id);
-
     final selectedVariant = variants.isNotEmpty
         ? variants[_selectedVariant.clamp(0, variants.length - 1)]
         : null;
+    final selectedLineKey = cartLineKey(product.id, variantId: selectedVariant?.id);
+    final inCart = cart.containsKey(selectedLineKey);
+    final isSaved =
+        authenticated && ref.watch(wishlistProvider).contains(product.id);
+
     final unitPrice = selectedVariant?.price ?? product.price;
     final money = NumberFormat.currency(
       locale: 'en_NG',
@@ -188,7 +189,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       Row(
                         children: [
                           Text(
-                            money.format(unitPrice),
+                            '${money.format(unitPrice)} per ${product.salesUnitLabel}',
                             style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w700,
@@ -372,7 +373,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                       Row(
                                         children: [
                                           Text(
-                                            money.format(item.price),
+                                            '${money.format(item.price)} per ${item.salesUnitLabel}',
                                             style: const TextStyle(
                                               color: Color(0xFF0D8A66),
                                               fontWeight: FontWeight.w700,
@@ -455,7 +456,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       : () {
                           ref
                               .read(cartProvider.notifier)
-                              .addProduct(product.id);
+                              .addProduct(product.id, variantId: selectedVariant?.id);
                           _showInfo(context, 'Added to cart.');
                         },
                   icon: Icon(
@@ -503,3 +504,7 @@ class _ArrowButton extends StatelessWidget {
     );
   }
 }
+
+
+
+

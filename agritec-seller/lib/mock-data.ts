@@ -16,6 +16,72 @@ export const platformCategories = [
   { slug: "processed-farm-products", label: "Processed Farm Products" },
   { slug: "other", label: "Other" },
 ] as const;
+export const salesUnits = [
+  "PIECE",
+  "KG",
+  "BAG",
+  "BASKET",
+  "CRATE",
+  "BOX",
+  "BUNDLE",
+  "TRAY",
+  "PACK",
+  "LITRE",
+  "ANIMAL",
+  "OTHER",
+] as const;
+
+export const packageTypes = [
+  "PIECE",
+  "BAG",
+  "BASKET",
+  "CRATE",
+  "BOX",
+  "BUNDLE",
+  "LIVE_ANIMAL",
+  "OTHER",
+] as const;
+
+export const platformShippingSettings = {
+  abujaRatePer10Kg: 5000,
+  outsideAbujaRatePer10Kg: 10000,
+  weightUnitSizeKg: 10,
+  volumetricDivisor: 5000,
+};
+
+type SalesUnit = (typeof salesUnits)[number];
+type PackageType = (typeof packageTypes)[number];
+
+export type ProductLogistics = {
+  salesUnit: SalesUnit;
+  unitWeightKg: number;
+  unitLengthCm: number;
+  unitWidthCm: number;
+  unitHeightCm: number;
+  packageType: PackageType;
+};
+
+const logisticsForProduct = (name: string): ProductLogistics => {
+  const key = name.toLowerCase();
+  if (key.includes("tomato")) return { salesUnit: "BASKET", unitWeightKg: 18, unitLengthCm: 55, unitWidthCm: 38, unitHeightCm: 28, packageType: "BASKET" };
+  if (key.includes("rice")) return { salesUnit: "BAG", unitWeightKg: 25, unitLengthCm: 70, unitWidthCm: 45, unitHeightCm: 16, packageType: "BAG" };
+  if (key.includes("wheat")) return { salesUnit: "BAG", unitWeightKg: 20, unitLengthCm: 68, unitWidthCm: 42, unitHeightCm: 14, packageType: "BAG" };
+  if (key.includes("milk")) return { salesUnit: "LITRE", unitWeightKg: 1.1, unitLengthCm: 9, unitWidthCm: 9, unitHeightCm: 24, packageType: "PIECE" };
+  if (key.includes("plantain")) return { salesUnit: "BUNDLE", unitWeightKg: 7, unitLengthCm: 60, unitWidthCm: 32, unitHeightCm: 25, packageType: "BUNDLE" };
+  if (key.includes("yam")) return { salesUnit: "PIECE", unitWeightKg: 2.5, unitLengthCm: 35, unitWidthCm: 14, unitHeightCm: 12, packageType: "PIECE" };
+  if (key.includes("honey")) return { salesUnit: "PACK", unitWeightKg: 1.3, unitLengthCm: 11, unitWidthCm: 11, unitHeightCm: 18, packageType: "BOX" };
+  if (key.includes("corn")) return { salesUnit: "CRATE", unitWeightKg: 15, unitLengthCm: 60, unitWidthCm: 40, unitHeightCm: 25, packageType: "CRATE" };
+  if (key.includes("egg")) return { salesUnit: "TRAY", unitWeightKg: 2.2, unitLengthCm: 30, unitWidthCm: 30, unitHeightCm: 7, packageType: "CRATE" };
+  if (key.includes("pepper")) return { salesUnit: "BASKET", unitWeightKg: 10, unitLengthCm: 45, unitWidthCm: 35, unitHeightCm: 24, packageType: "BASKET" };
+  return { salesUnit: "OTHER", unitWeightKg: 1, unitLengthCm: 10, unitWidthCm: 10, unitHeightCm: 10, packageType: "OTHER" };
+};
+
+export const unitChargeableWeightKg = (logistics: ProductLogistics) => {
+  const volumetricWeightKg =
+    (logistics.unitLengthCm * logistics.unitWidthCm * logistics.unitHeightCm) /
+    platformShippingSettings.volumetricDivisor;
+  return Math.max(logistics.unitWeightKg, volumetricWeightKg);
+};
 
 export const mockTestimonials = [
   {
@@ -579,9 +645,10 @@ export type ProductVariant = {
   price: number;
   inventory: number;
   sku?: string;
+  logistics?: ProductLogistics;
 };
 
-export type SellerProduct = Omit<(typeof mockProducts)[number], "variants"> & {
+export type SellerProduct = Omit<(typeof mockProducts)[number], "variants"> & ProductLogistics & {
   sellerId: string;
   variants?: ProductVariant[];
 };
@@ -604,16 +671,6 @@ export type SellerDiscount = {
   updatedAt: Date;
 };
 
-export type SellerShippingOption = {
-  id: string;
-  sellerId: string;
-  name: string;
-  price: number;
-  deliveryEstimate: string;
-  coverageArea: string;
-  enabled: boolean;
-};
-
 export type SellerMockData = {
   id: string;
   name: string;
@@ -634,7 +691,6 @@ export type SellerMockData = {
   messages: typeof mockMessages;
   notifications: typeof mockNotifications;
   discounts: SellerDiscount[];
-  shippingOptions: SellerShippingOption[];
   wallet: typeof mockWallet;
   transactions: typeof mockTransactions;
   payouts: typeof mockPayouts;
@@ -645,8 +701,10 @@ const withSellerProducts = (sellerId: string, products: typeof mockProducts) =>
   products.map((product) => ({
     ...product,
     sellerId,
+    ...logisticsForProduct(product.name),
     variants: product.variants?.map((variant) => ({
       ...variant,
+      logistics: logisticsForProduct(`${product.name} ${variant.name}`),
       sku: `${sellerId.toUpperCase()}-${product.id}-${variant.id}`,
     })),
   })) as SellerProduct[];
@@ -771,26 +829,6 @@ export const mockSellers: SellerMockData[] = [
         usageCount: 50,
         createdAt: new Date("2026-03-28"),
         updatedAt: new Date("2026-04-20"),
-      },
-    ],
-    shippingOptions: [
-      {
-        id: "ship-kingsley-1",
-        sellerId: "seller-kingsley",
-        name: "Lagos Same Day",
-        price: 3500,
-        deliveryEstimate: "Same day",
-        coverageArea: "Lagos mainland and island",
-        enabled: true,
-      },
-      {
-        id: "ship-kingsley-2",
-        sellerId: "seller-kingsley",
-        name: "South West Bulk Delivery",
-        price: 12000,
-        deliveryEstimate: "2-4 business days",
-        coverageArea: "Lagos, Ogun, Oyo, Osun",
-        enabled: true,
       },
     ],
     wallet: mockWallet,
@@ -953,26 +991,6 @@ export const mockSellers: SellerMockData[] = [
         updatedAt: new Date("2026-05-15"),
       },
     ],
-    shippingOptions: [
-      {
-        id: "ship-amina-1",
-        sellerId: "seller-amina",
-        name: "Kano Metro Dispatch",
-        price: 2500,
-        deliveryEstimate: "24 hours",
-        coverageArea: "Kano city",
-        enabled: true,
-      },
-      {
-        id: "ship-amina-2",
-        sellerId: "seller-amina",
-        name: "Northern Wholesale Route",
-        price: 18000,
-        deliveryEstimate: "3-5 business days",
-        coverageArea: "Kano, Kaduna, Katsina, Jigawa",
-        enabled: false,
-      },
-    ],
     wallet: {
       ...mockWallet,
       sellerId: "seller-amina",
@@ -1106,3 +1124,8 @@ export const getActiveSellerId = () => {
 
 export const getSellerMockData = (sellerId = getActiveSellerId()) =>
   mockSellers.find((seller) => seller.id === sellerId) || mockSellers[0];
+
+
+
+
+

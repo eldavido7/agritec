@@ -150,7 +150,7 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
                                 Row(
                                   children: [
                                     Text(
-                                      money.format(product.price),
+                                      '${money.format(product.price)} per ${product.salesUnitLabel}',
                                       style: const TextStyle(
                                         color: Color(0xFF0D8A66),
                                         fontWeight: FontWeight.w700,
@@ -387,3 +387,5 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
     }
   }
 }
+
+

@@ -14,23 +14,13 @@ import {
   LogOut,
   Sun,
   Moon,
-  Plus,
-  X,
   CreditCard,
   CheckCircle,
-  Edit,
-  Trash2,
-  Truck,
 } from "lucide-react";
 import { AlertTriangle } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import {
-  getSellerMockData,
-  type SellerShippingOption,
-} from "@/lib/mock-data";
-import { formatCurrency } from "@/lib/formatting";
-import { ShippingOptionModal } from "./components/shipping-option-modal";
+import { getSellerMockData } from "@/lib/mock-data";
 
 const AddressMapPicker = dynamic(
   () =>
@@ -63,16 +53,6 @@ export default function SettingsPage() {
   });
   const [isEditPayoutModalOpen, setIsEditPayoutModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [shippingOptions, setShippingOptions] = useState<
-    SellerShippingOption[]
-  >(seller.shippingOptions);
-  const [shippingModalOpen, setShippingModalOpen] = useState(false);
-  const [shippingModalMode, setShippingModalMode] = useState<
-    "create" | "edit"
-  >("create");
-  const [selectedShipping, setSelectedShipping] =
-    useState<SellerShippingOption | null>(null);
-  const [shippingDeleteId, setShippingDeleteId] = useState<string | null>(null);
   const [payoutFormData, setPayoutFormData] = useState({
     bankName: sellerWallet.bankAccount.name,
     accountName: sellerWallet.bankAccount.accountName,
@@ -86,7 +66,6 @@ export default function SettingsPage() {
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "appearance", label: "Appearance", icon: Palette },
     { id: "categories", label: "Categories", icon: User },
-    { id: "shipping", label: "Shipping Options", icon: Truck },
     { id: "banking", label: "Banking & Payouts", icon: CreditCard },
   ];
 
@@ -130,31 +109,6 @@ export default function SettingsPage() {
     }));
   };
 
-  const openCreateShipping = () => {
-    setShippingModalMode("create");
-    setSelectedShipping(null);
-    setShippingModalOpen(true);
-  };
-
-  const openEditShipping = (option: SellerShippingOption) => {
-    setShippingModalMode("edit");
-    setSelectedShipping(option);
-    setShippingModalOpen(true);
-  };
-
-  const saveShippingOption = (option: SellerShippingOption) => {
-    setShippingOptions((current) =>
-      shippingModalMode === "edit"
-        ? current.map((item) => (item.id === option.id ? option : item))
-        : [option, ...current],
-    );
-    setShippingModalOpen(false);
-    toast.success(
-      shippingModalMode === "edit"
-        ? "Shipping option updated"
-        : "Shipping option created",
-    );
-  };
 
   return (
     <div className="space-y-8">
@@ -615,115 +569,6 @@ export default function SettingsPage() {
             </p>
           </Card>
         )}
-
-        {/* Shipping Options Tab */}
-        {activeTab === "shipping" && (
-          <Card className="p-6">
-            <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground">
-                  Shipping Options
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Delivery rules for {seller.farmName} only.
-                </p>
-              </div>
-              <Button onClick={openCreateShipping}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Option
-              </Button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b bg-muted/50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
-                      Name
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
-                      Price
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
-                      Estimate
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
-                      Coverage
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-right text-sm font-semibold text-muted-foreground">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shippingOptions.length > 0 ? (
-                    shippingOptions.map((option) => (
-                      <tr
-                        key={option.id}
-                        className="border-b last:border-b-0 hover:bg-secondary/40"
-                      >
-                        <td className="px-4 py-4 font-medium text-foreground">
-                          {option.name}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-foreground">
-                          {formatCurrency(option.price)}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-muted-foreground">
-                          {option.deliveryEstimate}
-                        </td>
-                        <td className="max-w-[260px] px-4 py-4 text-sm text-muted-foreground">
-                          {option.coverageArea}
-                        </td>
-                        <td className="px-4 py-4">
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                              option.enabled
-                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100"
-                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
-                            }`}
-                          >
-                            {option.enabled ? "Enabled" : "Disabled"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditShipping(option)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive hover:bg-destructive/10"
-                              onClick={() => setShippingDeleteId(option.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-4 py-10 text-center text-muted-foreground"
-                      >
-                        No shipping options have been created for this seller.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        )}
       </motion.div>
 
       {/* Danger Zone */}
@@ -870,50 +715,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <ShippingOptionModal
-        open={shippingModalOpen}
-        onOpenChange={setShippingModalOpen}
-        mode={shippingModalMode}
-        sellerId={seller.id}
-        shippingOption={selectedShipping}
-        onSubmit={saveShippingOption}
-      />
-
-      {shippingDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <Card className="w-full max-w-sm p-6">
-            <h3 className="mb-2 text-lg font-bold text-foreground">
-              Delete Shipping Option?
-            </h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              This removes the option from {seller.farmName}. It will not affect
-              other sellers.
-            </p>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShippingDeleteId(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1"
-                onClick={() => {
-                  setShippingOptions((current) =>
-                    current.filter((option) => option.id !== shippingDeleteId),
-                  );
-                  setShippingDeleteId(null);
-                  toast.success("Shipping option deleted");
-                }}
-              >
-                Delete
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }
+
