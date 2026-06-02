@@ -154,12 +154,12 @@ export default function DashboardPage() {
         <CardContent>
           <div className="grid gap-3 md:grid-cols-2">
             {pendingPayouts.slice(0, 5).map((payout) => (
-              <div key={payout.id} className="rounded-md border border-border/50 p-4">
-                <div className="flex items-center gap-3">
-                  <CreditCard className="h-4 w-4 text-primary" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">{payout.farmerName}</p>
-                    <p className="text-sm text-muted-foreground">
+              <div key={payout.id} className="min-w-0 overflow-hidden rounded-md border border-border/50 p-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <CreditCard className="h-4 w-4 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words font-medium text-foreground">{payout.farmerName}</p>
+                    <p className="break-words text-sm text-muted-foreground">
                       Pending payout of {formatCurrency(payout.amount)}
                     </p>
                   </div>
@@ -167,12 +167,12 @@ export default function DashboardPage() {
               </div>
             ))}
             {unreadMessages.slice(0, 5).map((message) => (
-              <div key={message.id} className="rounded-md border border-border/50 p-4">
-                <div className="flex items-center gap-3">
-                  <MessageCircle className="h-4 w-4 text-secondary" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">{message.senderName}</p>
-                    <p className="truncate text-sm text-muted-foreground">{message.message}</p>
+              <div key={message.id} className="min-w-0 overflow-hidden rounded-md border border-border/50 p-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <MessageCircle className="h-4 w-4 shrink-0 text-secondary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words font-medium text-foreground">{message.senderName}</p>
+                    <p className="break-words text-sm text-muted-foreground">{message.message}</p>
                   </div>
                 </div>
               </div>
@@ -183,3 +183,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

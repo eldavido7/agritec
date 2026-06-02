@@ -162,11 +162,11 @@ export default function Navbar() {
                 <SheetDescription className="sr-only">
                   Access different sections of the dashboard
                 </SheetDescription>
-                <SidebarContent />
+                <SidebarContent onNavigate={() => setMobileMenuOpen(false)} />
               </SheetContent>
             </Sheet>
           </div>
-          <div className="min-w-0">
+          <div className="hidden min-w-0 md:block">
             <h1 className="truncate text-2xl font-bold tracking-tight text-foreground md:text-3xl">
               {pageTitle}
             </h1>
@@ -513,3 +513,7 @@ export default function Navbar() {
     </>
   );
 }
+
+
+
+

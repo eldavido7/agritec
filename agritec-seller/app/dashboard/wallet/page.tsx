@@ -184,7 +184,7 @@ export default function WalletPage() {
   };
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <div className="min-h-screen bg-background">
       <motion.div
         initial="hidden"
         animate="visible"
@@ -193,7 +193,7 @@ export default function WalletPage() {
       >
         {/* Header */}
         <div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">
+          <h1 className="block text-4xl font-bold text-foreground mb-2 md:hidden">
             Wallet & Payouts
           </h1>
           <p className="text-muted-foreground">
@@ -947,6 +947,8 @@ export default function WalletPage() {
           </div>
         )}
       </motion.div>
-    </main>
+    </div>
   );
 }
+
+

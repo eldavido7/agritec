@@ -34,7 +34,7 @@ const navigation = [
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
-export function SidebarContent() {
+export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -45,7 +45,7 @@ export function SidebarContent() {
   
   return (
     <>
-      <Link href="/dashboard" className="group">
+      <Link href="/dashboard" className="group" onClick={onNavigate}>
         <Image
           src="/logo.png"
           alt="AgriTec Logo"
@@ -64,6 +64,7 @@ export function SidebarContent() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 px-4 py-2 rounded-lg transition-colors",
                 isActive
@@ -99,3 +100,7 @@ export default function Sidebar() {
     </aside>
   );
 }
+
+
+
+

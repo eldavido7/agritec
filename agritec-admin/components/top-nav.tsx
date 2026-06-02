@@ -66,8 +66,8 @@ export function TopNav({ user, title }: TopNavProps) {
     <div className="sticky top-0 z-30 w-full border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="flex items-center justify-between px-4 md:px-6 py-4">
         {/* Left Section */}
-        <div className="flex-1 md:flex-initial">
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">{pageTitle}</h1>
+        <div className="min-w-0 flex-1 pl-12 md:flex-initial md:pl-0">
+          <h1 className="truncate text-xl md:text-2xl font-bold text-foreground">{pageTitle}</h1>
         </div>
 
         {/* Center Section - Search (hidden on mobile) */}
@@ -174,3 +174,4 @@ export function TopNav({ user, title }: TopNavProps) {
     </div>
   );
 }
+

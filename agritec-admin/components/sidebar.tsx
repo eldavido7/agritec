@@ -136,7 +136,7 @@ export function Sidebar() {
           variant="outline"
           size="icon"
           onClick={() => setIsOpen(!isOpen)}
-          className="border-sidebar-border bg-sidebar/80 backdrop-blur-sm"
+          className="border-sidebar-border bg-sidebar text-white hover:bg-sidebar/90 hover:text-white backdrop-blur-sm"
         >
           {isOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
         </Button>
@@ -222,3 +222,4 @@ export function Sidebar() {
     </>
   );
 }
+
