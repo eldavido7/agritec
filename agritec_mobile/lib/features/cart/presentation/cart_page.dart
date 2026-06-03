@@ -1,7 +1,7 @@
-import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
-import 'package:agritec_mobile/features/account/application/address_providers.dart';
+﻿import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/account/presentation/addresses_page.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
+import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
 import 'package:agritec_mobile/features/checkout/presentation/checkout_page.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +17,7 @@ class CartPage extends ConsumerWidget {
     final groups = ref.watch(cartGroupsProvider);
     final defaultAddress = ref.watch(defaultAddressProvider);
     final total = ref.watch(cartTotalProvider);
+    final itemCount = ref.watch(cartItemCountProvider);
     final money = NumberFormat.currency(
       locale: 'en_NG',
       symbol: 'NGN ',
@@ -53,217 +54,150 @@ class CartPage extends ConsumerWidget {
             Expanded(
               child: groups.isEmpty
                   ? Center(
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Text(
-                    'Your cart is empty.',
-                    style: TextStyle(color: Color(0xFF65706B)),
-                  ),
-                ),
-              )
+                      child: Container(
+                        margin: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Text(
+                          'Your cart is empty.',
+                          style: TextStyle(color: Color(0xFF65706B)),
+                        ),
+                      ),
+                    )
                   : Column(
                       children: [
                         Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-                      itemCount: groups.length,
-                      itemBuilder: (context, index) {
-                        final group = groups[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Card(
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    group.farmName,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                          child: ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                            itemCount: groups.length,
+                            itemBuilder: (context, index) {
+                              final group = groups[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Card(
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
                                   ),
-                                  Text(
-                                    group.sellerName,
-                                    style: const TextStyle(
-                                      color: Color(0xFF68736D),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  ...group.items.map((item) {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 10,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            child: Image.network(
-                                              item.product.imageUrl,
-                                              width: 54,
-                                              height: 54,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                    return Container(
-                                                      width: 54,
-                                                      height: 54,
-                                                      color: const Color(
-                                                        0xFFE8EEEA,
-                                                      ),
-                                                      alignment:
-                                                          Alignment.center,
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            4,
-                                                          ),
-                                                      child: const Text(
-                                                        'Image unavailable',
-                                                        textAlign:
-                                                            TextAlign.center,
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: TextStyle(
-                                                          fontSize: 8,
-                                                          color: Color(
-                                                            0xFF607069,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          group.farmName,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        Text(
+                                          group.sellerName,
+                                          style: const TextStyle(
+                                            color: Color(0xFF68736D),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        ...group.items.map((item) {
+                                          return Padding(
+                                            padding: const EdgeInsets.only(bottom: 10),
+                                            child: Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                ClipRRect(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  child: Image.network(
+                                                    item.product.imageUrl,
+                                                    width: 54,
+                                                    height: 54,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) {
+                                                      return Container(
+                                                        width: 54,
+                                                        height: 54,
+                                                        color: const Color(0xFFE8EEEA),
+                                                        alignment: Alignment.center,
+                                                        padding: const EdgeInsets.all(4),
+                                                        child: const Text(
+                                                          'Image unavailable',
+                                                          textAlign: TextAlign.center,
+                                                          maxLines: 2,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: TextStyle(
+                                                            fontSize: 8,
+                                                            color: Color(0xFF607069),
                                                           ),
                                                         ),
-                                                      ),
-                                                    );
-                                                  },
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  item.product.name,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
+                                                      );
+                                                    },
                                                   ),
                                                 ),
-                                                Text(
-                                                  money.format(
-                                                    item.product.price,
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        item.product.name,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                                      ),
+                                                      Text(
+                                                        money.format(item.product.price),
+                                                        style: const TextStyle(
+                                                          color: Color(0xFF0D8A66),
+                                                          fontWeight: FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                  style: const TextStyle(
-                                                    color: Color(0xFF0D8A66),
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
+                                                ),
+                                                _QtyControl(
+                                                  quantity: item.quantity,
+                                                  onIncrement: () => ref.read(cartProvider.notifier).increment(item.lineKey),
+                                                  onDecrement: () => ref.read(cartProvider.notifier).decrement(item.lineKey),
+                                                ),
+                                                IconButton(
+                                                  onPressed: () => ref.read(cartProvider.notifier).remove(item.lineKey),
+                                                  icon: const Icon(Icons.delete_outline_rounded),
                                                 ),
                                               ],
                                             ),
-                                          ),
-                                          _QtyControl(
-                                            quantity: item.quantity,
-                                            onIncrement: () => ref
-                                                .read(cartProvider.notifier)
-                                                .increment(item.lineKey),
-                                            onDecrement: () => ref
-                                                .read(cartProvider.notifier)
-                                                .decrement(item.lineKey),
-                                          ),
-                                          IconButton(
-                                            onPressed: () => ref
-                                                .read(cartProvider.notifier)
-                                                .remove(item.lineKey),
-                                            icon: const Icon(
-                                              Icons.delete_outline_rounded,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                                  const Divider(height: 18),
-                                  Row(
-                                    children: [
-                                      const Text(
-                                        'Seller subtotal',
-                                        style: TextStyle(
-                                          color: Color(0xFF6D7772),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Text(
-                                        money.format(group.sellerTotal),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF0D8A66),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        if (!isBuyerAuthenticated(ref)) {
-                                          showBuyerAuthPrompt(
-                                            context,
-                                            ref,
-                                            message:
-                                                'Sign in to complete your order.',
                                           );
-                                          return;
-                                        }
-                                        if (defaultAddress == null) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Please set a default address before checkout.',
+                                        }),
+                                        const Divider(height: 18),
+                                        Row(
+                                          children: [
+                                            const Text(
+                                              'Seller subtotal',
+                                              style: TextStyle(
+                                                color: Color(0xFF6D7772),
+                                                fontWeight: FontWeight.w600,
                                               ),
                                             ),
-                                          );
-                                          context.pushNamed(
-                                            AddressesPage.routeName,
-                                          );
-                                          return;
-                                        }
-                                        context.pushNamed(
-                                          CheckoutPage.routeName,
-                                          pathParameters: {
-                                            'sellerId': group.sellerId,
-                                          },
-                                        );
-                                      },
-                                      child: const Text('Checkout This Seller'),
+                                            const Spacer(),
+                                            Text(
+                                              money.format(group.sellerTotal),
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF0D8A66),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
-                  ),
+                        ),
                         Container(
                           margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
                           padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
@@ -272,14 +206,27 @@ class CartPage extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
+                                  Text(
+                                    '$itemCount item${itemCount == 1 ? '' : 's'}',
+                                    style: const TextStyle(color: Color(0xFF65706B)),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    '${groups.length} seller${groups.length == 1 ? '' : 's'}',
+                                    style: const TextStyle(color: Color(0xFF65706B)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
                                   const Text(
-                                    'Total',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                    'Product subtotal',
+                                    style: TextStyle(fontWeight: FontWeight.w700),
                                   ),
                                   const Spacer(),
                                   Text(
@@ -292,10 +239,39 @@ class CartPage extends ConsumerWidget {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 10),
-                              const Text(
-                                'Checkout per seller is available above.',
-                                style: TextStyle(color: Color(0xFF65706B)),
+                              const SizedBox(height: 8),
+                              // const Text(
+                              //   'All seller groups will be combined into one checkout and one payment.',
+                              //   style: TextStyle(color: Color(0xFF65706B)),
+                              // ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    if (!isBuyerAuthenticated(ref)) {
+                                      showBuyerAuthPrompt(
+                                        context,
+                                        ref,
+                                        message: 'Sign in to complete your order.',
+                                      );
+                                      return;
+                                    }
+                                    if (defaultAddress == null) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Please set a default address before checkout.',
+                                          ),
+                                        ),
+                                      );
+                                      context.pushNamed(AddressesPage.routeName);
+                                      return;
+                                    }
+                                    context.pushNamed(CheckoutPage.routeName);
+                                  },
+                                  child: const Text('Checkout All Items'),
+                                ),
                               ),
                             ],
                           ),
@@ -350,4 +326,3 @@ class _QtyControl extends StatelessWidget {
     );
   }
 }
-

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -70,12 +70,21 @@ export function AddOrderDialog({
   const deliveryState = selectedBuyerAddress?.state || manualState;
   const deliveryCity = selectedBuyerAddress?.city || manualCity;
   const isAbuja = `${deliveryCity} ${deliveryState}`.toLowerCase().includes("abuja") || deliveryState.toLowerCase().includes("fct");
-  const unitVolumetricWeight = selectedProduct
-    ? (selectedProduct.unitLengthCm * selectedProduct.unitWidthCm * selectedProduct.unitHeightCm) /
+  const hasCompleteDimensions =
+    selectedProduct &&
+    [
+      selectedProduct.unitLengthCm,
+      selectedProduct.unitWidthCm,
+      selectedProduct.unitHeightCm,
+    ].every((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
+  const unitVolumetricWeight = hasCompleteDimensions && selectedProduct
+    ? ((selectedProduct.unitLengthCm as number) *
+        (selectedProduct.unitWidthCm as number) *
+        (selectedProduct.unitHeightCm as number)) /
       platformShippingSettings.volumetricDivisor
-    : 0;
+    : null;
   const unitChargeableWeight = selectedProduct
-    ? Math.max(selectedProduct.unitWeightKg, unitVolumetricWeight)
+    ? Math.max(selectedProduct.unitWeightKg, unitVolumetricWeight ?? selectedProduct.unitWeightKg)
     : 0;
   const totalChargeableWeight = unitChargeableWeight * selectedQuantity;
   const locationRate = isAbuja
@@ -84,6 +93,10 @@ export function AddOrderDialog({
   const shippingUnits = Math.max(1, Math.ceil(totalChargeableWeight / platformShippingSettings.weightUnitSizeKg));
   const shippingQuote = {
     deliveryRegion: isAbuja ? "Abuja / FCT" : "Outside Abuja",
+    totalActualWeightKg: (selectedProduct?.unitWeightKg ?? 0) * selectedQuantity,
+    totalVolumetricWeightKg:
+      unitVolumetricWeight != null ? unitVolumetricWeight * selectedQuantity : null,
+    usedVolumetricWeight: unitVolumetricWeight != null,
     totalChargeableWeightKg: totalChargeableWeight,
     shippingUnits,
     locationRate,
@@ -407,6 +420,12 @@ export function AddOrderDialog({
           {selectedProduct ? (
             <div className="rounded-md border border-border/50 bg-muted/40 p-3 text-xs text-muted-foreground">
               <p className="font-medium text-foreground">Platform shipping preview</p>
+              <p>Actual weight: {shippingQuote.totalActualWeightKg.toFixed(1)} kg</p>
+              {shippingQuote.usedVolumetricWeight && shippingQuote.totalVolumetricWeightKg != null ? (
+                <p>Volumetric weight: {shippingQuote.totalVolumetricWeightKg.toFixed(1)} kg</p>
+              ) : (
+                <p>Using actual weight only because one or more dimensions are missing.</p>
+              )}
               <p>{shippingQuote.deliveryRegion} . {shippingQuote.totalChargeableWeightKg.toFixed(1)} kg chargeable . {shippingQuote.shippingUnits} shipping unit(s)</p>
               <p>Estimated shipping fee: NGN {shippingQuote.shippingFee.toLocaleString()}</p>
             </div>
@@ -431,5 +450,6 @@ export function AddOrderDialog({
     </Dialog>
   );
 }
+
 
 

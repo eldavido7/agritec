@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { getSellerMockData, packageTypes, salesUnits, unitChargeableWeightKg, type ProductLogistics, type SellerProduct } from "@/lib/mock-data";
+import { getSellerMockData, hasCompleteDimensions, packageTypes, salesUnits, unitChargeableWeightKg, volumetricWeightKg, type ProductLogistics, type SellerProduct } from "@/lib/mock-data";
 import { Plus, Edit, Trash2, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatCurrency } from "@/lib/formatting";
 import { toast } from "sonner";
@@ -36,11 +36,17 @@ const ITEMS_PER_PAGE = 10;
 
 const defaultLogistics = {
   salesUnit: "PIECE" as const,
-  unitWeightKg: 0,
-  unitLengthCm: 0,
-  unitWidthCm: 0,
-  unitHeightCm: 0,
+  unitWeightKg: undefined,
+  unitLengthCm: undefined,
+  unitWidthCm: undefined,
+  unitHeightCm: undefined,
   packageType: "PIECE" as const,
+};
+
+const parseOptionalNumber = (value: unknown) => {
+  if (value === "" || value === null || value === undefined) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
 type Variant = { id: number; name: string; price: number; inventory: number; logistics?: ProductLogistics };
@@ -153,6 +159,16 @@ export default function ProductsPage() {
       return;
     }
 
+    const unitWeightKg = parseOptionalNumber(formData.unitWeightKg);
+    const unitLengthCm = parseOptionalNumber(formData.unitLengthCm);
+    const unitWidthCm = parseOptionalNumber(formData.unitWidthCm);
+    const unitHeightCm = parseOptionalNumber(formData.unitHeightCm);
+
+    if (unitWeightKg == null) {
+      toast.error("Unit weight is required for shipping calculation");
+      return;
+    }
+
     const basePrice = hasVariants
       ? formData.variants?.[0]?.price || 0
       : formData.price || 0;
@@ -179,10 +195,10 @@ export default function ProductsPage() {
               ],
         variants: hasVariants ? formData.variants : undefined,
         salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
-        unitWeightKg: Number(formData.unitWeightKg) || defaultLogistics.unitWeightKg,
-        unitLengthCm: Number(formData.unitLengthCm) || defaultLogistics.unitLengthCm,
-        unitWidthCm: Number(formData.unitWidthCm) || defaultLogistics.unitWidthCm,
-        unitHeightCm: Number(formData.unitHeightCm) || defaultLogistics.unitHeightCm,
+        unitWeightKg,
+        unitLengthCm,
+        unitWidthCm,
+        unitHeightCm,
         packageType: formData.packageType || defaultLogistics.packageType,
         dateAdded: new Date(),
         sellerId: seller.id,
@@ -200,6 +216,12 @@ export default function ProductsPage() {
                 inventory: totalInventory,
                 status: formData.status || "Active",
                 variants: hasVariants ? formData.variants : undefined,
+                salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
+                unitWeightKg,
+                unitLengthCm,
+                unitWidthCm,
+                unitHeightCm,
+                packageType: formData.packageType || defaultLogistics.packageType,
               }
             : p,
         ),
@@ -567,7 +589,7 @@ export default function ProductsPage() {
                       Edit Product
                     </Button>
                     <Button
-                      className="flex-1 border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                      className="flex-1 border bg-red-100 border-red-200 text-red-700 hover:bg-red-200 dark:border-red-800 dark:text-red-400 dark:bg-red-900/20 dark:hover:bg-red-900/50"
                       onClick={() => handleDelete(selectedProduct.id)}
                     >
                       Delete
@@ -737,6 +759,9 @@ export default function ProductsPage() {
                         <p className="text-xs text-muted-foreground mt-1">
                           Buyers purchase by sales unit. Weight and dimensions are used only by platform delivery pricing.
                         </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Dimensions are optional. If left empty, shipping will be calculated using the product&apos;s weight only.
+                        </p>
                       </div>
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
@@ -761,31 +786,49 @@ export default function ProductsPage() {
                         </div>
                         <div>
                           <label className="text-sm font-medium text-foreground">Unit Weight (kg)</label>
-                          <Input type="number" min="0" step="0.1" placeholder="e.g. 2.5" value={formData.unitWeightKg || ""} onChange={(e) => setFormData({ ...formData, unitWeightKg: Number(e.target.value) })} />
+                          <Input type="number" min="0" step="0.1" placeholder="e.g. 2.5" value={formData.unitWeightKg ?? ""} onChange={(e) => setFormData({ ...formData, unitWeightKg: e.target.value === '' ? undefined : Number(e.target.value) })} />
                         </div>
                         <div>
                           <label className="text-sm font-medium text-foreground">Length (cm)</label>
-                          <Input type="number" min="0" step="0.1" placeholder="e.g. 30" value={formData.unitLengthCm || ""} onChange={(e) => setFormData({ ...formData, unitLengthCm: Number(e.target.value) })} />
+                          <Input type="number" min="0" step="0.1" placeholder="e.g. 30" value={formData.unitLengthCm ?? ""} onChange={(e) => setFormData({ ...formData, unitLengthCm: e.target.value === '' ? undefined : Number(e.target.value) })} />
                         </div>
                         <div>
                           <label className="text-sm font-medium text-foreground">Width (cm)</label>
-                          <Input type="number" min="0" step="0.1" placeholder="e.g. 20" value={formData.unitWidthCm || ""} onChange={(e) => setFormData({ ...formData, unitWidthCm: Number(e.target.value) })} />
+                          <Input type="number" min="0" step="0.1" placeholder="e.g. 20" value={formData.unitWidthCm ?? ""} onChange={(e) => setFormData({ ...formData, unitWidthCm: e.target.value === '' ? undefined : Number(e.target.value) })} />
                         </div>
                         <div>
                           <label className="text-sm font-medium text-foreground">Height (cm)</label>
-                          <Input type="number" min="0" step="0.1" placeholder="e.g. 15" value={formData.unitHeightCm || ""} onChange={(e) => setFormData({ ...formData, unitHeightCm: Number(e.target.value) })} />
+                          <Input type="number" min="0" step="0.1" placeholder="e.g. 15" value={formData.unitHeightCm ?? ""} onChange={(e) => setFormData({ ...formData, unitHeightCm: e.target.value === '' ? undefined : Number(e.target.value) })} />
                         </div>
                       </div>
-                      <p className="text-xs font-medium text-primary">
-                        Chargeable weight preview: {unitChargeableWeightKg({
+                      {(() => {
+                        const logisticsPreview = {
                           salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
-                          unitWeightKg: Number(formData.unitWeightKg) || defaultLogistics.unitWeightKg,
-                          unitLengthCm: Number(formData.unitLengthCm) || defaultLogistics.unitLengthCm,
-                          unitWidthCm: Number(formData.unitWidthCm) || defaultLogistics.unitWidthCm,
-                          unitHeightCm: Number(formData.unitHeightCm) || defaultLogistics.unitHeightCm,
+                          unitWeightKg: parseOptionalNumber(formData.unitWeightKg) || 0,
+                          unitLengthCm: parseOptionalNumber(formData.unitLengthCm),
+                          unitWidthCm: parseOptionalNumber(formData.unitWidthCm),
+                          unitHeightCm: parseOptionalNumber(formData.unitHeightCm),
                           packageType: formData.packageType || defaultLogistics.packageType,
-                        }).toFixed(1)} kg per sales unit
-                      </p>
+                        } satisfies ProductLogistics;
+                        const volumetric = volumetricWeightKg(logisticsPreview);
+                        const chargeable = unitChargeableWeightKg(logisticsPreview);
+                        return (
+                          <div className="space-y-1 text-xs font-medium text-primary">
+                            <p>Actual weight: {logisticsPreview.unitWeightKg > 0 ? `${logisticsPreview.unitWeightKg.toFixed(1)} kg` : "Enter unit weight to preview shipping."}</p>
+                            {hasCompleteDimensions(logisticsPreview) && volumetric != null ? (
+                              <>
+                                <p>Volumetric weight: {volumetric.toFixed(1)} kg</p>
+                                <p>Chargeable weight preview: {chargeable.toFixed(1)} kg per sales unit</p>
+                              </>
+                            ) : logisticsPreview.unitWeightKg > 0 ? (
+                              <>
+                                <p>Using actual weight only</p>
+                                <p>Chargeable weight preview: {chargeable.toFixed(1)} kg per sales unit</p>
+                              </>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Variant Toggle */}
@@ -1032,7 +1075,7 @@ export default function ProductsPage() {
                 Cancel
               </Button>
               <Button
-                className="flex-1 border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                className="flex-1 border bg-red-50 border-red-200 text-red-700 hover:bg-red-200 dark:border-red-800 dark:text-red-400 dark:bg-red-900/20 dark:hover:bg-red-900/50"
                 onClick={confirmDelete}
               >
                 Delete
@@ -1044,6 +1087,11 @@ export default function ProductsPage() {
     </div>
   );
 }
+
+
+
+
+
 
 
 

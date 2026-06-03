@@ -116,7 +116,7 @@ export default function Page() {
 
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-16 px-4 md:px-12 bg-background/80 backdrop-blur-md border-b border-border">
-        <div className="flex max-w-[1350px] mx-auto w-full items-center justify-between">
+        <div className="flex max-w-337.5 mx-auto w-full items-center justify-between">
         <Link
           href="/"
           className="flex items-center gap-2 font-bold text-lg text-foreground"
@@ -176,8 +176,8 @@ export default function Page() {
       <section className="relative min-h-screen md:pt-32 pb-20 px-4 md:px-12 flex items-center overflow-hidden">
         {/* Subtle background gradients */}
         <div className="absolute inset-0 pointer-events-none opacity-50 dark:opacity-20">
-          <div className="absolute top-[20%] right-[10%] w-[500px] h-[500px] bg-[#97C459] blur-[120px] rounded-full opacity-30"></div>
-          <div className="absolute bottom-[10%] left-[5%] w-[400px] h-[400px] bg-[#FAC775] blur-[120px] rounded-full opacity-20"></div>
+          <div className="absolute top-[20%] right-[10%] w-125 h-125 bg-[#97C459] blur-[120px] rounded-full opacity-30"></div>
+          <div className="absolute bottom-[10%] left-[5%] w-100 h-100 bg-[#FAC775] blur-[120px] rounded-full opacity-20"></div>
         </div>
 
         <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
@@ -545,8 +545,8 @@ export default function Page() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Featured tall card */}
-            <div className="bg-[#173404] text-white border border-[#27500A] rounded-[1.5rem] p-8 md:row-span-2 relative overflow-hidden flex flex-col justify-end fade-in-section group">
-              <div className="absolute top-0 left-0 right-0 h-[55%] bg-gradient-to-b from-[#27500A] to-[#173404] opacity-50 pointer-events-none"></div>
+            <div className="bg-[#173404] text-white border border-[#27500A] rounded-3xl p-8 md:row-span-2 relative overflow-hidden flex flex-col justify-end fade-in-section group">
+              <div className="absolute top-0 left-0 right-0 h-[55%] bg-linear-to-b from-[#27500A] to-[#173404] opacity-50 pointer-events-none"></div>
 
               <div className="relative z-10 mb-8 space-y-2">
                 {[
@@ -700,7 +700,7 @@ export default function Page() {
             ].map((feat, i) => (
               <div
                 key={i}
-                className="bg-card border border-border hover:border-border/80 hover:shadow-md rounded-[1.5rem] p-8 transition-all fade-in-section"
+                className="bg-card border border-border hover:border-border/80 hover:shadow-md rounded-3xl p-8 transition-all fade-in-section"
               >
                 <div className="w-11 h-11 rounded-lg bg-muted flex items-center justify-center mb-5">
                   {feat.icon}
@@ -791,7 +791,7 @@ export default function Page() {
           </div>
 
           <div className="fade-in-section delay-200">
-            <div className="bg-gradient-to-br from-[#173404] to-[#0a2405] rounded-[2rem] p-8 text-white relative overflow-hidden shadow-2xl">
+            <div className="bg-linear-to-br from-[#173404] to-[#0a2405] rounded-4xl p-8 text-white relative overflow-hidden shadow-2xl">
               <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/5 rounded-full pointer-events-none"></div>
               <div className="absolute -bottom-16 -left-8 w-56 h-56 bg-white/5 rounded-full pointer-events-none"></div>
 

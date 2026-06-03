@@ -1,7 +1,7 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
-import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
+import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
 import 'package:agritec_mobile/features/orders/application/order_providers.dart';
@@ -41,24 +41,9 @@ class OrderDetailsPage extends ConsumerWidget {
     if (order == null) {
       return const Scaffold(body: Center(child: Text('Order not found.')));
     }
-    final sellerPoint = LatLng(order.sellerLatitude, order.sellerLongitude);
-    final hasBuyerCoords = order.buyerAddress.latitude != null &&
-        order.buyerAddress.longitude != null;
-    final buyerPoint = hasBuyerCoords
-        ? LatLng(order.buyerAddress.latitude!, order.buyerAddress.longitude!)
-        : null;
-    final riderPoint = buyerPoint == null
-        ? null
-        : LatLng(
-            (sellerPoint.latitude + buyerPoint.latitude) / 2,
-            (sellerPoint.longitude + buyerPoint.longitude) / 2,
-          );
-    final seller = ref.watch(homeSellerByIdProvider(order.sellerId));
-    final money = NumberFormat.currency(
-      locale: 'en_NG',
-      symbol: 'NGN ',
-      decimalDigits: 0,
-    );
+    final hasBuyerCoords = order.buyerAddress.latitude != null && order.buyerAddress.longitude != null;
+    final buyerPoint = hasBuyerCoords ? LatLng(order.buyerAddress.latitude!, order.buyerAddress.longitude!) : null;
+    final money = NumberFormat.currency(locale: 'en_NG', symbol: 'NGN ', decimalDigits: 0);
 
     return Scaffold(
       backgroundColor: const Color(0xFFEAF1ED),
@@ -89,161 +74,66 @@ class OrderDetailsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
         children: [
-          if (buyerPoint != null && riderPoint != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: SizedBox(
-                height: 240,
-                child: _RouteMap(
-                  sellerPoint: sellerPoint,
-                  buyerPoint: buyerPoint,
-                  riderPoint: riderPoint,
-                  farmName: order.farmName,
-                  sellerAddress: seller.location,
-                  buyerAddress: order.buyerAddress.fullAddress,
-                ),
-              ),
-            ),
-          if (!hasBuyerCoords)
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ListTile(
-                title: const Text('Map location unavailable'),
-                subtitle: const Text('Edit this address to add map location.'),
-                trailing: TextButton(
-                  onPressed: () => context.goNamed('addresses'),
-                  child: const Text('Edit Address'),
-                ),
-              ),
-            ),
-          const SizedBox(height: 12),
           Card(
             elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    order.farmName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Seller: ${order.sellerName}',
-                    style: const TextStyle(color: Color(0xFF65706B)),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    order.buyerAddress.fullAddress,
-                    style: const TextStyle(color: Color(0xFF65706B)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  for (var i = 0; i < order.timeline.length; i++)
-                    _TimelineRow(
-                      label: order.timeline[i],
-                      isDone: i <= order.currentTimelineStep,
-                      showConnector: i < order.timeline.length - 1,
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Items',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  for (final line in order.items)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${line.product.name} x${line.quantity}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            money.format(line.lineTotal),
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  _line('Subtotal', money.format(order.subtotal)),
-                  _line(
-                    'Shipping (${order.shippingQuote.deliveryRegion})',
-                    money.format(order.shippingQuote.shippingFee),
-                  ),
-                  _line(
-                    'Chargeable weight',
-                    '${order.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg',
-                  ),
-                  _line(
-                    'Shipping units',
-                    '${order.shippingQuote.shippingUnits} x ${money.format(order.shippingQuote.locationRate)}',
-                  ),
-                  _line(
-                    'Discount${order.discountCode != null ? ' (${order.discountCode})' : ''}',
-                    '- ${money.format(order.discountAmount)}',
-                  ),
+                  Text('Payment reference: ${order.paymentReference}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(order.buyerAddress.fullAddress, style: const TextStyle(color: Color(0xFF65706B))),
+                  const SizedBox(height: 10),
+                  _line('Product subtotal', money.format(order.productSubtotal)),
+                  _line('Total shipping fee', money.format(order.totalShippingFee)),
+                  _line('Discount total', '- ${money.format(order.discountTotal)}'),
                   const Divider(),
-                  _line('Order Total', money.format(order.total), bold: true),
+                  _line('Grand total', money.format(order.grandTotal), bold: true),
                 ],
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          for (final group in order.sellerGroups) ...[
+            if (buyerPoint != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
+                    height: 220,
+                    child: _RouteMap(
+                      sellerPoint: LatLng(group.sellerLatitude, group.sellerLongitude),
+                      buyerPoint: buyerPoint,
+                      riderPoint: LatLng(
+                        (group.sellerLatitude + buyerPoint.latitude) / 2,
+                        (group.sellerLongitude + buyerPoint.longitude) / 2,
+                      ),
+                      farmName: group.farmName,
+                      sellerAddress: ref.watch(homeSellerByIdProvider(group.sellerId)).location,
+                      buyerAddress: order.buyerAddress.fullAddress,
+                    ),
+                  ),
+                ),
+              ),
+            if (!hasBuyerCoords)
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  title: const Text('Map location unavailable'),
+                  subtitle: const Text('Edit this address to add map location.'),
+                  trailing: TextButton(
+                    onPressed: () => context.goNamed('addresses'),
+                    child: const Text('Edit Address'),
+                  ),
+                ),
+              ),
+            _SellerGroupCard(group: group, currency: money),
+            const SizedBox(height: 10),
+          ],
         ],
       ),
     );
@@ -254,21 +144,106 @@ class OrderDetailsPage extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-              ),
-            ),
-          ),
+          Expanded(child: Text(label, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400))),
           const SizedBox(width: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+          Text(value, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SellerGroupCard extends StatelessWidget {
+  const _SellerGroupCard({required this.group, required this.currency});
+
+  final SellerOrderGroup group;
+  final NumberFormat currency;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(group.farmName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      Text('Seller: ${group.sellerName}', style: const TextStyle(color: Color(0xFF65706B))),
+                    ],
+                  ),
+                ),
+                Chip(label: Text(group.status)),
+              ],
             ),
-          ),
+            const SizedBox(height: 10),
+            for (var i = 0; i < group.timeline.length; i++)
+              _TimelineRow(
+                label: group.timeline[i],
+                isDone: i <= group.currentTimelineStep,
+                showConnector: i < group.timeline.length - 1,
+              ),
+            const SizedBox(height: 10),
+            const Text('Items', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(height: 8),
+            for (final line in group.items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${line.product.name} x${line.quantity}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(currency.format(line.lineTotal), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            const Divider(),
+            _infoLine('Product subtotal', currency.format(group.productSubtotal)),
+            _infoLine('Shipping (${group.shippingQuote.deliveryRegion})', currency.format(group.shippingFee)),
+            _infoLine('Actual weight', '${group.shippingQuote.totalActualWeightKg.toStringAsFixed(1)} kg'),
+            if (group.shippingQuote.usedVolumetricWeight && group.shippingQuote.totalVolumetricWeightKg != null)
+              _infoLine('Volumetric weight', '${group.shippingQuote.totalVolumetricWeightKg!.toStringAsFixed(1)} kg'),
+            if (!group.shippingQuote.usedVolumetricWeight)
+              const Padding(
+                padding: EdgeInsets.only(top: 2, bottom: 4),
+                child: Text(
+                  'Using actual weight only because one or more dimensions were not provided.',
+                  style: TextStyle(color: Color(0xFF65706B), fontSize: 12),
+                ),
+              ),
+            _infoLine('Chargeable weight', '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg'),
+            _infoLine('Shipping units', '${group.shippingQuote.shippingUnits} x ${currency.format(group.shippingQuote.locationRate)}'),
+            _infoLine('Discount', '- ${currency.format(group.discountTotal)}'),
+            const Divider(),
+            _infoLine('Group total', currency.format(group.groupTotal), bold: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoLine(String label, String value, {bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: Text(label, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400))),
+          const SizedBox(width: 8),
+          Text(value, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
         ],
       ),
     );
@@ -340,29 +315,19 @@ class _RouteMapState extends State<_RouteMap> {
         Marker(
           markerId: const MarkerId('seller'),
           position: widget.sellerPoint,
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueGreen,
-          ),
-          infoWindow: InfoWindow(
-            title: widget.farmName,
-            snippet: widget.sellerAddress,
-          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          infoWindow: InfoWindow(title: widget.farmName, snippet: widget.sellerAddress),
         ),
         Marker(
           markerId: const MarkerId('buyer'),
           position: widget.buyerPoint,
-          infoWindow: InfoWindow(
-            title: 'Delivery Address',
-            snippet: widget.buyerAddress,
-          ),
+          infoWindow: InfoWindow(title: 'Delivery Address', snippet: widget.buyerAddress),
         ),
         Marker(
           markerId: const MarkerId('rider'),
           position: widget.riderPoint,
           anchor: const Offset(0.5, 0.5),
-          icon:
-              _riderIcon ??
-              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          icon: _riderIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
           infoWindow: const InfoWindow(title: 'Rider'),
         ),
       },
@@ -380,24 +345,13 @@ class _RouteMapState extends State<_RouteMap> {
   Future<void> _fitBounds() async {
     final controller = _controller;
     if (controller == null) return;
-    final south = widget.sellerPoint.latitude < widget.buyerPoint.latitude
-        ? widget.sellerPoint.latitude
-        : widget.buyerPoint.latitude;
-    final north = widget.sellerPoint.latitude > widget.buyerPoint.latitude
-        ? widget.sellerPoint.latitude
-        : widget.buyerPoint.latitude;
-    final west = widget.sellerPoint.longitude < widget.buyerPoint.longitude
-        ? widget.sellerPoint.longitude
-        : widget.buyerPoint.longitude;
-    final east = widget.sellerPoint.longitude > widget.buyerPoint.longitude
-        ? widget.sellerPoint.longitude
-        : widget.buyerPoint.longitude;
+    final south = widget.sellerPoint.latitude < widget.buyerPoint.latitude ? widget.sellerPoint.latitude : widget.buyerPoint.latitude;
+    final north = widget.sellerPoint.latitude > widget.buyerPoint.latitude ? widget.sellerPoint.latitude : widget.buyerPoint.latitude;
+    final west = widget.sellerPoint.longitude < widget.buyerPoint.longitude ? widget.sellerPoint.longitude : widget.buyerPoint.longitude;
+    final east = widget.sellerPoint.longitude > widget.buyerPoint.longitude ? widget.sellerPoint.longitude : widget.buyerPoint.longitude;
     await controller.animateCamera(
       CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(south, west),
-          northeast: LatLng(north, east),
-        ),
+        LatLngBounds(southwest: LatLng(south, west), northeast: LatLng(north, east)),
         56,
       ),
     );
@@ -445,15 +399,9 @@ class _RouteMapState extends State<_RouteMap> {
       ),
     );
     painter.layout();
-    painter.paint(
-      canvas,
-      Offset((size - painter.width) / 2, (size - painter.height) / 2),
-    );
+    painter.paint(canvas, Offset((size - painter.width) / 2, (size - painter.height) / 2));
 
-    final image = await recorder.endRecording().toImage(
-      size.toInt(),
-      size.toInt(),
-    );
+    final image = await recorder.endRecording().toImage(size.toInt(), size.toInt());
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(data!.buffer.asUint8List());
   }
@@ -482,9 +430,7 @@ class _TimelineRow extends StatelessWidget {
           child: Column(
             children: [
               Icon(
-                isDone
-                    ? Icons.check_circle_rounded
-                    : Icons.radio_button_unchecked_rounded,
+                isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
                 size: 18,
                 color: isDone ? activeColor : mutedColor,
               ),
@@ -492,9 +438,7 @@ class _TimelineRow extends StatelessWidget {
                 Container(
                   width: 2,
                   height: 22,
-                  color: isDone
-                      ? activeColor.withValues(alpha: 0.45)
-                      : mutedColor.withValues(alpha: 0.4),
+                  color: isDone ? activeColor.withValues(alpha: 0.45) : mutedColor.withValues(alpha: 0.4),
                 ),
             ],
           ),
@@ -506,9 +450,7 @@ class _TimelineRow extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                color: isDone
-                    ? const Color(0xFF1F2D27)
-                    : const Color(0xFF6C7872),
+                color: isDone ? const Color(0xFF1F2D27) : const Color(0xFF6C7872),
                 fontWeight: isDone ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
@@ -518,5 +460,3 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
-
-

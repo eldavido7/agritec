@@ -1,7 +1,7 @@
-import 'package:agritec_mobile/features/orders/application/order_providers.dart';
-import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
+﻿import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
+import 'package:agritec_mobile/features/orders/application/order_providers.dart';
 import 'package:agritec_mobile/features/orders/presentation/order_details_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,11 +40,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       );
     }
     final orders = ref.watch(ordersProvider);
-    final money = NumberFormat.currency(
-      locale: 'en_NG',
-      symbol: 'NGN ',
-      decimalDigits: 0,
-    );
+    final money = NumberFormat.currency(locale: 'en_NG', symbol: 'NGN ', decimalDigits: 0);
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -74,15 +70,10 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           ? const Center(child: Text('No orders yet.'))
           : Builder(
               builder: (context) {
-                final totalPages = (orders.length / OrdersPage._pageSize)
-                    .ceil()
-                    .clamp(1, 9999);
+                final totalPages = (orders.length / OrdersPage._pageSize).ceil().clamp(1, 9999);
                 final safePage = _page.clamp(1, totalPages);
                 final start = (safePage - 1) * OrdersPage._pageSize;
-                final end = (start + OrdersPage._pageSize).clamp(
-                  0,
-                  orders.length,
-                );
+                final end = (start + OrdersPage._pageSize).clamp(0, orders.length);
                 final pageItems = orders.sublist(start, end);
                 return Column(
                   children: [
@@ -94,9 +85,37 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                           final order = pageItems[index];
                           return Card(
                             child: ListTile(
-                              title: Text(order.farmName),
-                              subtitle: Text(order.id),
-                              trailing: Text(money.format(order.total)),
+                              contentPadding: const EdgeInsets.all(14),
+                              title: Text('Order ${order.id}'),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Text('Payment ref: ${order.paymentReference}'),
+                                  Text('${order.sellerGroups.length} seller group${order.sellerGroups.length == 1 ? '' : 's'} • ${order.itemCount} item${order.itemCount == 1 ? '' : 's'}'),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      for (final group in order.sellerGroups)
+                                        Chip(
+                                          label: Text('${group.farmName}: ${group.status}'),
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              trailing: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(money.format(order.grandTotal), style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 4),
+                                  Text(order.statusSummary, style: const TextStyle(color: Color(0xFF65706B), fontSize: 12)),
+                                ],
+                              ),
                               onTap: () => context.goNamed(
                                 OrderDetailsPage.routeName,
                                 pathParameters: {'orderId': order.id},
@@ -114,15 +133,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                             Text('Page $safePage/$totalPages'),
                             const Spacer(),
                             IconButton(
-                              onPressed: safePage > 1
-                                  ? () => setState(() => _page = safePage - 1)
-                                  : null,
+                              onPressed: safePage > 1 ? () => setState(() => _page = safePage - 1) : null,
                               icon: const Icon(Icons.chevron_left_rounded),
                             ),
                             IconButton(
-                              onPressed: safePage < totalPages
-                                  ? () => setState(() => _page = safePage + 1)
-                                  : null,
+                              onPressed: safePage < totalPages ? () => setState(() => _page = safePage + 1) : null,
                               icon: const Icon(Icons.chevron_right_rounded),
                             ),
                           ],

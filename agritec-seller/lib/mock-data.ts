@@ -1,4 +1,4 @@
-// Mock data for AgriTec Farmer Dashboard
+﻿// Mock data for AgriTec Farmer Dashboard
 
 export const platformCategories = [
   { slug: "vegetables", label: "Vegetables" },
@@ -55,9 +55,9 @@ type PackageType = (typeof packageTypes)[number];
 export type ProductLogistics = {
   salesUnit: SalesUnit;
   unitWeightKg: number;
-  unitLengthCm: number;
-  unitWidthCm: number;
-  unitHeightCm: number;
+  unitLengthCm?: number;
+  unitWidthCm?: number;
+  unitHeightCm?: number;
   packageType: PackageType;
 };
 
@@ -68,19 +68,35 @@ const logisticsForProduct = (name: string): ProductLogistics => {
   if (key.includes("wheat")) return { salesUnit: "BAG", unitWeightKg: 20, unitLengthCm: 68, unitWidthCm: 42, unitHeightCm: 14, packageType: "BAG" };
   if (key.includes("milk")) return { salesUnit: "LITRE", unitWeightKg: 1.1, unitLengthCm: 9, unitWidthCm: 9, unitHeightCm: 24, packageType: "PIECE" };
   if (key.includes("plantain")) return { salesUnit: "BUNDLE", unitWeightKg: 7, unitLengthCm: 60, unitWidthCm: 32, unitHeightCm: 25, packageType: "BUNDLE" };
-  if (key.includes("yam")) return { salesUnit: "PIECE", unitWeightKg: 2.5, unitLengthCm: 35, unitWidthCm: 14, unitHeightCm: 12, packageType: "PIECE" };
-  if (key.includes("honey")) return { salesUnit: "PACK", unitWeightKg: 1.3, unitLengthCm: 11, unitWidthCm: 11, unitHeightCm: 18, packageType: "BOX" };
+  if (key.includes("yam")) return { salesUnit: "PIECE", unitWeightKg: 2.5, packageType: "PIECE" };
+  if (key.includes("honey")) return { salesUnit: "PACK", unitWeightKg: 1.3, packageType: "BOX" };
   if (key.includes("corn")) return { salesUnit: "CRATE", unitWeightKg: 15, unitLengthCm: 60, unitWidthCm: 40, unitHeightCm: 25, packageType: "CRATE" };
   if (key.includes("egg")) return { salesUnit: "TRAY", unitWeightKg: 2.2, unitLengthCm: 30, unitWidthCm: 30, unitHeightCm: 7, packageType: "CRATE" };
   if (key.includes("pepper")) return { salesUnit: "BASKET", unitWeightKg: 10, unitLengthCm: 45, unitWidthCm: 35, unitHeightCm: 24, packageType: "BASKET" };
-  return { salesUnit: "OTHER", unitWeightKg: 1, unitLengthCm: 10, unitWidthCm: 10, unitHeightCm: 10, packageType: "OTHER" };
+  return { salesUnit: "OTHER", unitWeightKg: 1, packageType: "OTHER" };
+};
+
+export const hasCompleteDimensions = (logistics: ProductLogistics) =>
+  [logistics.unitLengthCm, logistics.unitWidthCm, logistics.unitHeightCm].every(
+    (value) => typeof value === "number" && Number.isFinite(value) && value > 0,
+  );
+
+export const volumetricWeightKg = (logistics: ProductLogistics) => {
+  if (!hasCompleteDimensions(logistics)) return null;
+  return (
+    ((logistics.unitLengthCm as number) *
+      (logistics.unitWidthCm as number) *
+      (logistics.unitHeightCm as number)) /
+    platformShippingSettings.volumetricDivisor
+  );
 };
 
 export const unitChargeableWeightKg = (logistics: ProductLogistics) => {
-  const volumetricWeightKg =
-    (logistics.unitLengthCm * logistics.unitWidthCm * logistics.unitHeightCm) /
-    platformShippingSettings.volumetricDivisor;
-  return Math.max(logistics.unitWeightKg, volumetricWeightKg);
+  const volumetricWeight = volumetricWeightKg(logistics);
+  if (volumetricWeight == null || !Number.isFinite(volumetricWeight) || volumetricWeight <= 0) {
+    return logistics.unitWeightKg;
+  }
+  return Math.max(logistics.unitWeightKg, volumetricWeight);
 };
 
 export const mockTestimonials = [
@@ -1124,6 +1140,7 @@ export const getActiveSellerId = () => {
 
 export const getSellerMockData = (sellerId = getActiveSellerId()) =>
   mockSellers.find((seller) => seller.id === sellerId) || mockSellers[0];
+
 
 
 

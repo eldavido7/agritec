@@ -1,4 +1,4 @@
-import 'package:agritec_mobile/core/storage/cache_providers.dart';
+﻿import 'package:agritec_mobile/core/storage/cache_providers.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/domain/home_models.dart';
@@ -102,6 +102,11 @@ class CartNotifier extends Notifier<Map<String, int>> {
     final copy = {...state};
     copy.remove(lineKey);
     state = copy;
+    _persist();
+  }
+
+  void clear() {
+    state = <String, int>{};
     _persist();
   }
 
@@ -240,16 +245,14 @@ final cartGroupsProvider = Provider<List<SellerCartGroup>>((ref) {
             logistics: product.logistics,
           );
 
-    var seller = sellers.first;
-    var sellerFound = false;
+    HomeSeller? seller;
     for (final item in sellers) {
       if (item.id == product.sellerId) {
         seller = item;
-        sellerFound = true;
         break;
       }
     }
-    if (!sellerFound) continue;
+    if (seller == null) continue;
 
     bySeller.putIfAbsent(product.sellerId, () => []);
     bySeller[product.sellerId]!.add(
@@ -266,7 +269,21 @@ final cartGroupsProvider = Provider<List<SellerCartGroup>>((ref) {
   }
 
   return bySeller.entries.map((entry) {
-    final seller = sellers.firstWhere((s) => s.id == entry.key);
+    HomeSeller? seller;
+    for (final item in sellers) {
+      if (item.id == entry.key) {
+        seller = item;
+        break;
+      }
+    }
+    seller ??= const HomeSeller(
+      id: 'unknown',
+      name: 'Unknown Seller',
+      farmName: 'Unknown Farm',
+      location: '',
+      rating: 0,
+      isVerified: false,
+    );
     return SellerCartGroup(
       sellerId: seller.id,
       sellerName: seller.name,
@@ -280,3 +297,5 @@ final cartTotalProvider = Provider<int>((ref) {
   final groups = ref.watch(cartGroupsProvider);
   return groups.fold(0, (sum, group) => sum + group.sellerTotal);
 });
+
+
