@@ -1,6 +1,7 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:agritec_mobile/core/maps/google_places_service.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
@@ -19,8 +20,8 @@ class AddressesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
-        title: 'Saved Addresses',
-        message: 'Sign in to manage delivery addresses.',
+        title: ref.tr('addresses.title'),
+        message: ref.tr('auth.required.addresses'),
         onBack: () {
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
@@ -46,7 +47,7 @@ class AddressesPage extends ConsumerWidget {
             }
           },
         ),
-        title: const Text('Saved Addresses'),
+        title: Text(ref.tr('addresses.title')),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
@@ -66,9 +67,9 @@ class AddressesPage extends ConsumerWidget {
               color: const Color(0xFF136A43),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Text(
-              'Manage delivery locations and default checkout address.',
-              style: TextStyle(
+            child: Text(
+              ref.tr('addresses.intro'),
+              style: const TextStyle(
                 color: Color(0xFFD4EADF),
                 fontWeight: FontWeight.w600,
               ),
@@ -80,7 +81,7 @@ class AddressesPage extends ConsumerWidget {
             child: ElevatedButton.icon(
               onPressed: () => _openAddressDialog(context, ref),
               icon: const Icon(Icons.add_rounded),
-              label: const Text('Add Address'),
+              label: Text(ref.tr('addresses.add')),
             ),
           ),
           const SizedBox(height: 10),
@@ -100,10 +101,10 @@ class AddressesPage extends ConsumerWidget {
                   children: [
                     Text(address.fullAddress),
                     if (address.isManualAddress || !address.hasMapLocation)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
                         child: Text(
-                          'Map location missing',
+                          ref.tr('addresses.mapMissing'),
                           style: TextStyle(
                             color: Color(0xFF9A6C00),
                             fontWeight: FontWeight.w600,
@@ -134,17 +135,17 @@ class AddressesPage extends ConsumerWidget {
                   },
                   itemBuilder: (context) => [
                     if (!address.isDefault)
-                      const PopupMenuItem<String>(
+                      PopupMenuItem<String>(
                         value: 'default',
-                        child: Text('Mark as default address'),
+                        child: Text(ref.tr('addresses.markAsDefault')),
                       ),
-                    const PopupMenuItem<String>(
+                    PopupMenuItem<String>(
                       value: 'edit',
-                      child: Text('Edit'),
+                      child: Text(ref.tr('common.edit')),
                     ),
-                    const PopupMenuItem<String>(
+                    PopupMenuItem<String>(
                       value: 'delete',
-                      child: Text('Delete'),
+                      child: Text(ref.tr('common.delete')),
                     ),
                   ],
                 ),
@@ -217,7 +218,7 @@ class AddressesPage extends ConsumerWidget {
         setDialogState?.call(() {
           suggestions.clear();
           loadingSuggestions = false;
-          suggestionError = 'Could not load suggestions.';
+          suggestionError = ref.tr('addresses.loadSuggestionsError');
         });
       }
     }
@@ -291,7 +292,7 @@ class AddressesPage extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              address == null ? 'Add Address' : 'Edit Address',
+                              address == null ? ref.tr('addresses.addDialogTitle') : ref.tr('addresses.editDialogTitle'),
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
@@ -313,14 +314,14 @@ class AddressesPage extends ConsumerWidget {
                           children: [
                             TextField(
                               controller: labelController,
-                              decoration: const InputDecoration(
-                                labelText: 'Label (Home, Office)',
+                              decoration: InputDecoration(
+                                labelText: ref.tr('addresses.labelField'),
                               ),
                             ),
                             TextField(
                               controller: fullAddressController,
-                              decoration: const InputDecoration(
-                                labelText: 'Delivery Address',
+                              decoration: InputDecoration(
+                                labelText: ref.tr('addresses.deliveryAddressField'),
                               ),
                               onChanged: (value) {
                                 selectedDisplayName = null;
@@ -335,10 +336,10 @@ class AddressesPage extends ConsumerWidget {
                             ),
                             const SizedBox(height: 8),
                             if (loadingSuggestions)
-                              const Align(
+                              Align(
                                 alignment: Alignment.centerLeft,
                                 child: Text(
-                                  'Loading suggestions...',
+                                  ref.tr('addresses.loadingSuggestions'),
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Color(0xFF65706B),
@@ -360,10 +361,10 @@ class AddressesPage extends ConsumerWidget {
                                 suggestionError == null &&
                                 fullAddressController.text.trim().length >= 3 &&
                                 suggestions.isEmpty)
-                              const Align(
+                              Align(
                                 alignment: Alignment.centerLeft,
                                 child: Text(
-                                  'No suggestions found.',
+                                  ref.tr('addresses.noSuggestions'),
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Color(0xFF65706B),
@@ -401,7 +402,7 @@ class AddressesPage extends ConsumerWidget {
                                           if (details == null) {
                                             setDialogState?.call(() {
                                               suggestionError =
-                                                  'Could not load place details.';
+                                                  ref.tr('addresses.placeDetailsError');
                                             });
                                             return;
                                           }
@@ -436,12 +437,12 @@ class AddressesPage extends ConsumerWidget {
                               ),
                             ),
                             if (loadingReverseGeocode)
-                              const Padding(
-                                padding: EdgeInsets.only(top: 6),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
                                 child: Align(
                                   alignment: Alignment.centerLeft,
                                   child: Text(
-                                    'Updating address from selected pin...',
+                                    ref.tr('addresses.updatingFromPin'),
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Color(0xFF65706B),
@@ -452,8 +453,8 @@ class AddressesPage extends ConsumerWidget {
                             const SizedBox(height: 8),
                             TextField(
                               controller: latController,
-                              decoration: const InputDecoration(
-                                labelText: 'Latitude',
+                              decoration: InputDecoration(
+                                labelText: ref.tr('addresses.latitude'),
                               ),
                               keyboardType:
                                   const TextInputType.numberWithOptions(
@@ -462,8 +463,8 @@ class AddressesPage extends ConsumerWidget {
                             ),
                             TextField(
                               controller: lngController,
-                              decoration: const InputDecoration(
-                                labelText: 'Longitude',
+                              decoration: InputDecoration(
+                                labelText: ref.tr('addresses.longitude'),
                               ),
                               keyboardType:
                                   const TextInputType.numberWithOptions(
@@ -472,8 +473,8 @@ class AddressesPage extends ConsumerWidget {
                             ),
                             TextField(
                               controller: landmarkController,
-                              decoration: const InputDecoration(
-                                labelText: 'Landmark (optional)',
+                              decoration: InputDecoration(
+                                labelText: ref.tr('addresses.landmark'),
                               ),
                             ),
                             CheckboxListTile(
@@ -481,7 +482,7 @@ class AddressesPage extends ConsumerWidget {
                               contentPadding: EdgeInsets.zero,
                               onChanged: (value) =>
                                   setState(() => makeDefault = value ?? false),
-                              title: const Text('Set as default'),
+                              title: Text(ref.tr('addresses.setDefault')),
                             ),
                           ],
                         ),
@@ -495,7 +496,7 @@ class AddressesPage extends ConsumerWidget {
                             child: OutlinedButton(
                               onPressed: () =>
                                   Navigator.of(dialogContext).pop(),
-                              child: const Text('Cancel'),
+                              child: Text(ref.tr('common.cancel')),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -513,9 +514,9 @@ class AddressesPage extends ConsumerWidget {
                                     lat == null ||
                                     lng == null) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
+                                    SnackBar(
                                       content: Text(
-                                        'Please fill all required fields.',
+                                        ref.tr('addresses.fillRequired'),
                                       ),
                                     ),
                                   );
@@ -555,7 +556,7 @@ class AddressesPage extends ConsumerWidget {
                                 }
                                 Navigator.of(dialogContext).pop();
                               },
-                              child: const Text('Save'),
+                              child: Text(ref.tr('common.save')),
                             ),
                           ),
                         ],
@@ -573,3 +574,6 @@ class AddressesPage extends ConsumerWidget {
     mapController?.dispose();
   }
 }
+
+
+

@@ -1,4 +1,6 @@
-import 'package:agritec_mobile/features/home/application/home_providers.dart';
+﻿import 'package:agritec_mobile/features/home/application/home_providers.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/seller/presentation/seller_details_page.dart';
 import 'package:flutter/material.dart';
@@ -43,7 +45,7 @@ class _SellersPageState extends ConsumerState<SellersPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sellers'),
+        title: Text(ref.tr('sellers.title')),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
@@ -62,8 +64,8 @@ class _SellersPageState extends ConsumerState<SellersPage> {
               children: [
                 Expanded(
                   child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search sellers',
+                    decoration: InputDecoration(
+                      hintText: ref.tr('sellers.searchHint'),
                       prefixIcon: Icon(Icons.search_rounded),
                     ),
                     onChanged: (value) => setState(() {
@@ -96,10 +98,10 @@ class _SellersPageState extends ConsumerState<SellersPage> {
           ),
           Expanded(
             child: filtered.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'No sellers match this filter.',
-                      style: TextStyle(color: Color(0xFF65706B)),
+                      ref.tr('sellers.empty'),
+                      style: const TextStyle(color: Color(0xFF65706B)),
                     ),
                   )
                 : ListView.separated(
@@ -145,7 +147,7 @@ class _SellersPageState extends ConsumerState<SellersPage> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Row(
                 children: [
-                  Text('Page ${currentPage + 1} of $pageCount'),
+                  Text(trFormat(ref, 'sellers.pageOf', {'page': '', 'total': ''})),
                   const Spacer(),
                   IconButton(
                     onPressed: currentPage > 0
@@ -167,3 +169,6 @@ class _SellersPageState extends ConsumerState<SellersPage> {
     );
   }
 }
+
+
+

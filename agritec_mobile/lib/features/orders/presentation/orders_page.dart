@@ -1,4 +1,5 @@
 ﻿import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
 import 'package:agritec_mobile/features/orders/application/order_providers.dart';
@@ -26,8 +27,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   Widget build(BuildContext context) {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
-        title: 'My Orders',
-        message: 'Sign in to view your order history.',
+        title: ref.tr('orders.title'),
+        message: ref.tr('auth.required.orders'),
         onBack: () {
           final nav = Navigator.of(context);
           if (nav.canPop()) {
@@ -55,7 +56,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
             context.go(MainShellPage.routePath);
           },
         ),
-        title: const Text('My Orders'),
+        title: Text(ref.tr('orders.title')),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
@@ -67,7 +68,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
         ],
       ),
       body: orders.isEmpty
-          ? const Center(child: Text('No orders yet.'))
+          ? Center(child: Text(ref.tr('orders.empty')))
           : Builder(
               builder: (context) {
                 final totalPages = (orders.length / OrdersPage._pageSize).ceil().clamp(1, 9999);
@@ -91,7 +92,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const SizedBox(height: 4),
-                                  Text('Payment ref: ${order.paymentReference}'),
+                                  Text('${ref.tr('orders.paymentRef')}: ${order.paymentReference}'),
                                   Text('${order.sellerGroups.length} seller group${order.sellerGroups.length == 1 ? '' : 's'} • ${order.itemCount} item${order.itemCount == 1 ? '' : 's'}'),
                                   const SizedBox(height: 6),
                                   Wrap(
@@ -130,7 +131,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                         child: Row(
                           children: [
-                            Text('Page $safePage/$totalPages'),
+                            Text('${ref.tr('orders.page')} $safePage/$totalPages'),
                             const Spacer(),
                             IconButton(
                               onPressed: safePage > 1 ? () => setState(() => _page = safePage - 1) : null,
@@ -150,3 +151,5 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     );
   }
 }
+
+

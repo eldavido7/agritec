@@ -1,4 +1,5 @@
-import 'package:agritec_mobile/features/notifications/application/notification_providers.dart';
+﻿import 'package:agritec_mobile/features/notifications/application/notification_providers.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
@@ -26,8 +27,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   Widget build(BuildContext context) {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
-        title: 'Notifications',
-        message: 'Sign in to receive and view account-specific notifications.',
+        title: ref.tr('notifications.title'),
+        message: ref.tr('auth.required.notifications'),
         onBack: () {
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
@@ -53,7 +54,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             }
           },
         ),
-        title: const Text('Notifications'),
+        title: Text(ref.tr('notifications.title')),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
@@ -66,15 +67,15 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             onPressed: notifications.any((notification) => !notification.read)
                 ? () => ref.read(notificationsProvider.notifier).markAllRead()
                 : null,
-            child: const Text('Mark all read'),
+            child: Text(ref.tr('notifications.markAllRead')),
           ),
         ],
       ),
       body: notifications.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
-                'No notifications yet.',
-                style: TextStyle(color: Color(0xFF65706B)),
+                ref.tr('notifications.empty'),
+                style: const TextStyle(color: Color(0xFF65706B)),
               ),
             )
           : Builder(
@@ -99,17 +100,17 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         color: const Color(0xFF136A43),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.notifications_active_rounded,
                             color: Colors.white,
                           ),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Updates on orders, messages, and account activity',
-                              style: TextStyle(
+                              ref.tr('notifications.hero'),
+                              style: const TextStyle(
                                 color: Color(0xFFD4EADF),
                                 fontWeight: FontWeight.w600,
                               ),
@@ -181,7 +182,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                         child: Row(
                           children: [
-                            Text('Page $safePage/$totalPages'),
+                            Text('${ref.tr('orders.page')} $safePage/$totalPages'),
                             const Spacer(),
                             IconButton(
                               onPressed: safePage > 1
@@ -251,3 +252,5 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     };
   }
 }
+
+

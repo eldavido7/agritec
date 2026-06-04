@@ -1,4 +1,6 @@
-import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
+﻿import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
@@ -60,7 +62,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFEAF1ED),
       appBar: AppBar(
-        title: const Text('Product Details'),
+        title: Text(ref.tr('product.details')),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
@@ -75,7 +77,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                 showBuyerAuthPrompt(
                   context,
                   ref,
-                  message: 'Sign in to save products to your wishlist.',
+                  message: ref.tr('auth.required.wishlist'),
                 );
                 return;
               }
@@ -182,7 +184,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${seller.farmName} • ${product.category}',
+                        '${seller.farmName} â€¢ ${product.category}',
                         style: const TextStyle(color: Color(0xFF5C6862)),
                       ),
                       const SizedBox(height: 10),
@@ -221,7 +223,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       if (discount != null && discount.isActive) ...[
                         const SizedBox(height: 8),
                         Text(
-                          'Use code ${discount.code.toLowerCase()} in checkout for ${discount.description.toLowerCase()}.',
+                          trFormat(ref, 'product.useCode', {'code': discount.code.toLowerCase(), 'description': discount.description.toLowerCase()}),
                           style: const TextStyle(color: Color(0xFF6C7872)),
                         ),
                       ],
@@ -229,8 +231,8 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  'Variants',
+                Text(
+                  ref.tr('product.variants'),
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
                 ),
                 const SizedBox(height: 8),
@@ -249,13 +251,13 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                 if (selectedVariant != null) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Stock: ${selectedVariant.inventory}',
+                    '${ref.tr('product.stock')}: ${selectedVariant.inventory}',
                     style: const TextStyle(color: Color(0xFF6C7872)),
                   ),
                 ],
                 const SizedBox(height: 18),
-                const Text(
-                  'Seller',
+                Text(
+                  ref.tr('product.seller'),
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
                 ),
                 const SizedBox(height: 8),
@@ -271,7 +273,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       ),
                     ),
                     title: Text(seller.farmName),
-                    subtitle: Text('${seller.name} • ${seller.location}'),
+                    subtitle: Text('${seller.name} â€¢ ${seller.location}'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -290,14 +292,14 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  'Related Products',
+                Text(
+                  ref.tr('product.related'),
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
                 ),
                 const SizedBox(height: 8),
                 if (relatedProducts.isEmpty)
-                  const Text(
-                    'No related products yet.',
+                  Text(
+                    ref.tr('product.noneRelated'),
                     style: TextStyle(color: Color(0xFF6C7872)),
                   )
                 else
@@ -393,7 +395,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                                                     BorderRadius.circular(999),
                                               ),
                                               child: Text(
-                                                item.discountLabel ?? 'Offer',
+                                                item.discountLabel ?? ref.tr('product.offer'),
                                                 style: const TextStyle(
                                                   fontSize: 11,
                                                   fontWeight: FontWeight.w700,
@@ -430,7 +432,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       showBuyerAuthPrompt(
                         context,
                         ref,
-                        message: 'Sign in to contact sellers.',
+                        message: ref.tr('auth.required.contactSellers'),
                       );
                       return;
                     }
@@ -445,7 +447,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                     Navigator.of(context).pop();
                   },
                   icon: const Icon(Icons.chat_bubble_outline_rounded),
-                  label: const Text('Chat Seller'),
+                  label: Text(ref.tr('product.chatSeller')),
                 ),
               ),
               const SizedBox(width: 10),
@@ -457,14 +459,14 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                           ref
                               .read(cartProvider.notifier)
                               .addProduct(product.id, variantId: selectedVariant?.id);
-                          _showInfo(context, 'Added to cart.');
+                          _showInfo(context, ref.tr('product.addedMessage'));
                         },
                   icon: Icon(
                     inCart
                         ? Icons.check_circle_rounded
                         : Icons.add_shopping_cart_rounded,
                   ),
-                  label: Text(inCart ? 'Added to Cart' : 'Add to Cart'),
+                  label: Text(inCart ? ref.tr('product.addedToCart') : ref.tr('product.addToCart')),
                 ),
               ),
             ],
@@ -504,6 +506,8 @@ class _ArrowButton extends StatelessWidget {
     );
   }
 }
+
+
 
 
 

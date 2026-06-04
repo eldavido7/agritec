@@ -1,4 +1,5 @@
-import 'package:agritec_mobile/features/home/application/home_providers.dart';
+﻿import 'package:agritec_mobile/features/home/application/home_providers.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/product/presentation/product_details_page.dart';
 import 'package:flutter/material.dart';
@@ -26,7 +27,7 @@ class SellerDetailsPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFEAF1ED),
       appBar: AppBar(
-        title: const Text('Seller Details'),
+        title: Text(ref.tr('seller.details')),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
@@ -87,17 +88,17 @@ class SellerDetailsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Products',
+          Text(
+            ref.tr('seller.products'),
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           if (products.isEmpty)
-            const Card(
+            Card(
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Text(
-                  'No products available from this seller yet.',
+                  ref.tr('seller.noProducts'),
                   style: TextStyle(color: Color(0xFF65706B)),
                 ),
               ),
@@ -132,8 +133,8 @@ class SellerDetailsPage extends ConsumerWidget {
                             color: const Color(0xFFE8EEEA),
                             alignment: Alignment.center,
                             padding: const EdgeInsets.all(4),
-                            child: const Text(
-                              'Image unavailable',
+                            child: Text(
+                              ref.tr('common.imageUnavailable'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 8,
@@ -167,3 +168,7 @@ class SellerDetailsPage extends ConsumerWidget {
     );
   }
 }
+
+
+
+

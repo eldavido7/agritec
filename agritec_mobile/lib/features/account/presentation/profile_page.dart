@@ -1,4 +1,4 @@
-import 'package:agritec_mobile/core/localization/app_locale.dart';
+﻿import 'package:agritec_mobile/core/localization/app_locale.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/core/localization/localization_controller.dart';
 import 'package:agritec_mobile/features/account/application/account_settings_provider.dart';
@@ -50,7 +50,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
         title: ref.tr('profile.title'),
-        message: 'Sign in to manage your account, orders, wishlist, and addresses.',
+        message: ref.tr('auth.required.account'),
         onBack: () => ref.read(shellTabProvider.notifier).setTab(0),
       );
     }
@@ -232,7 +232,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 children: [
                   ListTile(
                     leading: const Icon(Icons.notifications_rounded),
-                    title: const Text('Notifications'),
+                    title: Text(ref.tr('notifications.title')),
                     trailing: unreadNotifications > 0
                         ? Badge(label: Text('$unreadNotifications'))
                         : const Icon(Icons.chevron_right_rounded),
@@ -284,3 +284,5 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 }
+
+

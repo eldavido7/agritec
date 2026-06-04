@@ -1,6 +1,7 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/startup/application/startup_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -108,7 +109,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
                 child: TextButton(
                   onPressed: _finishOnboarding,
-                  child: const Text('Skip'),
+                  child: Text(ref.tr('onboarding.skip')),
                 ),
               ),
             ),
@@ -157,7 +158,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: Text(isLast ? 'Start Shopping' : 'Next'),
+                    child: Text(isLast ? ref.tr('onboarding.startShopping') : ref.tr('onboarding.next')),
                   ),
                 ],
               ),
@@ -169,7 +170,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
   }
 }
 
-class _OnboardingCard extends StatelessWidget {
+class _OnboardingCard extends ConsumerWidget {
   const _OnboardingCard({
     required this.slide,
     required this.index,
@@ -181,7 +182,7 @@ class _OnboardingCard extends StatelessWidget {
   final Animation<double> animation;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 6, 18, 6),
@@ -213,6 +214,7 @@ class _OnboardingCard extends StatelessWidget {
                           slide: slide,
                           index: index,
                           t: animation.value,
+                          addToCartLabel: ref.tr('product.addToCart'),
                         ),
                         child: const SizedBox.expand(),
                       );
@@ -233,11 +235,13 @@ class _OnboardingScenePainter extends CustomPainter {
     required this.slide,
     required this.index,
     required this.t,
+    required this.addToCartLabel,
   });
 
   final _SlideData slide;
   final int index;
   final double t;
+  final String addToCartLabel;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -365,7 +369,7 @@ class _OnboardingScenePainter extends CustomPainter {
     _sellerCard(canvas, paint, Rect.fromLTWH(95, 231 + pulse * 3, 126, 45), 'BG', 'Bello Grains', '2 variants', false);
     paint.color = const Color(0xFF1A8C55);
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(100, 284 + pulse * 3, 116, 24), const Radius.circular(10)), paint);
-    _drawText(canvas, 'Add to Cart', Offset(158, 300 + pulse * 3), 9, Colors.white, FontWeight.w800, center: true);
+    _drawText(canvas, addToCartLabel, Offset(158, 300 + pulse * 3), 9, Colors.white, FontWeight.w800, center: true);
 
     paint.color = const Color(0xFFF5C842);
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(210, 80 - pulse * 5, 82, 44), const Radius.circular(10)), paint);
@@ -565,3 +569,8 @@ class _SlideData {
   final Color muted;
   final _SceneKind scene;
 }
+
+
+
+
+

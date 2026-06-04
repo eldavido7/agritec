@@ -148,8 +148,8 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
                 context,
                 ref,
                 message: value == 2
-                    ? 'Sign in to contact sellers and support.'
-                    : 'Sign in to manage your account, orders, wishlist, and addresses.',
+                    ? ref.tr('auth.required.contactSupport')
+                    : ref.tr('auth.required.account'),
               );
               return;
             }
@@ -220,3 +220,6 @@ class _CartIconWithBadge extends StatelessWidget {
     );
   }
 }
+
+
+

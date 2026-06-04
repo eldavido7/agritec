@@ -1,7 +1,8 @@
-import 'package:agritec_mobile/features/auth/presentation/sign_in_page.dart';
+﻿import 'package:agritec_mobile/features/auth/presentation/sign_in_page.dart';
 import 'package:agritec_mobile/features/auth/presentation/sign_up_page.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/startup/application/startup_controller.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,7 +19,7 @@ Future<void> showBuyerAuthPrompt(
   BuildContext context,
   WidgetRef ref, {
   required String message,
-  String title = 'Welcome to Agritec',
+  String? title,
 }) async {
   await ref.read(startupControllerProvider.notifier).markGuestPromptShown();
   if (!context.mounted) return;
@@ -43,7 +44,7 @@ Future<void> showBuyerAuthPrompt(
             ),
             const SizedBox(height: 12),
             Text(
-              title,
+              title ?? ref.tr('auth.welcomeTitle'),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
             ),
@@ -68,7 +69,7 @@ Future<void> showBuyerAuthPrompt(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text('Sign In'),
+                child: Text(ref.tr('auth.signIn')),
               ),
             ),
             const SizedBox(height: 8),
@@ -79,12 +80,12 @@ Future<void> showBuyerAuthPrompt(
                   Navigator.of(dialogContext).pop();
                   context.push(SignUpPage.routePath);
                 },
-                child: const Text('Create Account'),
+                child: Text(ref.tr('auth.createAccount')),
               ),
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Continue as Guest'),
+              child: Text(ref.tr('auth.continueGuest')),
             ),
           ],
         ),
@@ -104,9 +105,8 @@ Future<void> showWelcomeGuestPromptIfNeeded(
   await showBuyerAuthPrompt(
     context,
     ref,
-    title: 'Welcome to Agritec',
-    message:
-        'Browse fresh produce from marketplace sellers as a guest. Create an account to save products, manage addresses, chat with sellers, checkout, and track orders.',
+    title: ref.tr('auth.welcomeTitle'),
+    message: ref.tr('auth.guestWelcomeMessage'),
   );
 }
 
@@ -173,12 +173,12 @@ class AuthRequiredPage extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text('Sign In'),
+                  child: Text(ref.tr('auth.signIn')),
                 ),
               ),
               TextButton(
                 onPressed: () => context.push(SignUpPage.routePath),
-                child: const Text('Create Account'),
+                child: Text(ref.tr('auth.createAccount')),
               ),
             ],
           ),
@@ -187,3 +187,5 @@ class AuthRequiredPage extends ConsumerWidget {
     );
   }
 }
+
+

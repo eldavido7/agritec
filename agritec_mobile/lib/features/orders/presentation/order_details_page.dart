@@ -1,6 +1,7 @@
 ﻿import 'dart:ui' as ui;
 
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
@@ -25,8 +26,8 @@ class OrderDetailsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
-        title: 'Order Details',
-        message: 'Sign in to view your order history.',
+        title: ref.tr('orderDetails.title'),
+        message: ref.tr('auth.required.orders'),
         onBack: () {
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
@@ -39,7 +40,7 @@ class OrderDetailsPage extends ConsumerWidget {
     }
     final order = ref.watch(orderByIdProvider(orderId));
     if (order == null) {
-      return const Scaffold(body: Center(child: Text('Order not found.')));
+      return Scaffold(body: Center(child: Text(ref.tr('orderDetails.notFound'))));
     }
     final hasBuyerCoords = order.buyerAddress.latitude != null && order.buyerAddress.longitude != null;
     final buyerPoint = hasBuyerCoords ? LatLng(order.buyerAddress.latitude!, order.buyerAddress.longitude!) : null;
@@ -82,15 +83,15 @@ class OrderDetailsPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Payment reference: ${order.paymentReference}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Text('${ref.tr('orderDetails.paymentReference')}: ${order.paymentReference}', style: const TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   Text(order.buyerAddress.fullAddress, style: const TextStyle(color: Color(0xFF65706B))),
                   const SizedBox(height: 10),
-                  _line('Product subtotal', money.format(order.productSubtotal)),
-                  _line('Total shipping fee', money.format(order.totalShippingFee)),
-                  _line('Discount total', '- ${money.format(order.discountTotal)}'),
+                  _line(ref.tr('orderDetails.productSubtotal'), money.format(order.productSubtotal)),
+                  _line(ref.tr('orderDetails.totalShippingFee'), money.format(order.totalShippingFee)),
+                  _line(ref.tr('orderDetails.discountTotal'), '- ${money.format(order.discountTotal)}'),
                   const Divider(),
-                  _line('Grand total', money.format(order.grandTotal), bold: true),
+                  _line(ref.tr('orderDetails.grandTotal'), money.format(order.grandTotal), bold: true),
                 ],
               ),
             ),
@@ -123,11 +124,11 @@ class OrderDetailsPage extends ConsumerWidget {
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: ListTile(
-                  title: const Text('Map location unavailable'),
-                  subtitle: const Text('Edit this address to add map location.'),
+                  title: Text(ref.tr('orderDetails.mapUnavailable')),
+                  subtitle: Text(ref.tr('orderDetails.mapUnavailableHint')),
                   trailing: TextButton(
                     onPressed: () => context.goNamed('addresses'),
-                    child: const Text('Edit Address'),
+                    child: Text(ref.tr('orderDetails.editAddress')),
                   ),
                 ),
               ),
@@ -153,14 +154,14 @@ class OrderDetailsPage extends ConsumerWidget {
   }
 }
 
-class _SellerGroupCard extends StatelessWidget {
+class _SellerGroupCard extends ConsumerWidget {
   const _SellerGroupCard({required this.group, required this.currency});
 
   final SellerOrderGroup group;
   final NumberFormat currency;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -176,7 +177,7 @@ class _SellerGroupCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(group.farmName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                      Text('Seller: ${group.sellerName}', style: const TextStyle(color: Color(0xFF65706B))),
+                      Text('${ref.tr('orderDetails.sellerLabel')}: ${group.sellerName}', style: const TextStyle(color: Color(0xFF65706B))),
                     ],
                   ),
                 ),
@@ -191,7 +192,7 @@ class _SellerGroupCard extends StatelessWidget {
                 showConnector: i < group.timeline.length - 1,
               ),
             const SizedBox(height: 10),
-            const Text('Items', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            Text(ref.tr('orderDetails.itemsLabel'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             const SizedBox(height: 8),
             for (final line in group.items)
               Padding(
@@ -211,24 +212,24 @@ class _SellerGroupCard extends StatelessWidget {
                 ),
               ),
             const Divider(),
-            _infoLine('Product subtotal', currency.format(group.productSubtotal)),
+            _infoLine(ref.tr('orderDetails.productSubtotal'), currency.format(group.productSubtotal)),
             _infoLine('Shipping (${group.shippingQuote.deliveryRegion})', currency.format(group.shippingFee)),
-            _infoLine('Actual weight', '${group.shippingQuote.totalActualWeightKg.toStringAsFixed(1)} kg'),
+            _infoLine(ref.tr('orderDetails.actualWeight'), '${group.shippingQuote.totalActualWeightKg.toStringAsFixed(1)} kg'),
             if (group.shippingQuote.usedVolumetricWeight && group.shippingQuote.totalVolumetricWeightKg != null)
-              _infoLine('Volumetric weight', '${group.shippingQuote.totalVolumetricWeightKg!.toStringAsFixed(1)} kg'),
+              _infoLine(ref.tr('orderDetails.volumetricWeight'), '${group.shippingQuote.totalVolumetricWeightKg!.toStringAsFixed(1)} kg'),
             if (!group.shippingQuote.usedVolumetricWeight)
-              const Padding(
-                padding: EdgeInsets.only(top: 2, bottom: 4),
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 4),
                 child: Text(
-                  'Using actual weight only because one or more dimensions were not provided.',
+                  ref.tr('orderDetails.actualWeightOnly'),
                   style: TextStyle(color: Color(0xFF65706B), fontSize: 12),
                 ),
               ),
-            _infoLine('Chargeable weight', '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg'),
-            _infoLine('Shipping units', '${group.shippingQuote.shippingUnits} x ${currency.format(group.shippingQuote.locationRate)}'),
-            _infoLine('Discount', '- ${currency.format(group.discountTotal)}'),
+            _infoLine(ref.tr('orderDetails.chargeableWeight'), '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg'),
+            _infoLine(ref.tr('orderDetails.shippingUnits'), '${group.shippingQuote.shippingUnits} x ${currency.format(group.shippingQuote.locationRate)}'),
+            _infoLine(ref.tr('orderDetails.discount'), '- ${currency.format(group.discountTotal)}'),
             const Divider(),
-            _infoLine('Group total', currency.format(group.groupTotal), bold: true),
+            _infoLine(ref.tr('orderDetails.groupTotal'), currency.format(group.groupTotal), bold: true),
           ],
         ),
       ),
@@ -460,3 +461,6 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
+
+
+

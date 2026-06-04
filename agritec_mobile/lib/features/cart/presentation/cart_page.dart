@@ -1,4 +1,5 @@
 ﻿import 'package:agritec_mobile/features/account/application/address_providers.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/account/presentation/addresses_page.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
@@ -44,8 +45,8 @@ class CartPage extends ConsumerWidget {
                     icon: const Icon(Icons.arrow_back_rounded),
                   ),
                   const SizedBox(width: 4),
-                  const Text(
-                    'Cart',
+                  Text(
+                    ref.tr('cart.title'),
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
                   ),
                 ],
@@ -61,8 +62,8 @@ class CartPage extends ConsumerWidget {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Text(
-                          'Your cart is empty.',
+                        child: Text(
+                          ref.tr('cart.empty'),
                           style: TextStyle(color: Color(0xFF65706B)),
                         ),
                       ),
@@ -122,8 +123,8 @@ class CartPage extends ConsumerWidget {
                                                         color: const Color(0xFFE8EEEA),
                                                         alignment: Alignment.center,
                                                         padding: const EdgeInsets.all(4),
-                                                        child: const Text(
-                                                          'Image unavailable',
+                                                        child: Text(
+                                                          ref.tr('common.imageUnavailable'),
                                                           textAlign: TextAlign.center,
                                                           maxLines: 2,
                                                           overflow: TextOverflow.ellipsis,
@@ -173,8 +174,8 @@ class CartPage extends ConsumerWidget {
                                         const Divider(height: 18),
                                         Row(
                                           children: [
-                                            const Text(
-                                              'Seller subtotal',
+                                            Text(
+                                              ref.tr('cart.sellerSubtotal'),
                                               style: TextStyle(
                                                 color: Color(0xFF6D7772),
                                                 fontWeight: FontWeight.w600,
@@ -224,8 +225,8 @@ class CartPage extends ConsumerWidget {
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Text(
-                                    'Product subtotal',
+                                  Text(
+                                    ref.tr('cart.productSubtotal'),
                                     style: TextStyle(fontWeight: FontWeight.w700),
                                   ),
                                   const Spacer(),
@@ -253,15 +254,15 @@ class CartPage extends ConsumerWidget {
                                       showBuyerAuthPrompt(
                                         context,
                                         ref,
-                                        message: 'Sign in to complete your order.',
+                                        message: ref.tr('auth.required.checkout'),
                                       );
                                       return;
                                     }
                                     if (defaultAddress == null) {
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
+                                        SnackBar(
                                           content: Text(
-                                            'Please set a default address before checkout.',
+                                            ref.tr('cart.addressRequired'),
                                           ),
                                         ),
                                       );
@@ -270,7 +271,7 @@ class CartPage extends ConsumerWidget {
                                     }
                                     context.pushNamed(CheckoutPage.routeName);
                                   },
-                                  child: const Text('Checkout All Items'),
+                                  child: Text(ref.tr('cart.checkoutAll')),
                                 ),
                               ),
                             ],
@@ -326,3 +327,5 @@ class _QtyControl extends StatelessWidget {
     );
   }
 }
+
+

@@ -1,4 +1,5 @@
-import 'package:agritec_mobile/features/product/presentation/product_details_page.dart';
+﻿import 'package:agritec_mobile/features/product/presentation/product_details_page.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/wishlist/application/wishlist_providers.dart';
@@ -22,7 +23,7 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
         title: 'Wishlist',
-        message: 'Sign in to save products to your wishlist.',
+        message: ref.tr('auth.required.wishlist'),
         onBack: () {
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
@@ -41,7 +42,7 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Wishlist'),
+        title: Text(ref.tr('profile.wishlist')),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
@@ -177,3 +178,6 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
     );
   }
 }
+
+
+

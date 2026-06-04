@@ -1,5 +1,6 @@
-import 'package:agritec_mobile/features/catalog/application/catalog_providers.dart';
+﻿import 'package:agritec_mobile/features/catalog/application/catalog_providers.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
@@ -110,8 +111,8 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
                                     color: const Color(0xFFE8EEEA),
                                     alignment: Alignment.center,
                                     padding: const EdgeInsets.all(6),
-                                    child: const Text(
-                                      'Image unavailable',
+                                    child: Text(
+                                      ref.tr('common.imageUnavailable'),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       textAlign: TextAlign.center,
@@ -170,7 +171,7 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
                                           ),
                                         ),
                                         child: Text(
-                                          product.discountLabel ?? 'Offer',
+                                          product.discountLabel ?? ref.tr('product.offer'),
                                           style: const TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w700,
@@ -189,8 +190,7 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
                                 showBuyerAuthPrompt(
                                   context,
                                   ref,
-                                  message:
-                                      'Sign in to save products to your wishlist.',
+                                  message: ref.tr('auth.required.wishlist'),
                                 );
                                 return;
                               }
@@ -364,7 +364,7 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
                         ? const Color(0xFF0D8A66)
                         : const Color(0xFF7A8580),
                   ),
-                  title: Text(category.label),
+                  title: Text(trCategory(ref, category.slug, category.label)),
                 );
               }),
             ],
@@ -387,5 +387,8 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
     }
   }
 }
+
+
+
 
 

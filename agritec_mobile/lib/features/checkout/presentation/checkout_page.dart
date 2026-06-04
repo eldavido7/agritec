@@ -1,6 +1,8 @@
 ﻿import 'dart:async';
 
 import 'package:agritec_mobile/core/logistics/logistics_models.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/core/logistics/shipping_calculator.dart';
 import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
@@ -37,8 +39,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   Widget build(BuildContext context) {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
-        title: 'Checkout',
-        message: 'Sign in to complete your order.',
+        title: ref.tr('checkout.title'),
+        message: ref.tr('auth.required.checkout'),
         onBack: () {
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
@@ -52,7 +54,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
     final groups = ref.watch(cartGroupsProvider);
     if (groups.isEmpty) {
-      return const Scaffold(body: Center(child: Text('Your cart is empty.')));
+      return Scaffold(body: Center(child: Text(ref.tr('checkout.empty'))));
     }
 
     final addresses = ref.watch(addressBookProvider);
@@ -84,7 +86,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFEAF1ED),
       appBar: AppBar(
-        title: const Text('Checkout'),
+        title: Text(ref.tr('checkout.title')),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
@@ -106,13 +108,13 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Select Address', style: TextStyle(fontWeight: FontWeight.w700)),
+                  Text(ref.tr('checkout.selectAddress'), style: TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
                   if (address != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
-                        'Selected: ${address.fullAddress}',
+                        trFormat(ref, 'checkout.selectedAddress', {'address': address.fullAddress}),
                         softWrap: true,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
@@ -123,7 +125,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     isExpanded: true,
                     key: ValueKey<String?>('addr-${_selectedAddressId ?? address?.id}'),
                     initialValue: address?.id,
-                    hint: const Text('Choose a delivery address'),
+                    hint: Text(ref.tr('checkout.chooseAddress')),
                     items: [
                       for (final item in addresses)
                         DropdownMenuItem(
@@ -174,7 +176,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           const SizedBox(height: 8),
           OutlinedButton(
             onPressed: _isValidatingDiscount ? null : () => _applyDiscount(groups),
-            child: Text(_isValidatingDiscount ? 'Validating...' : 'Apply Coupon'),
+            child: Text(_isValidatingDiscount ? ref.tr('checkout.validating') : ref.tr('checkout.applyCoupon')),
           ),
           if (_discountMessage != null) ...[
             const SizedBox(height: 6),
@@ -194,14 +196,14 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
-                  _line('Overall product subtotal', money.format(productSubtotal)),
-                  _line('Total shipping fee', money.format(totalShippingFee)),
+                  _line(ref.tr('checkout.overallProductSubtotal'), money.format(productSubtotal)),
+                  _line(ref.tr('checkout.totalShippingFee'), money.format(totalShippingFee)),
                   _line(
-                    'Discount total${_appliedDiscountCode != null ? ' ($_appliedDiscountCode)' : ''}',
+                    '${ref.tr('checkout.discountTotal')}${_appliedDiscountCode != null ? ' ($_appliedDiscountCode)' : ''}',
                     '- ${money.format(discountTotal)}',
                   ),
                   const Divider(),
-                  _line('Final total payable', money.format(grandTotal), bold: true),
+                  _line(ref.tr('checkout.finalTotalPayable'), money.format(grandTotal), bold: true),
                 ],
               ),
             ),
@@ -220,7 +222,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   : () async {
                       setState(() => _isPaying = true);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Waiting for Paystack payment confirmation...')),
+                        SnackBar(content: Text(ref.tr('checkout.waitingPayment'))),
                       );
                       await Future<void>.delayed(const Duration(seconds: 2));
                       if (!mounted) return;
@@ -255,7 +257,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  'Your combined marketplace order has been placed successfully.',
+                                  ref.tr('checkout.paymentSuccessBody'),
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(color: Color(0xFF65706B)),
                                 ),
@@ -269,7 +271,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
-                                    child: const Text('View Order'),
+                                    child: Text(ref.tr('checkout.viewOrder')),
                                   ),
                                 ),
                               ],
@@ -280,7 +282,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       if (!context.mounted) return;
                       context.pushNamed(OrderDetailsPage.routeName, pathParameters: {'orderId': order.id});
                     },
-              child: Text(_isPaying ? 'Confirming Payment...' : 'Confirm & Pay Once'),
+              child: Text(_isPaying ? ref.tr('checkout.confirmingPayment') : ref.tr('checkout.confirmPayOnce')),
             ),
           ),
         ],
@@ -294,7 +296,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       setState(() {
         _discountsBySeller = const {};
         _appliedDiscountCode = null;
-        _discountMessage = 'Enter a discount code first.';
+        _discountMessage = ref.tr('checkout.enterDiscountFirst');
       });
       return;
     }
@@ -332,12 +334,12 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       if (!matched) {
         _discountsBySeller = const {};
         _appliedDiscountCode = null;
-        _discountMessage = 'Code is invalid for the items in this checkout.';
+        _discountMessage = ref.tr('checkout.invalidCode');
         return;
       }
       _discountsBySeller = nextDiscounts;
       _appliedDiscountCode = code;
-      _discountMessage = 'Discount applied successfully across eligible seller groups.';
+      _discountMessage = ref.tr('checkout.discountApplied');
     });
   }
 
@@ -371,7 +373,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   }
 }
 
-class _SellerCheckoutCard extends StatelessWidget {
+class _SellerCheckoutCard extends ConsumerWidget {
   const _SellerCheckoutCard({
     required this.group,
     required this.shippingQuote,
@@ -385,7 +387,7 @@ class _SellerCheckoutCard extends StatelessWidget {
   final NumberFormat currency;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final groupTotal = group.sellerTotal + shippingQuote.shippingFee - discountAmount;
     return Card(
       elevation: 0,
@@ -416,21 +418,21 @@ class _SellerCheckoutCard extends StatelessWidget {
                 ),
               ),
             const Divider(),
-            _breakdownLine('Subtotal', currency.format(group.sellerTotal)),
-            _breakdownLine('Shipping fee', currency.format(shippingQuote.shippingFee)),
+            _breakdownLine(ref.tr('checkout.subtotal'), currency.format(group.sellerTotal)),
+            _breakdownLine(ref.tr('checkout.shippingFee'), currency.format(shippingQuote.shippingFee)),
             if (shippingQuote.usedVolumetricWeight && shippingQuote.totalVolumetricWeightKg != null)
-              _breakdownLine('Chargeable weight', '${shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg'),
+              _breakdownLine(ref.tr('checkout.chargeableWeight'), '${shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg'),
             if (!shippingQuote.usedVolumetricWeight)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 4),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  'Using actual weight only for this seller group.',
-                  style: TextStyle(color: Color(0xFF65706B), fontSize: 12),
+                  ref.tr('checkout.actualWeightOnly'),
+                  style: const TextStyle(color: Color(0xFF65706B), fontSize: 12),
                 ),
               ),
-            _breakdownLine('Discount', '- ${currency.format(discountAmount)}'),
+            _breakdownLine(ref.tr('checkout.discount'), '- ${currency.format(discountAmount)}'),
             const Divider(),
-            _breakdownLine('Group total', currency.format(groupTotal), bold: true),
+            _breakdownLine(ref.tr('checkout.groupTotal'), currency.format(groupTotal), bold: true),
           ],
         ),
       ),
@@ -450,4 +452,7 @@ class _SellerCheckoutCard extends StatelessWidget {
     );
   }
 }
+
+
+
 

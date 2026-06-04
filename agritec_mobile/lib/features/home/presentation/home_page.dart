@@ -1,4 +1,5 @@
-import 'package:agritec_mobile/core/localization/app_localizations.dart';
+﻿import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/core/ui/category_visuals.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
@@ -28,9 +29,9 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
     final greeting = switch (now.hour) {
-      >= 5 && < 12 => 'GOOD MORNING',
-      >= 12 && < 17 => 'GOOD AFTERNOON',
-      _ => 'GOOD EVENING',
+      >= 5 && < 12 => ref.tr('home.greeting.morning'),
+      >= 12 && < 17 => ref.tr('home.greeting.afternoon'),
+      _ => ref.tr('home.greeting.evening'),
     };
     final authenticated = isBuyerAuthenticated(ref);
     final unreadNotifications = authenticated
@@ -85,8 +86,7 @@ class HomePage extends ConsumerWidget {
                             showBuyerAuthPrompt(
                               context,
                               ref,
-                              message:
-                                  'Sign in to receive and view account-specific notifications.',
+                              message: ref.tr('auth.required.notifications'),
                             );
                             return;
                           }
@@ -141,8 +141,7 @@ class HomePage extends ConsumerWidget {
                               showBuyerAuthPrompt(
                                 context,
                                 ref,
-                                message:
-                                    'Sign in to save products to your wishlist.',
+                                message: ref.tr('auth.required.wishlist'),
                               );
                               return;
                             }
@@ -179,7 +178,7 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-class _TopHero extends StatelessWidget {
+class _TopHero extends ConsumerWidget {
   const _TopHero({
     required this.greeting,
     required this.title,
@@ -199,7 +198,7 @@ class _TopHero extends StatelessWidget {
   final VoidCallback onOpenCart;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1A5C38),
@@ -332,7 +331,7 @@ class _HeroIcon extends StatelessWidget {
   }
 }
 
-class _CategoriesSection extends StatelessWidget {
+class _CategoriesSection extends ConsumerWidget {
   const _CategoriesSection({
     required this.categories,
     required this.onOpenSearchPage,
@@ -346,7 +345,7 @@ class _CategoriesSection extends StatelessWidget {
   final String title;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF0F5F1),
@@ -404,7 +403,7 @@ class _CategoriesSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        category.name.split(' ').first,
+                        trCategory(ref, category.slug, category.name).split(' ').first,
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -415,7 +414,7 @@ class _CategoriesSection extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${category.productCount} items',
+                        '${category.productCount} ${ref.tr('common.items')}',
                         style: const TextStyle(
                           fontSize: 9.5,
                           color: Color(0xFF7AAD8E),
@@ -434,13 +433,13 @@ class _CategoriesSection extends StatelessWidget {
 
 }
 
-class _PromoBanner extends StatelessWidget {
+class _PromoBanner extends ConsumerWidget {
   const _PromoBanner({required this.onBrowseProducts});
 
   final VoidCallback onBrowseProducts;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1A5C38),
@@ -453,8 +452,8 @@ class _PromoBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'VERIFIED SELLERS ONLY',
+                Text(
+                  ref.tr('home.promoEyebrow'),
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
@@ -463,8 +462,8 @@ class _PromoBanner extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 5),
-                const Text(
-                  'Farm-fresh delivered\nto your door',
+                Text(
+                  ref.tr('home.promoTitle'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -485,8 +484,8 @@ class _PromoBanner extends StatelessWidget {
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                     ),
-                    child: const Text(
-                      'Browse all',
+                    child: Text(
+                      ref.tr('home.browseAll'),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
@@ -518,7 +517,7 @@ class _PromoBanner extends StatelessWidget {
   }
 }
 
-class _ProductTile extends StatelessWidget {
+class _ProductTile extends ConsumerWidget {
   const _ProductTile({
     required this.product,
     required this.seller,
@@ -536,7 +535,8 @@ class _ProductTile extends StatelessWidget {
   final VoidCallback onToggleSave;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categoryLabel = trCategory(ref, product.categorySlug, product.category);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: InkWell(
@@ -565,8 +565,8 @@ class _ProductTile extends StatelessWidget {
                       color: const Color(0xFFE8EEEA),
                       alignment: Alignment.center,
                       padding: const EdgeInsets.all(6),
-                      child: const Text(
-                        'Image unavailable',
+                      child: Text(
+                        ref.tr('common.imageUnavailable'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 9,
@@ -594,7 +594,7 @@ class _ProductTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${seller.farmName} * ${product.category}${product.categorySlug == 'other' && (product.categoryNote ?? '').isNotEmpty ? ' (${product.categoryNote})' : ''}',
+                      '${seller.farmName} * $categoryLabel${product.categorySlug == 'other' && (product.categoryNote ?? '').isNotEmpty ? ' (${product.categoryNote})' : ''}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -625,7 +625,7 @@ class _ProductTile extends StatelessWidget {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              product.discountLabel ?? 'Offer',
+                              product.discountLabel ?? ref.tr('product.offer'),
                               style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
@@ -810,5 +810,8 @@ class _SectionHeader extends StatelessWidget {
     );
   }
 }
+
+
+
 
 

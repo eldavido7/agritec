@@ -1,4 +1,4 @@
-import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
+﻿import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
@@ -28,7 +28,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
         title: ref.tr('chat.title'),
-        message: 'Sign in to contact sellers and support.',
+        message: ref.tr('auth.required.contactSupport'),
         onBack: () => ref.read(shellTabProvider.notifier).setTab(0),
       );
     }
@@ -65,16 +65,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   ),
                   const Spacer(),
                   SegmentedButton<ChatChannelType>(
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: ChatChannelType.seller,
                         icon: Icon(Icons.storefront_rounded),
-                        label: Text('Sellers'),
+                        label: Text(ref.tr('chat.filter.sellers')),
                       ),
                       ButtonSegment(
                         value: ChatChannelType.support,
                         icon: Icon(Icons.support_agent_rounded),
-                        label: Text('Support'),
+                        label: Text(ref.tr('chat.filter.support')),
                       ),
                     ],
                     selected: {_filter},
@@ -195,7 +195,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               child: Text(
                                 selected?.title ??
                                     chatState.activeDraft?.farmName ??
-                                    'Conversation',
+                                    ref.tr('chat.conversation'),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -269,8 +269,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   controller: _controller,
                                   minLines: 1,
                                   maxLines: 4,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Type a message...',
+                                  decoration: InputDecoration(
+                                    hintText: ref.tr('chat.placeholder'),
                                     isDense: true,
                                   ),
                                 ),
@@ -301,3 +301,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 }
+
+
+

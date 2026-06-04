@@ -1,7 +1,8 @@
-import 'package:agritec_mobile/core/constants/app_assets.dart';
+﻿import 'package:agritec_mobile/core/constants/app_assets.dart';
 import 'package:agritec_mobile/features/auth/presentation/forgot_password_page.dart';
 import 'package:agritec_mobile/features/auth/presentation/sign_up_page.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
 import 'package:agritec_mobile/features/startup/application/startup_controller.dart';
 import 'package:flutter/cupertino.dart';
@@ -192,8 +193,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                   child: Column(
                     children: [
                       _AuthHero(
-                        title: 'Welcome back',
-                        subtitle: 'Sign in to your buyer account',
+                        title: ref.tr('auth.welcomeBack'),
+                        subtitle: ref.tr('auth.signInSubtitle'),
                       ),
                       Transform.translate(
                         offset: const Offset(0, -22),
@@ -619,3 +620,4 @@ class _AuthTabs extends StatelessWidget {
     );
   }
 }
+
