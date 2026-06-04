@@ -35,20 +35,23 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   String? _selectedAddressId;
   Map<String, int> _discountsBySeller = const {};
 
+  void _handleBack() {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+      return;
+    }
+    ref.read(shellTabProvider.notifier).setTab(3);
+    context.goNamed('home-shell');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
         title: ref.tr('checkout.title'),
         message: ref.tr('auth.required.checkout'),
-        onBack: () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            ref.read(shellTabProvider.notifier).setTab(3);
-            context.goNamed('home-shell');
-          }
-        },
+        onBack: _handleBack,
       );
     }
 
@@ -83,209 +86,221 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     final grandTotal = productSubtotal + totalShippingFee - discountTotal;
     final money = NumberFormat.currency(locale: 'en_NG', symbol: 'NGN ', decimalDigits: 0);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFEAF1ED),
-      appBar: AppBar(
-        title: Text(ref.tr('checkout.title')),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.home_rounded),
-            onPressed: () {
-              ref.read(shellTabProvider.notifier).setTab(0);
-              context.goNamed('home-shell');
-            },
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _handleBack();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFEAF1ED),
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: _handleBack,
           ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
-        children: [
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(ref.tr('checkout.selectAddress'), style: TextStyle(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  if (address != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        trFormat(ref, 'checkout.selectedAddress', {'address': address.fullAddress}),
-                        softWrap: true,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Color(0xFF65706B)),
-                      ),
-                    ),
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    key: ValueKey<String?>('addr-${_selectedAddressId ?? address?.id}'),
-                    initialValue: address?.id,
-                    hint: Text(ref.tr('checkout.chooseAddress')),
-                    items: [
-                      for (final item in addresses)
-                        DropdownMenuItem(
-                          value: item.id,
-                          child: Text(
-                            '${item.label}: ${item.displayName}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+          title: Text(ref.tr('checkout.title')),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.home_rounded),
+              onPressed: () {
+                ref.read(shellTabProvider.notifier).setTab(0);
+                context.goNamed('home-shell');
+              },
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+          children: [
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(ref.tr('checkout.selectAddress'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 8),
+                    if (address != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          trFormat(ref, 'checkout.selectedAddress', {'address': address.fullAddress}),
+                          softWrap: true,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Color(0xFF65706B)),
                         ),
-                    ],
-                    onChanged: (value) => setState(() => _selectedAddressId = value),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (final group in groups) ...[
-            _SellerCheckoutCard(
-              group: group,
-              shippingQuote: shippingQuotes[group.sellerId]!,
-              discountAmount: _discountsBySeller[group.sellerId] ?? 0,
-              currency: money,
-            ),
-            const SizedBox(height: 10),
-          ],
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: TextField(
-              decoration: const InputDecoration(
-                labelText: 'Discount Code',
-                hintText: 'Enter code for any eligible seller items',
-                border: InputBorder.none,
-              ),
-              onChanged: (value) => setState(() {
-                _discountCodeInput = value;
-                _discountsBySeller = const {};
-                _appliedDiscountCode = null;
-                _discountMessage = null;
-              }),
-            ),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: _isValidatingDiscount ? null : () => _applyDiscount(groups),
-            child: Text(_isValidatingDiscount ? ref.tr('checkout.validating') : ref.tr('checkout.applyCoupon')),
-          ),
-          if (_discountMessage != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              _discountMessage!,
-              style: TextStyle(
-                color: discountTotal > 0 ? const Color(0xFF0D8A66) : const Color(0xFFB15F00),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-          const SizedBox(height: 10),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  _line(ref.tr('checkout.overallProductSubtotal'), money.format(productSubtotal)),
-                  _line(ref.tr('checkout.totalShippingFee'), money.format(totalShippingFee)),
-                  _line(
-                    '${ref.tr('checkout.discountTotal')}${_appliedDiscountCode != null ? ' ($_appliedDiscountCode)' : ''}',
-                    '- ${money.format(discountTotal)}',
-                  ),
-                  const Divider(),
-                  _line(ref.tr('checkout.finalTotalPayable'), money.format(grandTotal), bold: true),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 52,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF136A43),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              onPressed: _isPaying || address == null
-                  ? null
-                  : () async {
-                      setState(() => _isPaying = true);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(ref.tr('checkout.waitingPayment'))),
-                      );
-                      await Future<void>.delayed(const Duration(seconds: 2));
-                      if (!mounted) return;
-                      final order = ref.read(ordersProvider.notifier).createOrder(
-                            groups: groups,
-                            buyerAddress: address!,
-                            shippingQuotes: shippingQuotes,
-                            discountsBySeller: _discountsBySeller,
-                            discountCode: _appliedDiscountCode,
-                          );
-                      ref.read(cartProvider.notifier).clear();
-                      setState(() => _isPaying = false);
-                      if (!context.mounted) return;
-                      await showDialog<void>(
-                        context: context,
-                        builder: (context) => Dialog(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: Color(0xFFE4F4EC),
-                                  child: Icon(Icons.check_circle_rounded, size: 30, color: Color(0xFF136A43)),
-                                ),
-                                const SizedBox(height: 12),
-                                const Text(
-                                  'Payment Successful',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  ref.tr('checkout.paymentSuccessBody'),
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(color: Color(0xFF65706B)),
-                                ),
-                                const SizedBox(height: 14),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: () => Navigator.of(context).pop(),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF136A43),
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    child: Text(ref.tr('checkout.viewOrder')),
-                                  ),
-                                ),
-                              ],
+                      ),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      key: ValueKey<String?>('addr-${_selectedAddressId ?? address?.id}'),
+                      initialValue: address?.id,
+                      hint: Text(ref.tr('checkout.chooseAddress')),
+                      items: [
+                        for (final item in addresses)
+                          DropdownMenuItem(
+                            value: item.id,
+                            child: Text(
+                              '${item.label}: ${item.displayName}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                      );
-                      if (!context.mounted) return;
-                      context.pushNamed(OrderDetailsPage.routeName, pathParameters: {'orderId': order.id});
-                    },
-              child: Text(_isPaying ? ref.tr('checkout.confirmingPayment') : ref.tr('checkout.confirmPayOnce')),
+                      ],
+                      onChanged: (value) => setState(() => _selectedAddressId = value),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 10),
+            for (final group in groups) ...[
+              _SellerCheckoutCard(
+                group: group,
+                shippingQuote: shippingQuotes[group.sellerId]!,
+                discountAmount: _discountsBySeller[group.sellerId] ?? 0,
+                currency: money,
+              ),
+              const SizedBox(height: 10),
+            ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Discount Code',
+                  hintText: 'Enter code for any eligible seller items',
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) => setState(() {
+                  _discountCodeInput = value;
+                  _discountsBySeller = const {};
+                  _appliedDiscountCode = null;
+                  _discountMessage = null;
+                }),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: _isValidatingDiscount ? null : () => _applyDiscount(groups),
+              child: Text(_isValidatingDiscount ? ref.tr('checkout.validating') : ref.tr('checkout.applyCoupon')),
+            ),
+            if (_discountMessage != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                _discountMessage!,
+                style: TextStyle(
+                  color: discountTotal > 0 ? const Color(0xFF0D8A66) : const Color(0xFFB15F00),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    _line(ref.tr('checkout.overallProductSubtotal'), money.format(productSubtotal)),
+                    _line(ref.tr('checkout.totalShippingFee'), money.format(totalShippingFee)),
+                    _line(
+                      '${ref.tr('checkout.discountTotal')}${_appliedDiscountCode != null ? ' ($_appliedDiscountCode)' : ''}',
+                      '- ${money.format(discountTotal)}',
+                    ),
+                    const Divider(),
+                    _line(ref.tr('checkout.finalTotalPayable'), money.format(grandTotal), bold: true),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF136A43),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: _isPaying || address == null
+                    ? null
+                    : () async {
+                        setState(() => _isPaying = true);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(ref.tr('checkout.waitingPayment'))),
+                        );
+                        await Future<void>.delayed(const Duration(seconds: 2));
+                        if (!mounted) return;
+                        final order = ref.read(ordersProvider.notifier).createOrder(
+                              groups: groups,
+                              buyerAddress: address!,
+                              shippingQuotes: shippingQuotes,
+                              discountsBySeller: _discountsBySeller,
+                              discountCode: _appliedDiscountCode,
+                            );
+                        ref.read(cartProvider.notifier).clear();
+                        setState(() => _isPaying = false);
+                        if (!context.mounted) return;
+                        await showDialog<void>(
+                          context: context,
+                          builder: (context) => Dialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const CircleAvatar(
+                                    radius: 24,
+                                    backgroundColor: Color(0xFFE4F4EC),
+                                    child: Icon(Icons.check_circle_rounded, size: 30, color: Color(0xFF136A43)),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Payment Successful',
+                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    ref.tr('checkout.paymentSuccessBody'),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(color: Color(0xFF65706B)),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () => Navigator.of(context).pop(),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF136A43),
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      child: Text(ref.tr('checkout.viewOrder')),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                        if (!context.mounted) return;
+                        context.pushNamed(OrderDetailsPage.routeName, pathParameters: {'orderId': order.id});
+                      },
+                child: Text(_isPaying ? ref.tr('checkout.confirmingPayment') : ref.tr('checkout.confirmPayOnce')),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -452,7 +467,4 @@ class _SellerCheckoutCard extends ConsumerWidget {
     );
   }
 }
-
-
-
 

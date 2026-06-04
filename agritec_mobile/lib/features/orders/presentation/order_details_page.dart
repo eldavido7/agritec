@@ -24,18 +24,21 @@ class OrderDetailsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    void handleBack() {
+      final nav = Navigator.of(context);
+      if (nav.canPop()) {
+        nav.pop();
+        return;
+      }
+      ref.read(shellTabProvider.notifier).setTab(4);
+      context.go(OrdersPage.routePath);
+    }
+
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
         title: ref.tr('orderDetails.title'),
         message: ref.tr('auth.required.orders'),
-        onBack: () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            ref.read(shellTabProvider.notifier).setTab(0);
-            context.goNamed('home-shell');
-          }
-        },
+        onBack: handleBack,
       );
     }
     final order = ref.watch(orderByIdProvider(orderId));
@@ -46,96 +49,96 @@ class OrderDetailsPage extends ConsumerWidget {
     final buyerPoint = hasBuyerCoords ? LatLng(order.buyerAddress.latitude!, order.buyerAddress.longitude!) : null;
     final money = NumberFormat.currency(locale: 'en_NG', symbol: 'NGN ', decimalDigits: 0);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFEAF1ED),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () {
-            final nav = Navigator.of(context);
-            if (nav.canPop()) {
-              nav.pop();
-              return;
-            }
-            ref.read(shellTabProvider.notifier).setTab(4);
-            context.go(OrdersPage.routePath);
-          },
-        ),
-        title: Text('Order ${order.id}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.home_rounded),
-            onPressed: () {
-              ref.read(shellTabProvider.notifier).setTab(0);
-              context.go(MainShellPage.routePath);
-            },
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          handleBack();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFEAF1ED),
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: handleBack,
           ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
-        children: [
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('${ref.tr('orderDetails.paymentReference')}: ${order.paymentReference}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 6),
-                  Text(order.buyerAddress.fullAddress, style: const TextStyle(color: Color(0xFF65706B))),
-                  const SizedBox(height: 10),
-                  _line(ref.tr('orderDetails.productSubtotal'), money.format(order.productSubtotal)),
-                  _line(ref.tr('orderDetails.totalShippingFee'), money.format(order.totalShippingFee)),
-                  _line(ref.tr('orderDetails.discountTotal'), '- ${money.format(order.discountTotal)}'),
-                  const Divider(),
-                  _line(ref.tr('orderDetails.grandTotal'), money.format(order.grandTotal), bold: true),
-                ],
+          title: Text('Order ${order.id}'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.home_rounded),
+              onPressed: () {
+                ref.read(shellTabProvider.notifier).setTab(0);
+                context.go(MainShellPage.routePath);
+              },
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+          children: [
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${ref.tr('orderDetails.paymentReference')}: ${order.paymentReference}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 6),
+                    Text(order.buyerAddress.fullAddress, style: const TextStyle(color: Color(0xFF65706B))),
+                    const SizedBox(height: 10),
+                    _line(ref.tr('orderDetails.productSubtotal'), money.format(order.productSubtotal)),
+                    _line(ref.tr('orderDetails.totalShippingFee'), money.format(order.totalShippingFee)),
+                    _line(ref.tr('orderDetails.discountTotal'), '- ${money.format(order.discountTotal)}'),
+                    const Divider(),
+                    _line(ref.tr('orderDetails.grandTotal'), money.format(order.grandTotal), bold: true),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 10),
-          for (final group in order.sellerGroups) ...[
-            if (buyerPoint != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: SizedBox(
-                    height: 220,
-                    child: _RouteMap(
-                      sellerPoint: LatLng(group.sellerLatitude, group.sellerLongitude),
-                      buyerPoint: buyerPoint,
-                      riderPoint: LatLng(
-                        (group.sellerLatitude + buyerPoint.latitude) / 2,
-                        (group.sellerLongitude + buyerPoint.longitude) / 2,
+            const SizedBox(height: 10),
+            for (final group in order.sellerGroups) ...[
+              if (buyerPoint != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: SizedBox(
+                      height: 220,
+                      child: _RouteMap(
+                        sellerPoint: LatLng(group.sellerLatitude, group.sellerLongitude),
+                        buyerPoint: buyerPoint,
+                        riderPoint: LatLng(
+                          (group.sellerLatitude + buyerPoint.latitude) / 2,
+                          (group.sellerLongitude + buyerPoint.longitude) / 2,
+                        ),
+                        farmName: group.farmName,
+                        sellerAddress: ref.watch(homeSellerByIdProvider(group.sellerId)).location,
+                        buyerAddress: order.buyerAddress.fullAddress,
                       ),
-                      farmName: group.farmName,
-                      sellerAddress: ref.watch(homeSellerByIdProvider(group.sellerId)).location,
-                      buyerAddress: order.buyerAddress.fullAddress,
                     ),
                   ),
                 ),
-              ),
-            if (!hasBuyerCoords)
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: ListTile(
-                  title: Text(ref.tr('orderDetails.mapUnavailable')),
-                  subtitle: Text(ref.tr('orderDetails.mapUnavailableHint')),
-                  trailing: TextButton(
-                    onPressed: () => context.goNamed('addresses'),
-                    child: Text(ref.tr('orderDetails.editAddress')),
+              if (!hasBuyerCoords)
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: ListTile(
+                    title: Text(ref.tr('orderDetails.mapUnavailable')),
+                    subtitle: Text(ref.tr('orderDetails.mapUnavailableHint')),
+                    trailing: TextButton(
+                      onPressed: () => context.goNamed('addresses'),
+                      child: Text(ref.tr('orderDetails.editAddress')),
+                    ),
                   ),
                 ),
-              ),
-            _SellerGroupCard(group: group, currency: money),
-            const SizedBox(height: 10),
+              _SellerGroupCard(group: group, currency: money),
+              const SizedBox(height: 10),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -461,6 +464,4 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
-
-
 

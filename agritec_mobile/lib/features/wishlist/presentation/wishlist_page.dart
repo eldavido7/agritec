@@ -5,6 +5,7 @@ import 'package:agritec_mobile/features/home/application/shell_navigation_provid
 import 'package:agritec_mobile/features/wishlist/application/wishlist_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 class WishlistPage extends ConsumerStatefulWidget {
@@ -18,19 +19,22 @@ class WishlistPage extends ConsumerStatefulWidget {
 class _WishlistPageState extends ConsumerState<WishlistPage> {
   int _page = 1;
 
+  void _handleBack() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    ref.read(shellTabProvider.notifier).setTab(0);
+    context.goNamed('home-shell');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
         title: 'Wishlist',
         message: ref.tr('auth.required.wishlist'),
-        onBack: () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            ref.read(shellTabProvider.notifier).setTab(0);
-          }
-        },
+        onBack: _handleBack,
       );
     }
     final products = ref.watch(wishlistProductsProvider);
@@ -40,15 +44,26 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
       decimalDigits: 0,
     );
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _handleBack();
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: _handleBack,
+        ),
         title: Text(ref.tr('profile.wishlist')),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
             onPressed: () {
               ref.read(shellTabProvider.notifier).setTab(0);
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              context.goNamed('home-shell');
             },
           ),
         ],
@@ -175,9 +190,9 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
                 ),
         ),
       ),
+      ),
     );
   }
 }
-
 
 

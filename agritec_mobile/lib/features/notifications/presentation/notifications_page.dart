@@ -9,6 +9,7 @@ import 'package:agritec_mobile/features/orders/presentation/order_details_page.d
 import 'package:agritec_mobile/features/orders/presentation/orders_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 class NotificationsPage extends ConsumerStatefulWidget {
@@ -23,36 +24,40 @@ class NotificationsPage extends ConsumerStatefulWidget {
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   int _page = 1;
 
+  void _handleBack() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    ref.read(shellTabProvider.notifier).setTab(0);
+    context.goNamed('home-shell');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
         title: ref.tr('notifications.title'),
         message: ref.tr('auth.required.notifications'),
-        onBack: () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            ref.read(shellTabProvider.notifier).setTab(0);
-          }
-        },
+        onBack: _handleBack,
       );
     }
     final notifications = ref.watch(notificationsProvider);
     final dateFormat = DateFormat('d MMM, y - h:mm a');
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _handleBack();
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFEAF1ED),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              ref.read(shellTabProvider.notifier).setTab(0);
-            }
-          },
+          onPressed: _handleBack,
         ),
         title: Text(ref.tr('notifications.title')),
         actions: [
@@ -60,7 +65,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             icon: const Icon(Icons.home_rounded),
             onPressed: () {
               ref.read(shellTabProvider.notifier).setTab(0);
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              context.goNamed('home-shell');
             },
           ),
           TextButton(
@@ -203,6 +208,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 );
               },
             ),
+      ),
     );
   }
 
@@ -252,5 +258,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     };
   }
 }
+
+
+
 
 

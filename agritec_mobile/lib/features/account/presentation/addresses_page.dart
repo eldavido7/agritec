@@ -18,34 +18,35 @@ class AddressesPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    void handleBack() {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      } else {
+        ref.read(shellTabProvider.notifier).setTab(4);
+        context.goNamed('home-shell');
+      }
+    }
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
         title: ref.tr('addresses.title'),
         message: ref.tr('auth.required.addresses'),
-        onBack: () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            ref.read(shellTabProvider.notifier).setTab(0);
-            context.goNamed('home-shell');
-          }
-        },
+        onBack: handleBack,
       );
     }
     final addresses = ref.watch(addressBookProvider);
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          handleBack();
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFEAF1ED),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              ref.read(shellTabProvider.notifier).setTab(4);
-              context.goNamed('home-shell');
-            }
-          },
+          onPressed: handleBack,
         ),
         title: Text(ref.tr('addresses.title')),
         actions: [
@@ -153,7 +154,8 @@ class AddressesPage extends ConsumerWidget {
             ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Future<void> _openAddressDialog(
@@ -574,6 +576,9 @@ class AddressesPage extends ConsumerWidget {
     mapController?.dispose();
   }
 }
+
+
+
 
 
 
