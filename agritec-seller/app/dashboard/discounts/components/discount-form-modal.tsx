@@ -98,7 +98,7 @@ export function DiscountFormModal({
       products.flatMap((product) =>
         (product.variants || []).map((variant) => ({
           ...variant,
-          key: `${product.id}-${variant.id}`,
+          key: variant.id,
           productId: product.id,
           productName: product.name,
         })),
@@ -111,7 +111,7 @@ export function DiscountFormModal({
     if (query.length < 2) return [];
     return products.filter((product) => {
       const hasSelectedVariant = product.variants?.some((variant) =>
-        draft.variantIds.includes(`${product.id}-${variant.id}`),
+        draft.variantIds.includes(variant.id),
       );
       return (
         !hasSelectedVariant &&
@@ -137,7 +137,7 @@ export function DiscountFormModal({
   const addProduct = (productId: number) => {
     const product = products.find((item) => item.id === productId);
     const variantKeys = (product?.variants || []).map(
-      (variant) => `${productId}-${variant.id}`,
+      (variant) => variant.id,
     );
     setDraft((current) => ({
       ...current,
@@ -424,3 +424,4 @@ export function DiscountFormModal({
     </Dialog>
   );
 }
+

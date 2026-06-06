@@ -34,7 +34,7 @@ ShippingQuote calculatePlatformShippingQuote({
   final isAbuja =
       city.contains('abuja') || state.contains('abuja') || state.contains('fct');
   final rate =
-      isAbuja ? settings.abujaRatePerUnit : settings.outsideAbujaRatePerUnit;
+      isAbuja ? settings.abujaRatePerShippingUnit : settings.outsideAbujaRatePerShippingUnit;
   final units = max(1, (totalChargeableWeight / settings.weightUnitSizeKg).ceil());
 
   return ShippingQuote(

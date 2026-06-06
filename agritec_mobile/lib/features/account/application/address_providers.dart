@@ -8,12 +8,15 @@ class BuyerAddress {
     required this.label,
     required this.displayName,
     required this.fullAddress,
+    this.addressLine,
     this.latitude,
     this.longitude,
     this.city,
     this.state,
     this.landmark,
+    this.createdByRole = 'buyer',
     this.isManualAddress = false,
+    this.isAdminAssisted = false,
     this.isDefault = false,
   });
 
@@ -21,12 +24,15 @@ class BuyerAddress {
   final String label;
   final String displayName;
   final String fullAddress;
+  final String? addressLine;
   final double? latitude;
   final double? longitude;
   final String? city;
   final String? state;
   final String? landmark;
+  final String createdByRole;
   final bool isManualAddress;
+  final bool isAdminAssisted;
   final bool isDefault;
 
   bool get hasMapLocation => latitude != null && longitude != null;
@@ -36,12 +42,15 @@ class BuyerAddress {
     String? label,
     String? displayName,
     String? fullAddress,
+    String? addressLine,
     double? latitude,
     double? longitude,
     String? city,
     String? state,
     String? landmark,
+    String? createdByRole,
     bool? isManualAddress,
+    bool? isAdminAssisted,
     bool? isDefault,
   }) {
     return BuyerAddress(
@@ -49,12 +58,15 @@ class BuyerAddress {
       label: label ?? this.label,
       displayName: displayName ?? this.displayName,
       fullAddress: fullAddress ?? this.fullAddress,
+      addressLine: addressLine ?? this.addressLine,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       city: city ?? this.city,
       state: state ?? this.state,
       landmark: landmark ?? this.landmark,
+      createdByRole: createdByRole ?? this.createdByRole,
       isManualAddress: isManualAddress ?? this.isManualAddress,
+      isAdminAssisted: isAdminAssisted ?? this.isAdminAssisted,
       isDefault: isDefault ?? this.isDefault,
     );
   }
@@ -64,12 +76,15 @@ class BuyerAddress {
     'label': label,
     'displayName': displayName,
     'fullAddress': fullAddress,
+    'addressLine': addressLine,
     'latitude': latitude,
     'longitude': longitude,
     'city': city,
     'state': state,
     'landmark': landmark,
+    'createdByRole': createdByRole,
     'isManualAddress': isManualAddress,
+    'isAdminAssisted': isAdminAssisted,
     'isDefault': isDefault,
   };
 
@@ -80,12 +95,15 @@ class BuyerAddress {
       displayName:
           (json['displayName'] as String?) ?? (json['fullAddress'] as String),
       fullAddress: json['fullAddress'] as String,
+      addressLine: json['addressLine'] as String?,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
       city: json['city'] as String?,
       state: json['state'] as String?,
       landmark: json['landmark'] as String?,
+      createdByRole: json['createdByRole'] as String? ?? 'buyer',
       isManualAddress: json['isManualAddress'] as bool? ?? false,
+      isAdminAssisted: json['isAdminAssisted'] as bool? ?? false,
       isDefault: json['isDefault'] as bool? ?? false,
     );
   }
@@ -106,6 +124,7 @@ class AddressBookNotifier extends Notifier<List<BuyerAddress>> {
           label: 'Home',
           displayName: 'Ikate Elegushi, Lekki',
           fullAddress: '22 Freedom Way, Lekki Phase 1, Lagos',
+          addressLine: '22 Freedom Way',
           latitude: 6.4429,
           longitude: 3.4851,
           city: 'Lagos',
@@ -118,10 +137,13 @@ class AddressBookNotifier extends Notifier<List<BuyerAddress>> {
           label: 'Old Office',
           displayName: 'Ikeja Computer Village',
           fullAddress: '2 Otigba Street, Ikeja, Lagos',
+          addressLine: '2 Otigba Street',
           city: 'Lagos',
           state: 'Lagos',
           landmark: 'Near Slot Store',
+          createdByRole: 'admin',
           isManualAddress: true,
+          isAdminAssisted: true,
           isDefault: false,
         ),
       ];
@@ -132,6 +154,7 @@ class AddressBookNotifier extends Notifier<List<BuyerAddress>> {
         label: 'Home',
         displayName: 'Circle Mall Area, Lekki',
         fullAddress: '4 Admiralty Way, Lekki Phase 1, Lagos',
+        addressLine: '4 Admiralty Way',
         latitude: 6.4365,
         longitude: 3.4698,
         city: 'Lagos',
@@ -226,3 +249,4 @@ final defaultAddressProvider = Provider<BuyerAddress?>((ref) {
   }
   return null;
 });
+

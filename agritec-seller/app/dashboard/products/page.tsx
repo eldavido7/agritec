@@ -1,11 +1,21 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { getSellerMockData, hasCompleteDimensions, packageTypes, salesUnits, unitChargeableWeightKg, volumetricWeightKg, type ProductLogistics, type SellerProduct } from "@/lib/mock-data";
+import {
+  categorySlugFromLabel,
+  getSellerMockData,
+  hasCompleteDimensions,
+  packageTypes,
+  salesUnits,
+  unitChargeableWeightKg,
+  volumetricWeightKg,
+  type ProductLogistics,
+  type SellerProduct,
+} from "@/lib/mock-data";
 import { Plus, Edit, Trash2, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatCurrency } from "@/lib/formatting";
 import { toast } from "sonner";
@@ -49,7 +59,55 @@ const parseOptionalNumber = (value: unknown) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
-type Variant = { id: number; name: string; price: number; inventory: number; logistics?: ProductLogistics };
+const buildVariantLogisticsDraft = (
+  product: Partial<SellerProduct>,
+  logistics?: Partial<ProductLogistics>,
+): Partial<ProductLogistics> => ({
+  salesUnit:
+    logistics?.salesUnit || product.salesUnit || defaultLogistics.salesUnit,
+  unitWeightKg:
+    parseOptionalNumber(logistics?.unitWeightKg) ??
+    parseOptionalNumber(product.unitWeightKg),
+  unitLengthCm:
+    parseOptionalNumber(logistics?.unitLengthCm) ??
+    parseOptionalNumber(product.unitLengthCm),
+  unitWidthCm:
+    parseOptionalNumber(logistics?.unitWidthCm) ??
+    parseOptionalNumber(product.unitWidthCm),
+  unitHeightCm:
+    parseOptionalNumber(logistics?.unitHeightCm) ??
+    parseOptionalNumber(product.unitHeightCm),
+  packageType:
+    logistics?.packageType ||
+    product.packageType ||
+    defaultLogistics.packageType,
+});
+
+const normalizeVariantLogistics = (
+  product: Partial<SellerProduct>,
+  logistics?: Partial<ProductLogistics>,
+): ProductLogistics | undefined => {
+  if (!logistics) return undefined;
+  const draft = buildVariantLogisticsDraft(product, logistics);
+  const unitWeightKg = parseOptionalNumber(draft.unitWeightKg);
+  if (unitWeightKg == null) return undefined;
+  return {
+    salesUnit: draft.salesUnit || defaultLogistics.salesUnit,
+    unitWeightKg,
+    unitLengthCm: parseOptionalNumber(draft.unitLengthCm),
+    unitWidthCm: parseOptionalNumber(draft.unitWidthCm),
+    unitHeightCm: parseOptionalNumber(draft.unitHeightCm),
+    packageType: draft.packageType || defaultLogistics.packageType,
+  };
+};
+
+type Variant = {
+  id: string;
+  name: string;
+  price: number;
+  inventory: number;
+  logistics?: ProductLogistics;
+};
 type Product = SellerProduct & { inventory: number };
 type ModalMode = "view" | "edit" | "create" | null;
 
@@ -123,13 +181,21 @@ export default function ProductsPage() {
     if (mode === "create") {
       setFormData({
         category: categories[0] || "Vegetables",
+        categorySlug: categorySlugFromLabel(categories[0] || "Vegetables"),
         status: "Active",
         variants: [],
         images: [],
         ...defaultLogistics,
       });
     } else if (product) {
-      setFormData({ ...product });
+      setFormData({
+        ...product,
+        images: [...(product.images || [])],
+        variants: product.variants?.map((variant) => ({
+          ...variant,
+          logistics: variant.logistics ? { ...variant.logistics } : undefined,
+        })),
+      });
     }
   };
 
@@ -169,6 +235,22 @@ export default function ProductsPage() {
       return;
     }
 
+    const nextProductId =
+      modalMode === "create"
+        ? Math.max(...products.map((p) => p.id), 0) + 1
+        : selectedProduct?.id;
+
+    const normalizedVariants = hasVariants
+      ? (formData.variants || []).map((variant: any, index: number) => ({
+          ...variant,
+          id:
+            typeof variant.id === "string" && /^\d+-\d+$/.test(variant.id)
+              ? variant.id
+              : `${nextProductId}-${index + 1}`,
+          logistics: normalizeVariantLogistics(formData, variant.logistics),
+        }))
+      : undefined;
+
     const basePrice = hasVariants
       ? formData.variants?.[0]?.price || 0
       : formData.price || 0;
@@ -181,9 +263,11 @@ export default function ProductsPage() {
 
     if (modalMode === "create") {
       const newProduct: Product = {
-        id: Math.max(...products.map((p) => p.id), 0) + 1,
+        id: nextProductId || 1,
         name: formData.name,
         category: formData.category,
+        categorySlug:
+          formData.categorySlug || categorySlugFromLabel(formData.category),
         price: basePrice,
         inventory: totalInventory,
         status: "Active",
@@ -193,7 +277,7 @@ export default function ProductsPage() {
             : [
                 "https://images.unsplash.com/photo-1586190251793-378ec6acda75?w=400&h=300&fit=crop",
               ],
-        variants: hasVariants ? formData.variants : undefined,
+        variants: normalizedVariants,
         salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
         unitWeightKg,
         unitLengthCm,
@@ -215,13 +299,14 @@ export default function ProductsPage() {
                 price: basePrice,
                 inventory: totalInventory,
                 status: formData.status || "Active",
-                variants: hasVariants ? formData.variants : undefined,
+                variants: normalizedVariants,
                 salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
                 unitWeightKg,
                 unitLengthCm,
                 unitWidthCm,
                 unitHeightCm,
-                packageType: formData.packageType || defaultLogistics.packageType,
+                packageType:
+                  formData.packageType || defaultLogistics.packageType,
               }
             : p,
         ),
@@ -238,8 +323,8 @@ export default function ProductsPage() {
         <div className="flex justify-between items-center">
           <div>
             <p className="text-muted-foreground mt-2">
-              Manage your agricultural products and inventory
-              {" "}for {seller.farmName}
+              Manage your agricultural products and inventory for{" "}
+              {seller.farmName}
             </p>
           </div>
           <Button
@@ -547,7 +632,8 @@ export default function ProductsPage() {
                         Chargeable Weight
                       </p>
                       <p className="font-semibold text-foreground">
-                        {unitChargeableWeightKg(selectedProduct).toFixed(1)} kg/unit
+                        {unitChargeableWeightKg(selectedProduct).toFixed(1)}{" "}
+                        kg/unit
                       </p>
                     </div>
                   </div>
@@ -710,6 +796,9 @@ export default function ProductsPage() {
                             setFormData({
                               ...formData,
                               category: e.target.value,
+                              categorySlug: categorySlugFromLabel(
+                                e.target.value,
+                              ),
                             })
                           }
                           className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -746,7 +835,10 @@ export default function ProductsPage() {
                         <Input
                           value={(formData as any).categoryNote || ""}
                           onChange={(e) =>
-                            setFormData({ ...(formData as any), categoryNote: e.target.value })
+                            setFormData({
+                              ...(formData as any),
+                              categoryNote: e.target.value,
+                            })
                           }
                           placeholder="e.g. Natural Sweeteners"
                         />
@@ -755,75 +847,199 @@ export default function ProductsPage() {
 
                     <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
                       <div>
-                        <p className="text-sm font-semibold text-foreground">Sales unit and logistics</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Buyers purchase by sales unit. Weight and dimensions are used only by platform delivery pricing.
+                        <p className="text-sm font-semibold text-foreground">
+                          Sales unit and logistics
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Dimensions are optional. If left empty, shipping will be calculated using the product&apos;s weight only.
+                          Buyers purchase by sales unit. Weight and dimensions
+                          are used only by platform delivery pricing.
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Dimensions are optional. If left empty, shipping will
+                          be calculated using the product&apos;s weight only.
                         </p>
                       </div>
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                          <label className="text-sm font-medium text-foreground">Sales Unit</label>
+                          <label className="text-sm font-medium text-foreground">
+                            Sales Unit
+                          </label>
                           <select
-                            value={formData.salesUnit || defaultLogistics.salesUnit}
-                            onChange={(e) => setFormData({ ...formData, salesUnit: e.target.value as any })}
+                            value={
+                              formData.salesUnit || defaultLogistics.salesUnit
+                            }
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                salesUnit: e.target.value as any,
+                              })
+                            }
                             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           >
-                            {salesUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                            {salesUnits.map((unit) => (
+                              <option key={unit} value={unit}>
+                                {unit}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
-                          <label className="text-sm font-medium text-foreground">Package Type</label>
+                          <label className="text-sm font-medium text-foreground">
+                            Package Type
+                          </label>
                           <select
-                            value={formData.packageType || defaultLogistics.packageType}
-                            onChange={(e) => setFormData({ ...formData, packageType: e.target.value as any })}
+                            value={
+                              formData.packageType ||
+                              defaultLogistics.packageType
+                            }
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                packageType: e.target.value as any,
+                              })
+                            }
                             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           >
-                            {packageTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                            {packageTypes.map((type) => (
+                              <option key={type} value={type}>
+                                {type}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
-                          <label className="text-sm font-medium text-foreground">Unit Weight (kg)</label>
-                          <Input type="number" min="0" step="0.1" placeholder="e.g. 2.5" value={formData.unitWeightKg ?? ""} onChange={(e) => setFormData({ ...formData, unitWeightKg: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                          <label className="text-sm font-medium text-foreground">
+                            Unit Weight (kg)
+                          </label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="e.g. 2.5"
+                            value={formData.unitWeightKg ?? ""}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                unitWeightKg:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Number(e.target.value),
+                              })
+                            }
+                          />
                         </div>
                         <div>
-                          <label className="text-sm font-medium text-foreground">Length (cm)</label>
-                          <Input type="number" min="0" step="0.1" placeholder="e.g. 30" value={formData.unitLengthCm ?? ""} onChange={(e) => setFormData({ ...formData, unitLengthCm: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                          <label className="text-sm font-medium text-foreground">
+                            Length (cm)
+                          </label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="e.g. 30"
+                            value={formData.unitLengthCm ?? ""}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                unitLengthCm:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Number(e.target.value),
+                              })
+                            }
+                          />
                         </div>
                         <div>
-                          <label className="text-sm font-medium text-foreground">Width (cm)</label>
-                          <Input type="number" min="0" step="0.1" placeholder="e.g. 20" value={formData.unitWidthCm ?? ""} onChange={(e) => setFormData({ ...formData, unitWidthCm: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                          <label className="text-sm font-medium text-foreground">
+                            Width (cm)
+                          </label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="e.g. 20"
+                            value={formData.unitWidthCm ?? ""}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                unitWidthCm:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Number(e.target.value),
+                              })
+                            }
+                          />
                         </div>
                         <div>
-                          <label className="text-sm font-medium text-foreground">Height (cm)</label>
-                          <Input type="number" min="0" step="0.1" placeholder="e.g. 15" value={formData.unitHeightCm ?? ""} onChange={(e) => setFormData({ ...formData, unitHeightCm: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                          <label className="text-sm font-medium text-foreground">
+                            Height (cm)
+                          </label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="e.g. 15"
+                            value={formData.unitHeightCm ?? ""}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                unitHeightCm:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Number(e.target.value),
+                              })
+                            }
+                          />
                         </div>
                       </div>
                       {(() => {
                         const logisticsPreview = {
-                          salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
-                          unitWeightKg: parseOptionalNumber(formData.unitWeightKg) || 0,
-                          unitLengthCm: parseOptionalNumber(formData.unitLengthCm),
-                          unitWidthCm: parseOptionalNumber(formData.unitWidthCm),
-                          unitHeightCm: parseOptionalNumber(formData.unitHeightCm),
-                          packageType: formData.packageType || defaultLogistics.packageType,
+                          salesUnit:
+                            formData.salesUnit || defaultLogistics.salesUnit,
+                          unitWeightKg:
+                            parseOptionalNumber(formData.unitWeightKg) || 0,
+                          unitLengthCm: parseOptionalNumber(
+                            formData.unitLengthCm,
+                          ),
+                          unitWidthCm: parseOptionalNumber(
+                            formData.unitWidthCm,
+                          ),
+                          unitHeightCm: parseOptionalNumber(
+                            formData.unitHeightCm,
+                          ),
+                          packageType:
+                            formData.packageType ||
+                            defaultLogistics.packageType,
                         } satisfies ProductLogistics;
                         const volumetric = volumetricWeightKg(logisticsPreview);
-                        const chargeable = unitChargeableWeightKg(logisticsPreview);
+                        const chargeable =
+                          unitChargeableWeightKg(logisticsPreview);
                         return (
                           <div className="space-y-1 text-xs font-medium text-primary">
-                            <p>Actual weight: {logisticsPreview.unitWeightKg > 0 ? `${logisticsPreview.unitWeightKg.toFixed(1)} kg` : "Enter unit weight to preview shipping."}</p>
-                            {hasCompleteDimensions(logisticsPreview) && volumetric != null ? (
+                            <p>
+                              Actual weight:{" "}
+                              {logisticsPreview.unitWeightKg > 0
+                                ? `${logisticsPreview.unitWeightKg.toFixed(1)} kg`
+                                : "Enter unit weight to preview shipping."}
+                            </p>
+                            {hasCompleteDimensions(logisticsPreview) &&
+                            volumetric != null ? (
                               <>
-                                <p>Volumetric weight: {volumetric.toFixed(1)} kg</p>
-                                <p>Chargeable weight preview: {chargeable.toFixed(1)} kg per sales unit</p>
+                                <p>
+                                  Volumetric weight: {volumetric.toFixed(1)} kg
+                                </p>
+                                <p>
+                                  Chargeable weight preview:{" "}
+                                  {chargeable.toFixed(1)} kg per sales unit
+                                </p>
                               </>
                             ) : logisticsPreview.unitWeightKg > 0 ? (
                               <>
                                 <p>Using actual weight only</p>
-                                <p>Chargeable weight preview: {chargeable.toFixed(1)} kg per sales unit</p>
+                                <p>
+                                  Chargeable weight preview:{" "}
+                                  {chargeable.toFixed(1)} kg per sales unit
+                                </p>
                               </>
                             ) : null}
                           </div>
@@ -843,7 +1059,7 @@ export default function ProductsPage() {
                                 ...formData,
                                 variants: [
                                   {
-                                    id: Date.now(),
+                                    id: `${formData.id || "new"}-${variants.length + 1}`,
                                     name: "",
                                     price: 0,
                                     inventory: 0,
@@ -872,7 +1088,7 @@ export default function ProductsPage() {
                       <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
                         <div>
                           <label className="text-sm font-medium text-foreground">
-                            Price (₦) *
+                            Price (?) *
                           </label>
                           <Input
                             type="number"
@@ -909,10 +1125,16 @@ export default function ProductsPage() {
                     {hasVariants && (
                       <div className="border-t border-border pt-4">
                         <div className="flex justify-between items-center mb-3">
-                          <label className="text-sm font-medium text-foreground">
-                            Variants (Greyed out: price/inventory come from
-                            variants)
-                          </label>
+                          <div>
+                            <label className="text-sm font-medium text-foreground">
+                              Variants
+                            </label>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Variants inherit the product logistics by default.
+                              Add custom logistics only when a variant changes
+                              the shipping weight or package size.
+                            </p>
+                          </div>
                           <Button
                             size="sm"
                             variant="outline"
@@ -923,7 +1145,7 @@ export default function ProductsPage() {
                                 variants: [
                                   ...variants,
                                   {
-                                    id: Date.now(),
+                                    id: `${formData.id || "new"}-${variants.length + 1}`,
                                     name: "",
                                     price: 0,
                                     inventory: 0,
@@ -937,90 +1159,424 @@ export default function ProductsPage() {
                             Add Variant
                           </Button>
                         </div>
-                        <div className="space-y-3 max-h-64 overflow-y-auto">
+                        <div className="space-y-4 max-h-128 overflow-y-auto pr-1">
                           {(formData.variants || []).map(
-                            (variant: any, idx: number) => (
-                              <div
-                                key={variant.id}
-                                className="flex gap-2 items-end p-3 bg-muted/30 rounded-lg"
-                              >
-                                <Input
-                                  placeholder="Variant name (e.g., 1kg)"
-                                  value={variant.name || ""}
-                                  onChange={(e) => {
-                                    const newVariants = [
-                                      ...(formData.variants || []),
-                                    ];
-                                    newVariants[idx].name = e.target.value;
-                                    setFormData({
-                                      ...formData,
-                                      variants: newVariants,
-                                    });
-                                  }}
-                                  className="flex-1"
-                                />
-                                <Input
-                                  type="number"
-                                  placeholder="Price"
-                                  value={variant.price || ""}
-                                  onChange={(e) => {
-                                    const newVariants = [
-                                      ...(formData.variants || []),
-                                    ];
-                                    newVariants[idx].price = Number(
-                                      e.target.value,
-                                    );
-                                    setFormData({
-                                      ...formData,
-                                      variants: newVariants,
-                                    });
-                                  }}
-                                  className="w-24"
-                                />
-                                <Input
-                                  type="number"
-                                  placeholder="Stock"
-                                  value={variant.inventory || ""}
-                                  onChange={(e) => {
-                                    const newVariants = [
-                                      ...(formData.variants || []),
-                                    ];
-                                    newVariants[idx].inventory = Number(
-                                      e.target.value,
-                                    );
-                                    setFormData({
-                                      ...formData,
-                                      variants: newVariants,
-                                    });
-                                  }}
-                                  className="w-24"
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    const newVariants = (
-                                      formData.variants || []
-                                    ).filter((_: any, i: number) => i !== idx);
-                                    if (newVariants.length === 0) {
-                                      setFormData({
-                                        ...formData,
-                                        variants: undefined,
-                                        price: 0,
-                                      });
-                                    } else {
-                                      setFormData({
-                                        ...formData,
-                                        variants: newVariants,
-                                      });
-                                    }
-                                  }}
-                                  className="text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/20"
+                            (variant: any, idx: number) => {
+                              const variantLogisticsDraft =
+                                buildVariantLogisticsDraft(
+                                  formData,
+                                  variant.logistics,
+                                );
+                              const variantLogisticsPreview = {
+                                salesUnit:
+                                  variantLogisticsDraft.salesUnit ||
+                                  defaultLogistics.salesUnit,
+                                unitWeightKg:
+                                  parseOptionalNumber(
+                                    variantLogisticsDraft.unitWeightKg,
+                                  ) || 0,
+                                unitLengthCm: parseOptionalNumber(
+                                  variantLogisticsDraft.unitLengthCm,
+                                ),
+                                unitWidthCm: parseOptionalNumber(
+                                  variantLogisticsDraft.unitWidthCm,
+                                ),
+                                unitHeightCm: parseOptionalNumber(
+                                  variantLogisticsDraft.unitHeightCm,
+                                ),
+                                packageType:
+                                  variantLogisticsDraft.packageType ||
+                                  defaultLogistics.packageType,
+                              } satisfies ProductLogistics;
+                              const variantVolumetric = variant.logistics
+                                ? volumetricWeightKg(variantLogisticsPreview)
+                                : null;
+                              const variantChargeable = variant.logistics
+                                ? unitChargeableWeightKg(
+                                    variantLogisticsPreview,
+                                  )
+                                : null;
+
+                              return (
+                                <div
+                                  key={variant.id}
+                                  className="space-y-4 rounded-lg border border-border bg-muted/30 p-4"
                                 >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            ),
+                                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_auto] md:items-end">
+                                    <Input
+                                      placeholder="Variant name (e.g., 1kg bag)"
+                                      value={variant.name || ""}
+                                      onChange={(e) => {
+                                        const newVariants = [
+                                          ...(formData.variants || []),
+                                        ];
+                                        newVariants[idx].name = e.target.value;
+                                        setFormData({
+                                          ...formData,
+                                          variants: newVariants,
+                                        });
+                                      }}
+                                    />
+                                    <Input
+                                      type="number"
+                                      placeholder="Price"
+                                      value={variant.price || ""}
+                                      onChange={(e) => {
+                                        const newVariants = [
+                                          ...(formData.variants || []),
+                                        ];
+                                        newVariants[idx].price = Number(
+                                          e.target.value,
+                                        );
+                                        setFormData({
+                                          ...formData,
+                                          variants: newVariants,
+                                        });
+                                      }}
+                                    />
+                                    <Input
+                                      type="number"
+                                      placeholder="Stock"
+                                      value={variant.inventory || ""}
+                                      onChange={(e) => {
+                                        const newVariants = [
+                                          ...(formData.variants || []),
+                                        ];
+                                        newVariants[idx].inventory = Number(
+                                          e.target.value,
+                                        );
+                                        setFormData({
+                                          ...formData,
+                                          variants: newVariants,
+                                        });
+                                      }}
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        const newVariants = (
+                                          formData.variants || []
+                                        ).filter(
+                                          (_: any, i: number) => i !== idx,
+                                        );
+                                        if (newVariants.length === 0) {
+                                          setFormData({
+                                            ...formData,
+                                            variants: undefined,
+                                            price: 0,
+                                          });
+                                        } else {
+                                          setFormData({
+                                            ...formData,
+                                            variants: newVariants,
+                                          });
+                                        }
+                                      }}
+                                      className="text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/20"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+
+                                  <label className="flex items-center gap-3 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(variant.logistics)}
+                                      onChange={(e) => {
+                                        const newVariants = [
+                                          ...(formData.variants || []),
+                                        ];
+                                        newVariants[idx] = {
+                                          ...newVariants[idx],
+                                          logistics: e.target.checked
+                                            ? (buildVariantLogisticsDraft(
+                                                formData,
+                                              ) as ProductLogistics)
+                                            : undefined,
+                                        };
+                                        setFormData({
+                                          ...formData,
+                                          variants: newVariants,
+                                        });
+                                      }}
+                                      className="w-4 h-4 rounded border border-border cursor-pointer"
+                                    />
+                                    <span className="text-sm font-medium text-foreground">
+                                      Use variant-specific logistics
+                                    </span>
+                                  </label>
+
+                                  {variant.logistics ? (
+                                    <div className="rounded-lg border border-border bg-background/70 p-4 space-y-4">
+                                      <p className="text-xs text-muted-foreground">
+                                        Leave this off when the variant ships
+                                        the same way as the main product. When
+                                        enabled, this variant uses its own
+                                        weight and optional dimensions.
+                                      </p>
+                                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <div>
+                                          <label className="text-sm font-medium text-foreground">
+                                            Sales Unit
+                                          </label>
+                                          <select
+                                            value={
+                                              variant.logistics?.salesUnit ||
+                                              defaultLogistics.salesUnit
+                                            }
+                                            onChange={(e) => {
+                                              const newVariants = [
+                                                ...(formData.variants || []),
+                                              ];
+                                              newVariants[idx] = {
+                                                ...newVariants[idx],
+                                                logistics: {
+                                                  ...(newVariants[idx]
+                                                    .logistics || {}),
+                                                  salesUnit: e.target
+                                                    .value as ProductLogistics["salesUnit"],
+                                                } as ProductLogistics,
+                                              };
+                                              setFormData({
+                                                ...formData,
+                                                variants: newVariants,
+                                              });
+                                            }}
+                                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                          >
+                                            {salesUnits.map((unit) => (
+                                              <option key={unit} value={unit}>
+                                                {unit}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-foreground">
+                                            Package Type
+                                          </label>
+                                          <select
+                                            value={
+                                              variant.logistics?.packageType ||
+                                              defaultLogistics.packageType
+                                            }
+                                            onChange={(e) => {
+                                              const newVariants = [
+                                                ...(formData.variants || []),
+                                              ];
+                                              newVariants[idx] = {
+                                                ...newVariants[idx],
+                                                logistics: {
+                                                  ...(newVariants[idx]
+                                                    .logistics || {}),
+                                                  packageType: e.target
+                                                    .value as ProductLogistics["packageType"],
+                                                } as ProductLogistics,
+                                              };
+                                              setFormData({
+                                                ...formData,
+                                                variants: newVariants,
+                                              });
+                                            }}
+                                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                          >
+                                            {packageTypes.map((type) => (
+                                              <option key={type} value={type}>
+                                                {type}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-foreground">
+                                            Unit Weight (kg)
+                                          </label>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            placeholder="e.g. 5"
+                                            value={
+                                              variant.logistics?.unitWeightKg ??
+                                              ""
+                                            }
+                                            onChange={(e) => {
+                                              const newVariants = [
+                                                ...(formData.variants || []),
+                                              ];
+                                              newVariants[idx] = {
+                                                ...newVariants[idx],
+                                                logistics: {
+                                                  ...(newVariants[idx]
+                                                    .logistics || {}),
+                                                  unitWeightKg:
+                                                    e.target.value === ""
+                                                      ? undefined
+                                                      : Number(e.target.value),
+                                                } as ProductLogistics,
+                                              };
+                                              setFormData({
+                                                ...formData,
+                                                variants: newVariants,
+                                              });
+                                            }}
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-foreground">
+                                            Length (cm)
+                                          </label>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            placeholder="Optional"
+                                            value={
+                                              variant.logistics?.unitLengthCm ??
+                                              ""
+                                            }
+                                            onChange={(e) => {
+                                              const newVariants = [
+                                                ...(formData.variants || []),
+                                              ];
+                                              newVariants[idx] = {
+                                                ...newVariants[idx],
+                                                logistics: {
+                                                  ...(newVariants[idx]
+                                                    .logistics || {}),
+                                                  unitLengthCm:
+                                                    e.target.value === ""
+                                                      ? undefined
+                                                      : Number(e.target.value),
+                                                } as ProductLogistics,
+                                              };
+                                              setFormData({
+                                                ...formData,
+                                                variants: newVariants,
+                                              });
+                                            }}
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-foreground">
+                                            Width (cm)
+                                          </label>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            placeholder="Optional"
+                                            value={
+                                              variant.logistics?.unitWidthCm ??
+                                              ""
+                                            }
+                                            onChange={(e) => {
+                                              const newVariants = [
+                                                ...(formData.variants || []),
+                                              ];
+                                              newVariants[idx] = {
+                                                ...newVariants[idx],
+                                                logistics: {
+                                                  ...(newVariants[idx]
+                                                    .logistics || {}),
+                                                  unitWidthCm:
+                                                    e.target.value === ""
+                                                      ? undefined
+                                                      : Number(e.target.value),
+                                                } as ProductLogistics,
+                                              };
+                                              setFormData({
+                                                ...formData,
+                                                variants: newVariants,
+                                              });
+                                            }}
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-foreground">
+                                            Height (cm)
+                                          </label>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            placeholder="Optional"
+                                            value={
+                                              variant.logistics?.unitHeightCm ??
+                                              ""
+                                            }
+                                            onChange={(e) => {
+                                              const newVariants = [
+                                                ...(formData.variants || []),
+                                              ];
+                                              newVariants[idx] = {
+                                                ...newVariants[idx],
+                                                logistics: {
+                                                  ...(newVariants[idx]
+                                                    .logistics || {}),
+                                                  unitHeightCm:
+                                                    e.target.value === ""
+                                                      ? undefined
+                                                      : Number(e.target.value),
+                                                } as ProductLogistics,
+                                              };
+                                              setFormData({
+                                                ...formData,
+                                                variants: newVariants,
+                                              });
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1 text-xs font-medium text-primary">
+                                        <p>
+                                          Actual weight:{" "}
+                                          {variantLogisticsPreview.unitWeightKg >
+                                          0
+                                            ? `${variantLogisticsPreview.unitWeightKg.toFixed(1)} kg`
+                                            : "Enter unit weight to preview shipping."}
+                                        </p>
+                                        {hasCompleteDimensions(
+                                          variantLogisticsPreview,
+                                        ) &&
+                                        variantVolumetric != null &&
+                                        variantChargeable != null ? (
+                                          <>
+                                            <p>
+                                              Volumetric weight:{" "}
+                                              {variantVolumetric.toFixed(1)} kg
+                                            </p>
+                                            <p>
+                                              Chargeable weight preview:{" "}
+                                              {variantChargeable.toFixed(1)} kg
+                                              per sales unit
+                                            </p>
+                                          </>
+                                        ) : variantChargeable != null &&
+                                          variantLogisticsPreview.unitWeightKg >
+                                            0 ? (
+                                          <>
+                                            <p>Using actual weight only</p>
+                                            <p>
+                                              Chargeable weight preview:{" "}
+                                              {variantChargeable.toFixed(1)} kg
+                                              per sales unit
+                                            </p>
+                                          </>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                      This variant will inherit the product
+                                      logistics above until you enable custom
+                                      logistics.
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            },
                           )}
                         </div>
                       </div>
@@ -1087,11 +1643,5 @@ export default function ProductsPage() {
     </div>
   );
 }
-
-
-
-
-
-
 
 

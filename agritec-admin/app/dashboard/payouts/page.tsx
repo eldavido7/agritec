@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 
 interface Payout {
   id: string;
-  farmerId: string;
+  sellerId: string;
   farmerName: string;
   amount: number;
   status: "pending" | "in_progress" | "completed";
@@ -40,7 +40,7 @@ export default function PayoutsPage() {
     open: boolean;
     payoutId?: string;
     farmerName?: string;
-    farmerId?: string;
+    sellerId?: string;
     amount?: number;
     status?: string;
   }>({ open: false });
@@ -111,7 +111,7 @@ export default function PayoutsPage() {
         <table style="width:100%; border-collapse: collapse;">
           ${[
             ["Paystack Reference", `TRF_${payout.id}_NG`],
-            ["Transfer Code", `TRF-${payout.farmerId.padStart(4, "0")}`],
+            ["Transfer Code", `TRF-${payout.sellerId}`],
             ["Recipient", payout.farmerName],
             ["Amount", `NGN ${payout.amount.toLocaleString()}`],
             ["Status", payout.status],
@@ -334,7 +334,7 @@ export default function PayoutsPage() {
                                   open: true,
                                   payoutId: payout.id,
                                   farmerName: payout.farmerName,
-                                  farmerId: payout.farmerId,
+                                  sellerId: payout.sellerId,
                                   amount: payout.amount,
                                   status: payout.status,
                                 })
@@ -392,7 +392,7 @@ export default function PayoutsPage() {
               </div>
               {[
                 ["Paystack Reference", `TRF_${detailPayout.id}_NG`],
-                ["Transfer Code", `TRF-${detailPayout.farmerId.padStart(4, "0")}`],
+                ["Transfer Code", `TRF-${detailPayout.sellerId}`],
                 ["Recipient", detailPayout.farmerName],
                 ["Amount", `NGN ${detailPayout.amount.toLocaleString()}`],
                 ["Method", detailPayout.method],
@@ -437,3 +437,4 @@ export default function PayoutsPage() {
     </div>
   );
 }
+

@@ -353,7 +353,7 @@ export default function FarmersPage() {
                   <p className="font-semibold">
                     {
                       orders.filter(
-                        (order) => order.farmerId === selectedFarmer.id,
+                        (order) => order.sellerId === selectedFarmer.id,
                       ).length
                     }
                   </p>
@@ -363,7 +363,7 @@ export default function FarmersPage() {
                 <p className="text-muted-foreground">Seller-owned Products</p>
                 <p className="font-medium">
                   {listings
-                    .filter((listing) => listing.farmerId === selectedFarmer.id)
+                    .filter((listing) => listing.sellerId === selectedFarmer.id)
                     .map((listing) => listing.productName)
                     .join(", ") || "No products yet"}
                 </p>
@@ -397,3 +397,4 @@ export default function FarmersPage() {
     </div>
   );
 }
+

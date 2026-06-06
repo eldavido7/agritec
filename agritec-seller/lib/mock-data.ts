@@ -1,4 +1,4 @@
-﻿// Mock data for AgriTec Farmer Dashboard
+// Mock data for AgriTec Farmer Dashboard
 
 export const platformCategories = [
   { slug: "vegetables", label: "Vegetables" },
@@ -16,6 +16,9 @@ export const platformCategories = [
   { slug: "processed-farm-products", label: "Processed Farm Products" },
   { slug: "other", label: "Other" },
 ] as const;
+
+export const categorySlugFromLabel = (label: string) =>
+  platformCategories.find((category) => category.label === label)?.slug ?? "other";
 export const salesUnits = [
   "PIECE",
   "KG",
@@ -43,8 +46,8 @@ export const packageTypes = [
 ] as const;
 
 export const platformShippingSettings = {
-  abujaRatePer10Kg: 5000,
-  outsideAbujaRatePer10Kg: 10000,
+  abujaRatePerShippingUnit: 5000,
+  outsideAbujaRatePerShippingUnit: 10000,
   weightUnitSizeKg: 10,
   volumetricDivisor: 5000,
 };
@@ -148,6 +151,7 @@ export const mockProducts = [
     sellerId: "seller-kingsley",
     name: "Basmati Rice - Premium Grade",
     category: "Grains & Cereals",
+    categorySlug: "grains-cereals",
     price: 28500,
     inventory: 250,
     status: "Active",
@@ -158,9 +162,9 @@ export const mockProducts = [
       "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400&h=300&fit=crop",
     ],
     variants: [
-      { id: 1, name: "Premium 1kg", price: 28500, inventory: 120 },
-      { id: 2, name: "Bulk 5kg", price: 135000, inventory: 80 },
-      { id: 3, name: "Commercial 20kg", price: 520000, inventory: 50 },
+      { id: "1-1", name: "Premium 1kg", price: 28500, inventory: 120 },
+      { id: "1-2", name: "Bulk 5kg", price: 135000, inventory: 80 },
+      { id: "1-3", name: "Commercial 20kg", price: 520000, inventory: 50 },
     ],
     dateAdded: new Date("2024-05-15"),
   },
@@ -169,6 +173,7 @@ export const mockProducts = [
     sellerId: "seller-kingsley",
     name: "Organic Wheat",
     category: "Grains & Cereals",
+    categorySlug: "grains-cereals",
     price: 17500,
     inventory: 180,
     status: "Active",
@@ -179,8 +184,8 @@ export const mockProducts = [
       "https://images.unsplash.com/photo-1626082927389-6cd097cda687?w=400&h=300&fit=crop",
     ],
     variants: [
-      { id: 1, name: "Standard 1kg", price: 17500, inventory: 100 },
-      { id: 2, name: "Family 10kg", price: 160000, inventory: 80 },
+      { id: "2-1", name: "Standard 1kg", price: 17500, inventory: 100 },
+      { id: "2-2", name: "Family 10kg", price: 160000, inventory: 80 },
     ],
     dateAdded: new Date("2024-05-10"),
   },
@@ -189,6 +194,7 @@ export const mockProducts = [
     sellerId: "seller-kingsley",
     name: "Fresh Tomatoes",
     category: "Vegetables",
+    categorySlug: "vegetables",
     price: 2200,
     inventory: 8,
     status: "Active",
@@ -199,8 +205,8 @@ export const mockProducts = [
       "https://images.unsplash.com/photo-1523677071509-39a1f5c59d3c?w=400&h=300&fit=crop",
     ],
     variants: [
-      { id: 1, name: "Regular 1kg", price: 2200, inventory: 5 },
-      { id: 2, name: "Premium 1kg", price: 2800, inventory: 3 },
+      { id: "3-1", name: "Regular 1kg", price: 2200, inventory: 5 },
+      { id: "3-2", name: "Premium 1kg", price: 2800, inventory: 3 },
     ],
     dateAdded: new Date("2024-05-20"),
   },
@@ -209,6 +215,7 @@ export const mockProducts = [
     sellerId: "seller-kingsley",
     name: "Milk - Full Cream",
     category: "Dairy",
+    categorySlug: "dairy",
     price: 3500,
     inventory: 320,
     status: "Active",
@@ -219,9 +226,9 @@ export const mockProducts = [
       "https://images.unsplash.com/photo-1554995618-83f09137aa1d?w=400&h=300&fit=crop",
     ],
     variants: [
-      { id: 1, name: "500ml", price: 1750, inventory: 100 },
-      { id: 2, name: "1L", price: 3500, inventory: 150 },
-      { id: 3, name: "2L", price: 6500, inventory: 70 },
+      { id: "4-1", name: "500ml", price: 1750, inventory: 100 },
+      { id: "4-2", name: "1L", price: 3500, inventory: 150 },
+      { id: "4-3", name: "2L", price: 6500, inventory: 70 },
     ],
     dateAdded: new Date("2024-05-18"),
   },
@@ -230,6 +237,7 @@ export const mockProducts = [
     sellerId: "seller-kingsley",
     name: "Plantain",
     category: "Vegetables",
+    categorySlug: "vegetables",
     price: 850,
     inventory: 450,
     status: "Active",
@@ -245,6 +253,7 @@ export const mockProducts = [
     sellerId: "seller-kingsley",
     name: "Yam",
     category: "Vegetables",
+    categorySlug: "vegetables",
     price: 2500,
     inventory: 9,
     status: "Active",
@@ -260,6 +269,7 @@ export const mockProducts = [
     sellerId: "seller-kingsley",
     name: "Honey",
     category: "Other",
+    categorySlug: "other",
     categoryNote: "Natural Sweeteners",
     price: 5500,
     inventory: 85,
@@ -273,56 +283,274 @@ export const mockProducts = [
   },
 ];
 
-export const mockOrders = [
+export type MarketplaceOrderItem = {
+  productId: number;
+  variantId: string | null;
+  productName: string;
+  unit: string;
+  quantity: number;
+  price: number;
+  lineTotal: number;
+};
+
+export type MarketplaceSellerOrderGroup = {
+  id: string;
+  sellerId: string;
+  buyerId: string;
+  buyerName: string;
+  status: "Pending" | "Processing" | "In Transit" | "Delivered";
+  items: MarketplaceOrderItem[];
+  productSubtotal: number;
+  shippingFee: number;
+  discountTotal: number;
+  groupTotal: number;
+  date: Date;
+  deliveryDate: Date;
+};
+
+export type MarketplaceOrder = {
+  id: string;
+  buyerId: string;
+  buyerName: string;
+  paymentReference: string;
+  productSubtotal: number;
+  totalShippingFee: number;
+  discountTotal: number;
+  grandTotal: number;
+  createdAt: Date;
+  sellerGroups: MarketplaceSellerOrderGroup[];
+};
+
+export const mockMarketplaceOrders: MarketplaceOrder[] = [
   {
     id: "ORD-001",
-    sellerId: "seller-kingsley",
-    buyer: "Fresh Market Wholesale",
-    product: "Basmati Rice - Premium Grade",
-    variant: "Bulk 5kg",
-    quantity: 50,
-    price: 6750000,
-    status: "Delivered",
-    date: new Date("2024-05-20"),
-    deliveryDate: new Date("2024-05-22"),
+    buyerId: "buyer-fresh-market",
+    buyerName: "Fresh Market Wholesale",
+    paymentReference: "PSK-20240520-001",
+    productSubtotal: 6750000,
+    totalShippingFee: 1250000,
+    discountTotal: 0,
+    grandTotal: 8000000,
+    createdAt: new Date("2024-05-20"),
+    sellerGroups: [
+      {
+        id: "ORD-001-G1",
+        sellerId: "seller-kingsley",
+        buyerId: "buyer-fresh-market",
+        buyerName: "Fresh Market Wholesale",
+        status: "Delivered",
+        items: [
+          { productId: 1, variantId: "1-2", productName: "Basmati Rice - Premium Grade", unit: "Bulk 5kg", quantity: 50, price: 135000, lineTotal: 6750000 },
+        ],
+        productSubtotal: 6750000,
+        shippingFee: 1250000,
+        discountTotal: 0,
+        groupTotal: 8000000,
+        date: new Date("2024-05-20"),
+        deliveryDate: new Date("2024-05-22"),
+      },
+    ],
   },
   {
     id: "ORD-002",
-    sellerId: "seller-kingsley",
-    buyer: "Green Valley Supermarket",
-    product: "Fresh Tomatoes",
-    variant: "Regular 1kg",
-    quantity: 200,
-    price: 440000,
-    status: "In Transit",
-    date: new Date("2024-05-23"),
-    deliveryDate: new Date("2024-05-25"),
+    buyerId: "buyer-green-valley",
+    buyerName: "Green Valley Supermarket",
+    paymentReference: "PSK-20240523-002",
+    productSubtotal: 440000,
+    totalShippingFee: 1800000,
+    discountTotal: 0,
+    grandTotal: 2240000,
+    createdAt: new Date("2024-05-23"),
+    sellerGroups: [
+      {
+        id: "ORD-002-G1",
+        sellerId: "seller-kingsley",
+        buyerId: "buyer-green-valley",
+        buyerName: "Green Valley Supermarket",
+        status: "In Transit",
+        items: [
+          { productId: 3, variantId: "3-1", productName: "Fresh Tomatoes", unit: "Regular 1kg", quantity: 200, price: 2200, lineTotal: 440000 },
+        ],
+        productSubtotal: 440000,
+        shippingFee: 1800000,
+        discountTotal: 0,
+        groupTotal: 2240000,
+        date: new Date("2024-05-23"),
+        deliveryDate: new Date("2024-05-25"),
+      },
+    ],
   },
   {
     id: "ORD-003",
-    sellerId: "seller-kingsley",
-    buyer: "Dairy Distribution Ltd",
-    product: "Milk - Full Cream",
-    variant: "1L",
-    quantity: 300,
-    price: 1050000,
-    status: "Processing",
-    date: new Date("2024-05-24"),
-    deliveryDate: new Date("2024-05-26"),
+    buyerId: "buyer-dairy-dist",
+    buyerName: "Dairy Distribution Ltd",
+    paymentReference: "PSK-20240524-003",
+    productSubtotal: 1050000,
+    totalShippingFee: 330000,
+    discountTotal: 0,
+    grandTotal: 1380000,
+    createdAt: new Date("2024-05-24"),
+    sellerGroups: [
+      {
+        id: "ORD-003-G1",
+        sellerId: "seller-kingsley",
+        buyerId: "buyer-dairy-dist",
+        buyerName: "Dairy Distribution Ltd",
+        status: "Processing",
+        items: [
+          { productId: 4, variantId: "4-2", productName: "Milk - Full Cream", unit: "1L", quantity: 300, price: 3500, lineTotal: 1050000 },
+        ],
+        productSubtotal: 1050000,
+        shippingFee: 330000,
+        discountTotal: 0,
+        groupTotal: 1380000,
+        date: new Date("2024-05-24"),
+        deliveryDate: new Date("2024-05-26"),
+      },
+    ],
   },
   {
     id: "ORD-004",
-    sellerId: "seller-kingsley",
-    buyer: "Grain Export House",
-    product: "Organic Wheat",
-    variant: "Standard 1kg",
-    quantity: 1000,
-    price: 17500000,
-    status: "Pending",
-    date: new Date("2024-05-25"),
-    deliveryDate: new Date("2024-05-28"),
+    buyerId: "buyer-grain-export",
+    buyerName: "Grain Export House",
+    paymentReference: "PSK-20240525-004",
+    productSubtotal: 17500000,
+    totalShippingFee: 20000000,
+    discountTotal: 0,
+    grandTotal: 37500000,
+    createdAt: new Date("2024-05-25"),
+    sellerGroups: [
+      {
+        id: "ORD-004-G1",
+        sellerId: "seller-kingsley",
+        buyerId: "buyer-grain-export",
+        buyerName: "Grain Export House",
+        status: "Pending",
+        items: [
+          { productId: 2, variantId: "2-1", productName: "Organic Wheat", unit: "Standard 1kg", quantity: 1000, price: 17500, lineTotal: 17500000 },
+        ],
+        productSubtotal: 17500000,
+        shippingFee: 20000000,
+        discountTotal: 0,
+        groupTotal: 37500000,
+        date: new Date("2024-05-25"),
+        deliveryDate: new Date("2024-05-28"),
+      },
+    ],
+  },
+  {
+    id: "AMN-ORD-001",
+    buyerId: "buyer-north-coop",
+    buyerName: "North Market Cooperative",
+    paymentReference: "PSK-20240518-005",
+    productSubtotal: 577500,
+    totalShippingFee: 530000,
+    discountTotal: 0,
+    grandTotal: 1107500,
+    createdAt: new Date("2024-05-18"),
+    sellerGroups: [
+      {
+        id: "AMN-ORD-001-G1",
+        sellerId: "seller-amina",
+        buyerId: "buyer-north-coop",
+        buyerName: "North Market Cooperative",
+        status: "Delivered",
+        items: [
+          { productId: 101, variantId: "101-2", productName: "Sweet Corn", unit: "Crate 15kg", quantity: 35, price: 16500, lineTotal: 577500 },
+        ],
+        productSubtotal: 577500,
+        shippingFee: 530000,
+        discountTotal: 0,
+        groupTotal: 1107500,
+        date: new Date("2024-05-18"),
+        deliveryDate: new Date("2024-05-21"),
+      },
+    ],
+  },
+  {
+    id: "AMN-ORD-002",
+    buyerId: "buyer-kano-fresh",
+    buyerName: "Kano Fresh Foods",
+    paymentReference: "PSK-20240523-006",
+    productSubtotal: 492000,
+    totalShippingFee: 140000,
+    discountTotal: 0,
+    grandTotal: 632000,
+    createdAt: new Date("2024-05-23"),
+    sellerGroups: [
+      {
+        id: "AMN-ORD-002-G1",
+        sellerId: "seller-amina",
+        buyerId: "buyer-kano-fresh",
+        buyerName: "Kano Fresh Foods",
+        status: "In Transit",
+        items: [
+          { productId: 102, variantId: "102-2", productName: "Free Range Eggs", unit: "Full crate", quantity: 60, price: 8200, lineTotal: 492000 },
+        ],
+        productSubtotal: 492000,
+        shippingFee: 140000,
+        discountTotal: 0,
+        groupTotal: 632000,
+        date: new Date("2024-05-23"),
+        deliveryDate: new Date("2024-05-26"),
+      },
+    ],
+  },
+  {
+    id: "AMN-ORD-003",
+    buyerId: "buyer-kaduna-grocers",
+    buyerName: "Kaduna Grocers",
+    paymentReference: "PSK-20240525-007",
+    productSubtotal: 216000,
+    totalShippingFee: 1200000,
+    discountTotal: 0,
+    grandTotal: 1416000,
+    createdAt: new Date("2024-05-25"),
+    sellerGroups: [
+      {
+        id: "AMN-ORD-003-G1",
+        sellerId: "seller-amina",
+        buyerId: "buyer-kaduna-grocers",
+        buyerName: "Kaduna Grocers",
+        status: "Pending",
+        items: [
+          { productId: 103, variantId: null, productName: "Red Bell Pepper", unit: "kg", quantity: 120, price: 1800, lineTotal: 216000 },
+        ],
+        productSubtotal: 216000,
+        shippingFee: 1200000,
+        discountTotal: 0,
+        groupTotal: 1416000,
+        date: new Date("2024-05-25"),
+        deliveryDate: new Date("2024-05-28"),
+      },
+    ],
   },
 ];
+
+export const mockOrders = mockMarketplaceOrders.flatMap((order) =>
+  order.sellerGroups.map((group) => ({
+    id: order.id,
+    parentOrderId: order.id,
+    sellerGroupId: group.id,
+    sellerId: group.sellerId,
+    buyerId: order.buyerId,
+    buyer: order.buyerName,
+    product: group.items[0]?.productName ?? "Mixed order",
+    variant: group.items[0]?.unit ?? "unit",
+    quantity: group.items.reduce((sum, item) => sum + item.quantity, 0),
+    price: group.groupTotal,
+    productSubtotal: group.productSubtotal,
+    shippingFee: group.shippingFee,
+    discountTotal: group.discountTotal,
+    status: group.status,
+    date: group.date,
+    deliveryDate: group.deliveryDate,
+    items: group.items,
+  })),
+);
+
+const getSellerOrderGroups = (sellerId: string) =>
+  mockOrders.filter((order) => order.sellerId === sellerId);
 
 export const mockCustomers = [
   {
@@ -371,35 +599,132 @@ export const mockCustomers = [
   },
 ];
 
-export const mockMessages = [
+export const mockMessageConversations = [
   {
-    id: 1,
+    id: "seller-conv-buyer-fresh-market",
     sellerId: "seller-kingsley",
-    from: "Fresh Market Wholesale",
-    subject: "Order ORD-001 Delivery Confirmation",
-    message: "We have received the basmati rice shipment. Quality is excellent. Looking forward to future orders.",
-    timestamp: new Date("2024-05-22"),
-    read: true,
+    channelType: "buyer-seller",
+    participantId: "buyer-fresh-market",
+    participantName: "Fresh Market Wholesale",
+    participantType: "buyer",
+    relatedOrderId: "ORD-001",
+    messages: [
+      {
+        id: 1,
+        sellerId: "seller-kingsley",
+        from: "Fresh Market Wholesale",
+        subject: "Order ORD-001 Delivery Confirmation",
+        message: "We have received the basmati rice shipment. Quality is excellent. Looking forward to future orders.",
+        timestamp: new Date("2024-05-22"),
+        read: true,
+      },
+    ],
   },
   {
-    id: 2,
+    id: "seller-conv-buyer-green-valley",
     sellerId: "seller-kingsley",
-    from: "Green Valley Supermarket",
-    subject: "Special Request for Tomato Shipment",
-    message: "Can you provide 300kg of premium tomatoes for our upcoming festival promotion?",
-    timestamp: new Date("2024-05-24"),
-    read: false,
+    channelType: "buyer-seller",
+    participantId: "buyer-green-valley",
+    participantName: "Green Valley Supermarket",
+    participantType: "buyer",
+    relatedOrderId: "ORD-002",
+    messages: [
+      {
+        id: 2,
+        sellerId: "seller-kingsley",
+        from: "Green Valley Supermarket",
+        subject: "Special Request for Tomato Shipment",
+        message: "Can you provide 300kg of premium tomatoes for our upcoming festival promotion?",
+        timestamp: new Date("2024-05-24"),
+        read: false,
+      },
+    ],
   },
   {
-    id: 3,
+    id: "seller-conv-buyer-dairy-dist",
     sellerId: "seller-kingsley",
-    from: "Dairy Distribution Ltd",
-    subject: "Pricing for Bulk Milk Orders",
-    message: "We are interested in a long-term contract. Can you provide a quote for 500L monthly deliveries?",
-    timestamp: new Date("2024-05-23"),
-    read: true,
+    channelType: "buyer-seller",
+    participantId: "buyer-dairy-dist",
+    participantName: "Dairy Distribution Ltd",
+    participantType: "buyer",
+    relatedOrderId: "ORD-003",
+    messages: [
+      {
+        id: 3,
+        sellerId: "seller-kingsley",
+        from: "Dairy Distribution Ltd",
+        subject: "Pricing for Bulk Milk Orders",
+        message: "We are interested in a long-term contract. Can you provide a quote for 500L monthly deliveries?",
+        timestamp: new Date("2024-05-23"),
+        read: true,
+      },
+    ],
+  },
+  {
+    id: "seller-conv-support",
+    sellerId: "seller-kingsley",
+    channelType: "seller-support",
+    participantId: "admin-support",
+    participantName: "AgriTec Support",
+    participantType: "support",
+    relatedOrderId: null,
+    messages: [
+      {
+        id: 4,
+        sellerId: "seller-kingsley",
+        from: "AgriTec Support",
+        subject: "Account Active",
+        message: "Your seller account is active and ready for marketplace orders.",
+        timestamp: new Date("2024-05-20"),
+        read: true,
+      },
+    ],
+  },
+  {
+    id: "seller-conv-buyer-north-coop",
+    sellerId: "seller-amina",
+    channelType: "buyer-seller",
+    participantId: "buyer-north-coop",
+    participantName: "North Market Cooperative",
+    participantType: "buyer",
+    relatedOrderId: "AMN-ORD-001",
+    messages: [
+      {
+        id: 201,
+        sellerId: "seller-amina",
+        from: "North Market Cooperative",
+        subject: "Sweet corn reorder",
+        message: "We need another 50 crates of sweet corn next week.",
+        timestamp: new Date("2024-05-24"),
+        read: false,
+      },
+    ],
+  },
+  {
+    id: "seller-conv-buyer-kano-fresh",
+    sellerId: "seller-amina",
+    channelType: "buyer-seller",
+    participantId: "buyer-kano-fresh",
+    participantName: "Kano Fresh Foods",
+    participantType: "buyer",
+    relatedOrderId: "AMN-ORD-002",
+    messages: [
+      {
+        id: 202,
+        sellerId: "seller-amina",
+        from: "Kano Fresh Foods",
+        subject: "Egg delivery update",
+        message: "Please confirm the ETA for AMN-ORD-002.",
+        timestamp: new Date("2024-05-25"),
+        read: false,
+      },
+    ],
   },
 ];
+
+export const mockMessages = mockMessageConversations
+  .filter((conversation) => conversation.channelType === "buyer-seller")
+  .flatMap((conversation) => conversation.messages);
 
 export const mockNotifications = [
   {
@@ -407,6 +732,8 @@ export const mockNotifications = [
     sellerId: "seller-kingsley",
     type: "order",
     orderId: "ORD-001",
+    targetType: "order",
+    targetId: "ORD-001",
     title: "New Order Received",
     message: "Fresh Market Wholesale ordered 50 units (Bulk 5kg)",
     timestamp: new Date("2024-05-25T10:30:00"),
@@ -417,6 +744,8 @@ export const mockNotifications = [
     sellerId: "seller-kingsley",
     type: "product",
     productId: 3,
+    targetType: "product",
+    targetId: 3,
     title: "Low Stock Alert",
     message: "Fresh Tomatoes - 5 remaining",
     timestamp: new Date("2024-05-24T14:20:00"),
@@ -427,6 +756,8 @@ export const mockNotifications = [
     sellerId: "seller-kingsley",
     type: "order",
     orderId: "ORD-002",
+    targetType: "order",
+    targetId: "ORD-002",
     title: "Order Status Update",
     message: "Your order ORD-002 is now in transit",
     timestamp: new Date("2024-05-24T09:15:00"),
@@ -437,6 +768,8 @@ export const mockNotifications = [
     sellerId: "seller-kingsley",
     type: "product",
     productId: 1,
+    targetType: "product",
+    targetId: 1,
     title: "Low Stock Alert",
     message: "Basmati Rice - Premium Grade - 250 remaining",
     timestamp: new Date("2024-05-23T16:45:00"),
@@ -453,7 +786,7 @@ export const mockWallet = {
   bankAccount: {
     name: "Guaranty Trust Bank",
     accountNumber: "1234567890",
-    accountName: "Kumar Family Farm",
+    accountName: "Kingsley Family Farm",
     lastPayoutDate: new Date("2024-05-24"),
   },
   automaticPayoutsEnabled: true,
@@ -474,7 +807,7 @@ export const mockTransactions = [
     id: "TXN-002",
     sellerId: "seller-kingsley",
     type: "Commission Deduction",
-    description: "Platform commission (2% of sale)",
+    description: "Platform commission",
     amount: -135000,
     status: "Completed",
     date: new Date("2024-05-20"),
@@ -493,7 +826,7 @@ export const mockTransactions = [
     id: "TXN-004",
     sellerId: "seller-kingsley",
     type: "Commission Deduction",
-    description: "Platform commission (2% of sale)",
+    description: "Platform commission",
     amount: -8800,
     status: "Completed",
     date: new Date("2024-05-23"),
@@ -512,7 +845,7 @@ export const mockTransactions = [
     id: "TXN-006",
     sellerId: "seller-kingsley",
     type: "Commission Deduction",
-    description: "Platform commission (2% of sale)",
+    description: "Platform commission",
     amount: -21000,
     status: "Completed",
     date: new Date("2024-05-24"),
@@ -549,7 +882,7 @@ export const mockTransactions = [
     id: "TXN-010",
     sellerId: "seller-kingsley",
     type: "Commission Deduction",
-    description: "Platform commission (2% of sale)",
+    description: "Platform commission",
     amount: -350000,
     status: "Pending",
     date: new Date("2024-05-25"),
@@ -568,7 +901,7 @@ export const mockTransactions = [
     id: "TXN-012",
     sellerId: "seller-kingsley",
     type: "Commission Deduction",
-    description: "Platform commission (2% of sale)",
+    description: "Platform commission",
     amount: -1650,
     status: "Completed",
     date: new Date("2024-05-22"),
@@ -590,7 +923,7 @@ export const mockPayouts = [
     id: "PAYOUT-002",
     sellerId: "seller-kingsley",
     amount: 2850000,
-    status: "Approved",
+    status: "Processing",
     requestDate: new Date("2024-05-18"),
     approvalDate: new Date("2024-05-19"),
     paymentDate: null,
@@ -656,7 +989,7 @@ export const mockAnalytics = {
 };
 
 export type ProductVariant = {
-  id: number;
+  id: string;
   name: string;
   price: number;
   inventory: number;
@@ -732,6 +1065,7 @@ const sellerTwoProducts: SellerProduct[] = withSellerProducts("seller-amina", [
     id: 101,
     name: "Sweet Corn",
     category: "Grains & Cereals",
+    categorySlug: "grains-cereals",
     price: 1200,
     inventory: 640,
     status: "Active",
@@ -739,8 +1073,8 @@ const sellerTwoProducts: SellerProduct[] = withSellerProducts("seller-amina", [
       "https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=400&h=300&fit=crop",
     ],
     variants: [
-      { id: 1, name: "Fresh 1kg", price: 1200, inventory: 320 },
-      { id: 2, name: "Crate 15kg", price: 16500, inventory: 90 },
+      { id: "101-1", name: "Fresh 1kg", price: 1200, inventory: 320 },
+      { id: "101-2", name: "Crate 15kg", price: 16500, inventory: 90 },
     ],
     dateAdded: new Date("2024-05-12"),
   },
@@ -748,6 +1082,7 @@ const sellerTwoProducts: SellerProduct[] = withSellerProducts("seller-amina", [
     id: 102,
     name: "Free Range Eggs",
     category: "Poultry",
+    categorySlug: "poultry",
     price: 4300,
     inventory: 210,
     status: "Active",
@@ -755,8 +1090,8 @@ const sellerTwoProducts: SellerProduct[] = withSellerProducts("seller-amina", [
       "https://images.unsplash.com/photo-1506976785307-8732e854ad03?w=400&h=300&fit=crop",
     ],
     variants: [
-      { id: 1, name: "Half crate", price: 4300, inventory: 110 },
-      { id: 2, name: "Full crate", price: 8200, inventory: 100 },
+      { id: "102-1", name: "Half crate", price: 4300, inventory: 110 },
+      { id: "102-2", name: "Full crate", price: 8200, inventory: 100 },
     ],
     dateAdded: new Date("2024-05-14"),
   },
@@ -764,6 +1099,7 @@ const sellerTwoProducts: SellerProduct[] = withSellerProducts("seller-amina", [
     id: 103,
     name: "Red Bell Pepper",
     category: "Vegetables",
+    categorySlug: "vegetables",
     price: 1800,
     inventory: 70,
     status: "Active",
@@ -791,9 +1127,9 @@ export const mockSellers: SellerMockData[] = [
       landmark: "Near Admiralty Toll Plaza",
     },
     products: sellerOneProducts,
-    orders: mockOrders,
+    orders: getSellerOrderGroups("seller-kingsley"),
     customers: mockCustomers,
-    messages: mockMessages,
+    messages: mockMessageConversations.filter((conversation) => conversation.sellerId === "seller-kingsley" && conversation.channelType === "buyer-seller").flatMap((conversation) => conversation.messages),
     notifications: mockNotifications,
     discounts: [
       {
@@ -873,44 +1209,7 @@ export const mockSellers: SellerMockData[] = [
       landmark: "Opposite Kano Zoo",
     },
     products: sellerTwoProducts,
-    orders: [
-      {
-        id: "AMN-ORD-001",
-        sellerId: "seller-amina",
-        buyer: "North Market Cooperative",
-        product: "Sweet Corn",
-        variant: "Crate 15kg",
-        quantity: 35,
-        price: 577500,
-        status: "Delivered",
-        date: new Date("2024-05-18"),
-        deliveryDate: new Date("2024-05-21"),
-      },
-      {
-        id: "AMN-ORD-002",
-        sellerId: "seller-amina",
-        buyer: "Kano Fresh Foods",
-        product: "Free Range Eggs",
-        variant: "Full crate",
-        quantity: 60,
-        price: 492000,
-        status: "In Transit",
-        date: new Date("2024-05-23"),
-        deliveryDate: new Date("2024-05-26"),
-      },
-      {
-        id: "AMN-ORD-003",
-        sellerId: "seller-amina",
-        buyer: "Kaduna Grocers",
-        product: "Red Bell Pepper",
-        variant: "Standard",
-        quantity: 120,
-        price: 216000,
-        status: "Processing",
-        date: new Date("2024-05-25"),
-        deliveryDate: new Date("2024-05-28"),
-      },
-    ],
+    orders: getSellerOrderGroups("seller-amina"),
     customers: [
       {
         id: 201,
@@ -946,32 +1245,15 @@ export const mockSellers: SellerMockData[] = [
         phone: "+234 809 555 6666",
       },
     ],
-    messages: [
-      {
-        id: 201,
-        sellerId: "seller-amina",
-        from: "North Market Cooperative",
-        subject: "Sweet corn reorder",
-        message: "We need another 50 crates of sweet corn next week.",
-        timestamp: new Date("2024-05-24"),
-        read: false,
-      },
-      {
-        id: 202,
-        sellerId: "seller-amina",
-        from: "Kano Fresh Foods",
-        subject: "Egg delivery update",
-        message: "Please confirm the ETA for AMN-ORD-002.",
-        timestamp: new Date("2024-05-25"),
-        read: false,
-      },
-    ],
+    messages: mockMessageConversations.filter((conversation) => conversation.sellerId === "seller-amina" && conversation.channelType === "buyer-seller").flatMap((conversation) => conversation.messages),
     notifications: [
       {
         id: 201,
         sellerId: "seller-amina",
         type: "order",
         orderId: "AMN-ORD-002",
+        targetType: "order",
+        targetId: "AMN-ORD-002",
         title: "Order In Transit",
         message: "Kano Fresh Foods order is now in transit",
         timestamp: new Date("2024-05-25T09:00:00"),
@@ -982,6 +1264,8 @@ export const mockSellers: SellerMockData[] = [
         sellerId: "seller-amina",
         type: "product",
         productId: 103,
+        targetType: "product",
+        targetId: 103,
         title: "Stock Check",
         message: "Red Bell Pepper inventory is below your target level",
         timestamp: new Date("2024-05-24T16:30:00"),
@@ -1036,7 +1320,7 @@ export const mockSellers: SellerMockData[] = [
         id: "AMN-TXN-002",
         sellerId: "seller-amina",
         type: "Commission Deduction",
-        description: "Platform commission (2% of AMN-ORD-001)",
+        description: "Platform commission for AMN-ORD-001",
         amount: -11550,
         status: "Completed",
         date: new Date("2024-05-18"),
@@ -1055,7 +1339,7 @@ export const mockSellers: SellerMockData[] = [
         id: "AMN-TXN-004",
         sellerId: "seller-amina",
         type: "Commission Deduction",
-        description: "Platform commission (2% of AMN-ORD-002)",
+        description: "Platform commission for AMN-ORD-002",
         amount: -9840,
         status: "Pending",
         date: new Date("2024-05-23"),
@@ -1140,6 +1424,9 @@ export const getActiveSellerId = () => {
 
 export const getSellerMockData = (sellerId = getActiveSellerId()) =>
   mockSellers.find((seller) => seller.id === sellerId) || mockSellers[0];
+
+
+
 
 
 

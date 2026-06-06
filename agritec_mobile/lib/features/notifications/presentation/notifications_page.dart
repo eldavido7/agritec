@@ -231,21 +231,30 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       );
       return;
     }
-    if (notification.type == BuyerNotificationType.message &&
-        notification.relatedSellerId != null) {
-      final seller = ref.read(
-        homeSellerByIdProvider(notification.relatedSellerId!),
-      );
-      ref
-          .read(chatProvider.notifier)
-          .startSellerChat(
-            sellerId: seller.id,
-            farmName: seller.farmName,
-            sellerName: seller.name,
-          );
-      ref.read(shellTabProvider.notifier).setTab(2);
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      return;
+    if (notification.type == BuyerNotificationType.message) {
+      if (notification.relatedConversationId != null) {
+        ref
+            .read(chatProvider.notifier)
+            .selectConversation(notification.relatedConversationId!);
+        ref.read(shellTabProvider.notifier).setTab(2);
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+      if (notification.relatedSellerId != null) {
+        final seller = ref.read(
+          homeSellerByIdProvider(notification.relatedSellerId!),
+        );
+        ref
+            .read(chatProvider.notifier)
+            .startSellerChat(
+              sellerId: seller.id,
+              farmName: seller.farmName,
+              sellerName: seller.name,
+            );
+        ref.read(shellTabProvider.notifier).setTab(2);
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
     }
   }
 

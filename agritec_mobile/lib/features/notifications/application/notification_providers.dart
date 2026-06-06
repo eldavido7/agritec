@@ -15,6 +15,7 @@ class BuyerNotification {
     required this.buyerUserId,
     this.relatedOrderId,
     this.relatedSellerId,
+    this.relatedConversationId,
   });
 
   final String id;
@@ -26,6 +27,7 @@ class BuyerNotification {
   final String buyerUserId;
   final String? relatedOrderId;
   final String? relatedSellerId;
+  final String? relatedConversationId;
 
   BuyerNotification copyWith({bool? read}) {
     return BuyerNotification(
@@ -38,6 +40,7 @@ class BuyerNotification {
       buyerUserId: buyerUserId,
       relatedOrderId: relatedOrderId,
       relatedSellerId: relatedSellerId,
+      relatedConversationId: relatedConversationId,
     );
   }
 
@@ -51,6 +54,7 @@ class BuyerNotification {
     'buyerUserId': buyerUserId,
     'relatedOrderId': relatedOrderId,
     'relatedSellerId': relatedSellerId,
+    'relatedConversationId': relatedConversationId,
   };
 
   factory BuyerNotification.fromJson(Map<String, dynamic> json) {
@@ -67,6 +71,7 @@ class BuyerNotification {
       buyerUserId: (json['buyerUserId'] as String?) ?? 'buyer-demo-1',
       relatedOrderId: json['relatedOrderId'] as String?,
       relatedSellerId: json['relatedSellerId'] as String?,
+      relatedConversationId: json['relatedConversationId'] as String?,
     );
   }
 }
@@ -152,7 +157,7 @@ final _mockNotifications = <BuyerNotification>[
     createdAt: DateTime(2026, 5, 31, 10, 30),
     read: false,
     buyerUserId: 'buyer-demo-1',
-    relatedOrderId: 'buyer-order-1025',
+    relatedOrderId: 'buyer-order-3001',
     relatedSellerId: 'seller-kingsley',
   ),
   BuyerNotification(
@@ -164,6 +169,7 @@ final _mockNotifications = <BuyerNotification>[
     read: false,
     buyerUserId: 'buyer-demo-1',
     relatedSellerId: 'seller-amina',
+    relatedConversationId: 'conv-seller-amina',
   ),
   BuyerNotification(
     id: 'buyer-notif-3',

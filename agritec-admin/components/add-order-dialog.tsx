@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -88,8 +88,8 @@ export function AddOrderDialog({
     : 0;
   const totalChargeableWeight = unitChargeableWeight * selectedQuantity;
   const locationRate = isAbuja
-    ? platformShippingSettings.abujaRatePer10Kg
-    : platformShippingSettings.outsideAbujaRatePer10Kg;
+    ? platformShippingSettings.abujaRatePerShippingUnit
+    : platformShippingSettings.outsideAbujaRatePerShippingUnit;
   const shippingUnits = Math.max(1, Math.ceil(totalChargeableWeight / platformShippingSettings.weightUnitSizeKg));
   const shippingQuote = {
     deliveryRegion: isAbuja ? "Abuja / FCT" : "Outside Abuja",
@@ -173,7 +173,7 @@ export function AddOrderDialog({
     toast.success("Paystack transfer confirmed. Creating order...");
     onConfirm({
       buyerId: selectedBuyer.id,
-      farmerId: selectedFarmer.id,
+      sellerId: selectedFarmer.id,
       productName: selectedProduct.name,
       quantity,
       unit: selectedProduct.variants[0]?.name || "unit",
@@ -450,6 +450,10 @@ export function AddOrderDialog({
     </Dialog>
   );
 }
+
+
+
+
 
 
 

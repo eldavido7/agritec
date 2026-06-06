@@ -54,11 +54,10 @@ const productLabel = (discount: SellerDiscount, products: SellerProduct[]) => {
 
   const variantNames = discount.variantIds
     .map((variantId) => {
-      const [productId, rawVariantId] = variantId.split("-");
-      const product = products.find((item) => item.id === Number(productId));
-      const variant = product?.variants?.find(
-        (item) => item.id === Number(rawVariantId),
+      const product = products.find((item) =>
+        item.variants?.some((variant) => variant.id === variantId),
       );
+      const variant = product?.variants?.find((item) => item.id === variantId);
       return product && variant ? `${product.name}: ${variant.name}` : null;
     })
     .filter(Boolean);
@@ -380,3 +379,4 @@ export default function DiscountsPage() {
     </div>
   );
 }
+

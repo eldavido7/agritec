@@ -63,7 +63,7 @@ export default function Page() {
   const faqs = [
     {
       q: "Is it free to open a seller account?",
-      a: "Yes, creating your AgriTec seller account is completely free. You only pay a small commission (starting at 3%) when you successfully complete a sale. No monthly fees, no setup charges.",
+      a: "Yes, creating your AgriTec seller account is completely free. You only pay the platform commission configured for completed marketplace sales. No monthly fees, no setup charges.",
     },
     {
       q: "How do I receive payments from buyers?",
@@ -243,7 +243,7 @@ export default function Page() {
               <div className="block">
                 <div className="text-2xl font-bold text-foreground">340k+</div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  Verified Buyers
+                  Marketplace Buyers
                 </div>
               </div>
             </div>
@@ -683,7 +683,7 @@ export default function Page() {
               },
               {
                 title: "Secure Payments & Instant Wallet",
-                desc: "Buyers pay securely through the app. Funds land in your seller wallet immediately. Withdraw to any Nigerian bank or mobile money wallet with zero delays.",
+                desc: "Buyers pay securely through the app. Funds settle into your seller wallet after marketplace confirmation. Withdraw to any Nigerian bank or mobile money wallet once your payout is approved.",
                 icon: (
                   <svg
                     className="w-5 h-5 stroke-[#639922] fill-none"
@@ -947,14 +947,14 @@ export default function Page() {
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 No setup costs. No monthly fees. List your first products today
-                and start receiving orders from verified buyers across Nigeria.
+                and start receiving orders from marketplace buyers across Nigeria.
               </p>
 
               <div className="flex flex-wrap gap-2 mb-2">
                 {[
                   "Free to join",
-                  "Instant payouts",
-                  "Verified buyers",
+                  "Approved payouts",
+                  "Marketplace buyers",
                   "24/7 support",
                 ].map((chip) => (
                   <span
@@ -1049,7 +1049,7 @@ export default function Page() {
                 ),
               },
               {
-                text: "340k+ verified buyers",
+                text: "340k+ marketplace buyers",
                 icon: (
                   <>
                     <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
@@ -1194,3 +1194,4 @@ export default function Page() {
     </>
   );
 }
+

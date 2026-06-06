@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 
 import 'package:agritec_mobile/core/logistics/logistics_models.dart';
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
@@ -262,6 +262,7 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
           label: 'Home',
           displayName: 'Ikate Elegushi, Lekki',
           fullAddress: '22 Freedom Way, Lekki Phase 1, Lagos',
+          addressLine: '22 Freedom Way',
           latitude: 6.4429,
           longitude: 3.4851,
           city: 'Lagos',
@@ -338,9 +339,12 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
           label: 'Old Office',
           displayName: 'Ikeja Computer Village',
           fullAddress: '2 Otigba Street, Ikeja, Lagos',
+          addressLine: '2 Otigba Street',
           city: 'Lagos',
           state: 'Lagos',
+          createdByRole: 'admin',
           isManualAddress: true,
+          isAdminAssisted: true,
         ),
         productSubtotal: 16500,
         totalShippingFee: 10000,
@@ -481,3 +485,4 @@ final orderByIdProvider = Provider.family<MarketplaceOrder?, String>((ref, order
   }
   return null;
 });
+

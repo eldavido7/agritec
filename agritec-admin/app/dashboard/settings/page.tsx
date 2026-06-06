@@ -1,5 +1,4 @@
 "use client";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { platformShippingSettings, settings } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
@@ -8,20 +7,16 @@ import { useState } from "react";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { toast } from "sonner";
-
 interface Admin {
   id: string;
   username: string;
   email: string;
 }
-
 const mockAdmins: Admin[] = [
   { id: "1", username: "admin@agritec.com", email: "admin@agritec.com" },
   { id: "2", username: "support@agritec.com", email: "support@agritec.com" },
 ];
-
 export default function SettingsPage() {
-  const [platformFee, setPlatformFee] = useState(settings.platformFee);
   const [commissionRate, setCommissionRate] = useState(settings.commissionRate);
   const [shippingSettings, setShippingSettings] = useState(platformShippingSettings);
   const [admins, setAdmins] = useState<Admin[]>(mockAdmins);
@@ -36,7 +31,6 @@ export default function SettingsPage() {
     adminId?: string;
     adminName?: string;
   }>({ open: false });
-
   const handleSaveConfig = () => {
     setIsSavingConfig(true);
     setTimeout(() => {
@@ -46,17 +40,14 @@ export default function SettingsPage() {
       setTimeout(() => setIsSaved(false), 2000);
     }, 800);
   };
-
   const handleAddAdmin = () => {
     if (newAdminUsername.trim() && newAdminPassword.trim()) {
       setIsCreatingAdmin(true);
-
       const newAdmin: Admin = {
         id: Date.now().toString(),
         username: newAdminUsername,
         email: newAdminUsername,
       };
-
       setTimeout(() => {
         setAdmins([...admins, newAdmin]);
         setNewAdminUsername("");
@@ -68,7 +59,6 @@ export default function SettingsPage() {
       toast.warning("Enter a valid username and password to create an admin");
     }
   };
-
   const handleDeleteAdmin = () => {
     if (deleteDialog.adminId) {
       setIsDeletingAdmin(true);
@@ -80,18 +70,12 @@ export default function SettingsPage() {
       }, 800);
     }
   };
-
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Configure platform settings
-        </p>
+        <p className="text-muted-foreground mt-1">Configure platform settings</p>
       </div>
-
-      {/* Platform Configuration */}
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Platform Configuration</CardTitle>
@@ -100,23 +84,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                Platform Fee (%)
-              </label>
-              <Input
-                type="number"
-                step="0.1"
-                value={platformFee}
-                onChange={(e) => setPlatformFee(parseFloat(e.target.value))}
-                className="border-border/50"
-              />
-              <p className="text-xs text-muted-foreground">
-                Percentage fee on each transaction
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Commission Rate (%)
+                Marketplace Commission Rate (%)
               </label>
               <Input
                 type="number"
@@ -126,26 +94,16 @@ export default function SettingsPage() {
                 className="border-border/50"
               />
               <p className="text-xs text-muted-foreground">
-                Percentage earned from transactions
+                Percentage retained by the platform from completed marketplace sales before seller settlement. This same rate drives analytics, seller wallet credits, and payout reporting.
               </p>
             </div>
           </div>
-
-          <Button
-            onClick={handleSaveConfig}
-            className="w-full md:w-auto gap-2"
-            disabled={isSavingConfig}
-          >
-            {isSavingConfig ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : null}
+          <Button onClick={handleSaveConfig} className="w-full md:w-auto gap-2" disabled={isSavingConfig}>
+            {isSavingConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {isSavingConfig ? "Saving..." : isSaved ? "Saved!" : "Save Changes"}
           </Button>
         </CardContent>
       </Card>
-
-
-      {/* Platform Shipping */}
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Shipping Settings</CardTitle>
@@ -157,12 +115,12 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Abuja/FCT rate per shipping unit</label>
-              <Input type="number" value={shippingSettings.abujaRatePer10Kg} onChange={(e) => setShippingSettings({ ...shippingSettings, abujaRatePer10Kg: Number(e.target.value) })} />
+              <Input type="number" value={shippingSettings.abujaRatePerShippingUnit} onChange={(e) => setShippingSettings({ ...shippingSettings, abujaRatePerShippingUnit: Number(e.target.value) })} />
               <p className="text-xs text-muted-foreground">Applied when buyer city/state is Abuja or FCT.</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Outside Abuja rate per shipping unit</label>
-              <Input type="number" value={shippingSettings.outsideAbujaRatePer10Kg} onChange={(e) => setShippingSettings({ ...shippingSettings, outsideAbujaRatePer10Kg: Number(e.target.value) })} />
+              <Input type="number" value={shippingSettings.outsideAbujaRatePerShippingUnit} onChange={(e) => setShippingSettings({ ...shippingSettings, outsideAbujaRatePerShippingUnit: Number(e.target.value) })} />
               <p className="text-xs text-muted-foreground">Applied for all delivery addresses outside Abuja/FCT.</p>
             </div>
             <div className="space-y-2">
@@ -171,7 +129,6 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">Shipping units are calculated from total chargeable weight divided by this value.</p>
             </div>
           </div>
-
           <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-foreground">Advanced Logistics Settings</h3>
@@ -193,30 +150,19 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
-      {/* Admin Management */}
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Admin Management</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Current Admins */}
           <div>
-            <h3 className="font-medium text-foreground mb-4">
-              Existing Admins
-            </h3>
+            <h3 className="font-medium text-foreground mb-4">Existing Admins</h3>
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {admins.map((admin) => (
-                <div
-                  key={admin.id}
-                  className="flex items-center justify-between p-3 border border-border/50 rounded-lg"
-                >
+                <div key={admin.id} className="flex items-center justify-between p-3 border border-border/50 rounded-lg">
                   <div>
-                    <p className="font-medium text-foreground text-sm">
-                      {admin.username}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {admin.email}
-                    </p>
+                    <p className="font-medium text-foreground text-sm">{admin.username}</p>
+                    <p className="text-xs text-muted-foreground">{admin.email}</p>
                   </div>
                   <Button
                     variant="ghost"
@@ -236,17 +182,11 @@ export default function SettingsPage() {
               ))}
             </div>
           </div>
-
-          {/* Create New Admin */}
           <div className="border-t border-border/50 pt-6">
-            <h3 className="font-medium text-foreground mb-4">
-              Create New Admin
-            </h3>
+            <h3 className="font-medium text-foreground mb-4">Create New Admin</h3>
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Username
-                </label>
+                <label className="text-sm font-medium text-foreground">Username</label>
                 <Input
                   type="email"
                   placeholder="admin@example.com"
@@ -255,11 +195,8 @@ export default function SettingsPage() {
                   className="border-border/50"
                 />
               </div>
-
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Password
-                </label>
+                <label className="text-sm font-medium text-foreground">Password</label>
                 <Input
                   type="password"
                   placeholder="Enter password"
@@ -268,29 +205,18 @@ export default function SettingsPage() {
                   className="border-border/50"
                 />
               </div>
-
               <Button
                 onClick={handleAddAdmin}
                 className="w-full md:w-auto gap-2"
-                disabled={
-                  !newAdminUsername.trim() ||
-                  !newAdminPassword.trim() ||
-                  isCreatingAdmin
-                }
+                disabled={!newAdminUsername.trim() || !newAdminPassword.trim() || isCreatingAdmin}
               >
-                {isCreatingAdmin ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="w-4 h-4" />
-                )}
+                {isCreatingAdmin ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 {isCreatingAdmin ? "Creating..." : "Create Admin"}
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* Delete Dialog */}
       <DeleteDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}
@@ -302,5 +228,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-

@@ -242,7 +242,7 @@ final cartGroupsProvider = Provider<List<SellerCartGroup>>((ref) {
             images: product.images,
             hasDiscount: product.hasDiscount,
             discountLabel: product.discountLabel,
-            logistics: product.logistics,
+            logistics: variant.logistics ?? product.logistics,
           );
 
     HomeSeller? seller;
@@ -297,5 +297,7 @@ final cartTotalProvider = Provider<int>((ref) {
   final groups = ref.watch(cartGroupsProvider);
   return groups.fold(0, (sum, group) => sum + group.sellerTotal);
 });
+
+
 
 

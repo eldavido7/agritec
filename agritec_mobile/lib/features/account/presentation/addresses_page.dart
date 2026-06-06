@@ -527,16 +527,17 @@ class AddressesPage extends ConsumerWidget {
                                 final notifier = ref.read(
                                   addressBookProvider.notifier,
                                 );
+                                final fullAddress = fullAddressController.text.trim();
                                 final newAddress = BuyerAddress(
                                   id:
                                       address?.id ??
                                       'addr-${DateTime.now().millisecondsSinceEpoch}',
                                   label: labelController.text.trim(),
                                   displayName:
-                                      selectedDisplayName ??
-                                      fullAddressController.text.trim(),
-                                  fullAddress: fullAddressController.text
-                                      .trim(),
+                                      selectedDisplayName ?? fullAddress,
+                                  fullAddress: fullAddress,
+                                  addressLine:
+                                      fullAddress.split(',').first.trim(),
                                   latitude: lat,
                                   longitude: lng,
                                   city: selectedCity,
@@ -545,7 +546,9 @@ class AddressesPage extends ConsumerWidget {
                                       landmarkController.text.trim().isEmpty
                                       ? null
                                       : landmarkController.text.trim(),
+                                  createdByRole: 'buyer',
                                   isManualAddress: false,
+                                  isAdminAssisted: false,
                                   isDefault: makeDefault,
                                 );
                                 if (address == null) {

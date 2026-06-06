@@ -507,26 +507,6 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Payout Information */}
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
-                  <h3 className="font-semibold text-foreground dark:text-background mb-3">
-                    Payout Information
-                  </h3>
-                  <ul className="text-sm space-y-2 text-amber-900">
-                    <li>• Minimum withdrawal amount: ₦10,000</li>
-                    <li>• Processing time: 2-3 business days</li>
-                    <li>
-                      • Withdrawals are processed Monday to Friday, 9 AM - 4 PM
-                      WAT
-                    </li>
-                    <li>• Transaction fees may apply depending on your bank</li>
-                    <li>
-                      • You can request withdrawals anytime from your Wallet
-                      page
-                    </li>
-                  </ul>
-                </div>
-
-                {/* Current Balance */}
                 {/* <div className="grid grid-cols-2 gap-4">
                   <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
                     <p className="text-sm text-muted-foreground mb-1">
@@ -718,4 +698,7 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+
+
 

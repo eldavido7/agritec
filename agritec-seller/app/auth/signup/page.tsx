@@ -156,7 +156,7 @@ export default function SignUpPage() {
                 name="farmName"
                 value={formData.farmName}
                 onChange={handleChange}
-                placeholder="Kumar Family Farm"
+                placeholder="Kingsley Family Farm"
                 className={errors.farmName ? "border-destructive" : ""}
               />
               {errors.farmName && (
@@ -347,7 +347,7 @@ export default function SignUpPage() {
         <div className="mt-8 space-y-3">
           {[
             "Access real-time farm monitoring",
-            "Connect with verified buyers",
+            "Connect with marketplace buyers",
             "Get insights to optimize sales",
             "Manage orders and inventory easily",
             "Get paid securely and on time",
@@ -362,3 +362,4 @@ export default function SignUpPage() {
     </div>
   );
 }
+

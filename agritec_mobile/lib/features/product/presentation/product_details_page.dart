@@ -35,7 +35,14 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
     );
     final seller = ref.watch(homeSellerByIdProvider(product.sellerId));
     final variants = ref.watch(productVariantsProvider(product.id));
-    final discount = ref.watch(productDiscountProvider(product.id));
+    final selectedVariant = variants.isNotEmpty
+        ? variants[_selectedVariant.clamp(0, variants.length - 1)]
+        : null;
+    final discount = ref.watch(productDiscountProvider((
+      sellerId: product.sellerId,
+      productId: product.id,
+      variantId: selectedVariant?.id,
+    )));
     final cart = ref.watch(cartProvider);
     final authenticated = isBuyerAuthenticated(ref);
     final relatedProducts = products
@@ -44,9 +51,6 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
         )
         .take(10)
         .toList();
-    final selectedVariant = variants.isNotEmpty
-        ? variants[_selectedVariant.clamp(0, variants.length - 1)]
-        : null;
     final selectedLineKey = cartLineKey(product.id, variantId: selectedVariant?.id);
     final inCart = cart.containsKey(selectedLineKey);
     final isSaved =
@@ -506,6 +510,8 @@ class _ArrowButton extends StatelessWidget {
     );
   }
 }
+
+
 
 
 

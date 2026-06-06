@@ -85,18 +85,18 @@ class LogisticsMetadata {
 
 class PlatformShippingSettings {
   const PlatformShippingSettings({
-    required this.abujaRatePerUnit,
-    required this.outsideAbujaRatePerUnit,
+    required this.abujaRatePerShippingUnit,
+    required this.outsideAbujaRatePerShippingUnit,
     required this.weightUnitSizeKg,
     required this.volumetricDivisor,
   });
-  final int abujaRatePerUnit;
-  final int outsideAbujaRatePerUnit;
+  final int abujaRatePerShippingUnit;
+  final int outsideAbujaRatePerShippingUnit;
   final double weightUnitSizeKg;
   final double volumetricDivisor;
 }
 
-const platformShippingSettings = PlatformShippingSettings(abujaRatePerUnit: 5000, outsideAbujaRatePerUnit: 10000, weightUnitSizeKg: 10, volumetricDivisor: 5000);
+const platformShippingSettings = PlatformShippingSettings(abujaRatePerShippingUnit: 5000, outsideAbujaRatePerShippingUnit: 10000, weightUnitSizeKg: 10, volumetricDivisor: 5000);
 
 class ShippingQuote {
   const ShippingQuote({

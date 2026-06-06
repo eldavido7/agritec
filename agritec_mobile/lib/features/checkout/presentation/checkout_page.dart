@@ -328,15 +328,21 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     for (final group in groups) {
       var groupDiscount = 0;
       for (final line in group.items) {
-        final discount = ref.read(productDiscountProvider(line.product.id));
-        if (discount == null || !discount.isActive) continue;
+        final discount = ref.read(
+          productDiscountProvider((
+            sellerId: group.sellerId,
+            productId: line.product.id,
+            variantId: line.variantId,
+          )),
+        );
+        if (discount == null) continue;
         if (discount.code.toUpperCase() != code) continue;
         matched = true;
         final lineSubtotal = line.product.price * line.quantity;
         if (discount.type == 'percentage') {
           groupDiscount += ((lineSubtotal * discount.value) / 100).round();
         } else {
-          groupDiscount += (discount.value * line.quantity).round();
+          groupDiscount += discount.value * line.quantity;
         }
       }
       if (groupDiscount > 0) {
@@ -467,4 +473,5 @@ class _SellerCheckoutCard extends ConsumerWidget {
     );
   }
 }
+
 

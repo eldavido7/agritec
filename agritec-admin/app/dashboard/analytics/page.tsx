@@ -90,9 +90,11 @@ export default function AnalyticsPage() {
     0,
   );
   const commissionEarned = totalRevenue * (settings.commissionRate / 100);
-  const platformFees = totalRevenue * (settings.platformFee / 100);
-  const totalEarnings = commissionEarned + platformFees;
+  const totalEarnings = commissionEarned;
   const sellerSettlements = totalRevenue - totalEarnings;
+  const processingPayoutAmount = payouts
+    .filter((p) => p.status === "in_progress")
+    .reduce((sum, payout) => sum + payout.amount, 0);
   const avgOrderValue = totalRevenue / orders.length;
   const completedOrders = orders.filter((o) => o.status === "completed").length;
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
@@ -209,7 +211,7 @@ export default function AnalyticsPage() {
                   {formatCurrency(totalEarnings)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Commission + fees completed
+                  Commission completed
                 </p>
               </div>
               <DollarSign className="w-8 h-8 text-primary/50" />
@@ -285,17 +287,17 @@ export default function AnalyticsPage() {
             <p className="text-lg font-bold text-foreground">
               {formatCurrency(commissionEarned)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">10% completed</p>
+            <p className="text-xs text-muted-foreground mt-1">Commission retained on completed sales</p>
           </CardContent>
         </Card>
 
         <Card className="border-border/50">
           <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground mb-1">Fee Payments</p>
+            <p className="text-xs text-muted-foreground mb-1">Processing Payouts</p>
             <p className="text-lg font-bold text-foreground">
-              {formatCurrency(platformFees)}
+              {formatCurrency(processingPayoutAmount)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">2.5% completed</p>
+            <p className="text-xs text-muted-foreground mt-1">Approved and awaiting Paystack completion</p>
           </CardContent>
         </Card>
 
@@ -702,9 +704,9 @@ export default function AnalyticsPage() {
                 sublabel: "of transaction value",
               },
               {
-                label: "Platform Fee",
-                value: `${settings.platformFee}%`,
-                sublabel: "transaction fee",
+                label: "Payout Frequency",
+                value: settings.payoutFrequency,
+                sublabel: "automatic payout cadence",
               },
               {
                 label: "Total Commission",
@@ -758,3 +760,6 @@ export default function AnalyticsPage() {
     </div>
   );
 }
+
+
+

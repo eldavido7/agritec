@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { Leaf, ArrowRight, Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
-import { authenticateSeller } from "@/lib/local-auth";
+import { authenticateSeller, getSellerSession } from "@/lib/local-auth";
 import { mockSellers } from "@/lib/mock-data";
 
 export default function SignInPage() {
@@ -20,6 +20,13 @@ export default function SignInPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    const session = getSellerSession();
+    if (!session) return;
+    const nextPath = new URLSearchParams(window.location.search).get("next");
+    router.replace(nextPath || "/dashboard");
+  }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;

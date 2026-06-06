@@ -25,7 +25,7 @@ import { formatCurrency, formatDate } from "@/lib/formatting";
 type Notification = (typeof mockNotifications)[0];
 type Order = (typeof mockOrders)[0];
 type Product = (typeof mockProducts)[0];
-type Variant = { id: number; name: string; price: number; inventory: number };
+type Variant = { id: string; name: string; price: number; inventory: number };
 
 const routeTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -513,6 +513,7 @@ export default function Navbar() {
     </>
   );
 }
+
 
 
 

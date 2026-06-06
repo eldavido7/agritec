@@ -31,8 +31,7 @@ const CustomTooltip = (props: any) => {
 export default function DashboardPage() {
   const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
   const commissionEarned = totalRevenue * (settings.commissionRate / 100);
-  const platformFeesEarned = totalRevenue * (settings.platformFee / 100);
-  const platformRevenue = commissionEarned + platformFeesEarned;
+  const platformRevenue = commissionEarned;
   const pendingPayouts = payouts.filter((payout) => payout.status === 'pending');
   const unreadMessages = messages.filter((message) => !message.read);
 
@@ -40,8 +39,8 @@ export default function DashboardPage() {
     {
       title: 'Gross Revenue',
       value: formatCurrency(platformRevenue),
-      icon: DollarSign,
-      subtitle: 'Commission + fees',
+      icon: CreditCard,
+      subtitle: 'Marketplace commission',
       color: 'bg-primary/10 text-primary',
     },
     {
@@ -52,10 +51,10 @@ export default function DashboardPage() {
       color: 'bg-secondary/10 text-secondary',
     },
     {
-      title: 'Platform Fees',
-      value: formatCurrency(platformFeesEarned),
-      icon: DollarSign,
-      subtitle: `${settings.platformFee}% of revenue`,
+      title: 'Pending Payout Reviews',
+      value: pendingPayouts.length.toString(),
+      icon: CreditCard,
+      subtitle: 'Awaiting admin action',
       color: 'bg-accent/10 text-accent',
     },
     {
@@ -158,8 +157,8 @@ export default function DashboardPage() {
                 <div className="flex min-w-0 items-start gap-3">
                   <CreditCard className="h-4 w-4 shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
-                    <p className="break-words font-medium text-foreground">{payout.farmerName}</p>
-                    <p className="break-words text-sm text-muted-foreground">
+                    <p className="wrap-break-word font-medium text-foreground">{payout.farmerName}</p>
+                    <p className="wrap-break-word text-sm text-muted-foreground">
                       Pending payout of {formatCurrency(payout.amount)}
                     </p>
                   </div>
@@ -171,8 +170,8 @@ export default function DashboardPage() {
                 <div className="flex min-w-0 items-start gap-3">
                   <MessageCircle className="h-4 w-4 shrink-0 text-secondary" />
                   <div className="min-w-0 flex-1">
-                    <p className="break-words font-medium text-foreground">{message.senderName}</p>
-                    <p className="break-words text-sm text-muted-foreground">{message.message}</p>
+                    <p className="wrap-break-word font-medium text-foreground">{message.senderName}</p>
+                    <p className="wrap-break-word text-sm text-muted-foreground">{message.message}</p>
                   </div>
                 </div>
               </div>
@@ -183,4 +182,8 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+
+
+
 
