@@ -11,6 +11,15 @@
     "seed": "node prisma/seed.js",
     "postinstall": "prisma generate"
   },
+  "nodemonConfig": {
+    "watch": [
+      "src"
+    ],
+    "ext": "js,ts,tsx,jsx,json",
+    "ignore": [
+      "node_modules"
+    ]
+  },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
     "@prisma/client": "^6.19.0",
@@ -21,7 +30,7 @@
     "cmdk": "1.0.4",
     "jsonwebtoken": "^9.0.2",
     "nanoid": "^5.1.5",
-    "next": "15.2.6",
+    "next": "latest",
     "next-cloudinary": "^6.16.0",
     "nodemailer": "^7.0.3",
     "zod": "^3.24.1",
@@ -40,5 +49,3 @@
     "typescript": "^5"
   }
 }
-
-
