@@ -1,0 +1,704 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum AddressCreatorRole {
+  BUYER
+  ADMIN
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+  OUT_OF_STOCK
+}
+
+enum SalesUnit {
+  PIECE
+  KG
+  BAG
+  BASKET
+  CRATE
+  BOX
+  BUNDLE
+  TRAY
+  PACK
+  LITRE
+  ANIMAL
+  OTHER
+}
+
+enum PackageType {
+  PIECE
+  BAG
+  BASKET
+  CRATE
+  BOX
+  BUNDLE
+  LIVE_ANIMAL
+  OTHER
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum ParentOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+  REFUNDED
+  FAILED
+}
+
+enum SellerOrderGroupStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  PAYSTACK
+}
+
+enum PaymentStatus {
+  PENDING
+  INITIALIZED
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum WalletTransactionType {
+  ORDER_PENDING_CREDIT
+  ORDER_AVAILABLE_RELEASE
+  PAYOUT_REQUESTED
+  PAYOUT_COMPLETED
+  PAYOUT_FAILED_RESTORE
+  REFUND_DEBIT
+  REFUND_RESTORE
+  MANUAL_ADJUSTMENT
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+  REJECTED
+}
+
+enum ConversationType {
+  BUYER_SELLER
+  BUYER_SUPPORT
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+}
+
+enum NotificationType {
+  ORDER
+  MESSAGE
+  PAYOUT
+  SYSTEM
+}
+
+enum InventoryMovementType {
+  SALE_DEDUCTION
+  REFUND_RESTORE
+  MANUAL_ADJUSTMENT
+}
+
+model User {
+  id                         String                    @id @default(cuid())
+  email                      String                    @unique
+  passwordHash               String
+  fullName                   String
+  role                       UserRole
+  phone                      String?
+  isActive                   Boolean                   @default(true)
+  emailVerifiedAt            DateTime?
+  lastActiveAt               DateTime?
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+  buyerProfile               BuyerProfile?
+  sellerProfile              SellerProfile?
+  notifications              Notification[]
+  sentMessages               Message[]                 @relation("UserSentMessages")
+  conversationParticipants   ConversationParticipant[]
+  auditLogs                  AuditLog[]                @relation("AdminAuditLogs")
+  approvedWithdrawalRequests WithdrawalRequest[]       @relation("AdminApprovedWithdrawals")
+}
+
+model BuyerProfile {
+  id            String         @id @default(cuid())
+  userId        String         @unique
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addresses     Address[]
+  wishlistItems WishlistItem[]
+  cart          Cart?
+  orders        ParentOrder[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model SellerProfile {
+  id                 String              @id @default(cuid())
+  userId             String              @unique
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farmName           String
+  description        String?
+  locationLabel      String?
+  fullAddress        String?
+  city               String?
+  state              String?
+  latitude           Decimal?            @db.Decimal(10, 7)
+  longitude          Decimal?            @db.Decimal(10, 7)
+  autoPayoutEnabled  Boolean             @default(false)
+  products           Product[]
+  discounts          Discount[]
+  sellerGroups       SellerOrderGroup[]
+  wallet             SellerWallet?
+  bankAccount        SellerBankAccount?
+  inventoryMoves     InventoryMovement[]
+  withdrawalRequests WithdrawalRequest[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model Address {
+  id              String             @id @default(cuid())
+  buyerId         String
+  buyer           BuyerProfile       @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  displayName     String?
+  addressLine     String
+  fullAddress     String
+  city            String
+  state           String
+  landmark        String?
+  latitude        Decimal?           @db.Decimal(10, 7)
+  longitude       Decimal?           @db.Decimal(10, 7)
+  isDefault       Boolean            @default(false)
+  isManualAddress Boolean            @default(false)
+  isAdminAssisted Boolean            @default(false)
+  createdByRole   AddressCreatorRole @default(BUYER)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([buyerId, isDefault])
+}
+
+model Category {
+  slug        String    @id
+  label       String    @unique
+  description String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id                 String              @id @default(cuid())
+  sellerId           String
+  seller             SellerProfile       @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  title              String
+  description        String
+  status             ProductStatus       @default(ACTIVE)
+  isDeleted          Boolean             @default(false)
+  deletedAt          DateTime?
+  categorySlug       String
+  category           Category            @relation(fields: [categorySlug], references: [slug])
+  categoryNote       String?
+  tags               String[]
+  basePrice          Int
+  inventory          Int                 @default(0)
+  hasVariants        Boolean             @default(false)
+  images             Json?
+  salesUnit          SalesUnit
+  packageType        PackageType
+  unitWeightKg       Decimal             @db.Decimal(10, 3)
+  unitLengthCm       Decimal?            @db.Decimal(10, 3)
+  unitWidthCm        Decimal?            @db.Decimal(10, 3)
+  unitHeightCm       Decimal?            @db.Decimal(10, 3)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  variants           ProductVariant[]
+  orderItems         OrderItem[]
+  wishlistItems      WishlistItem[]
+  cartItems          CartItem[]
+  inventoryMovements InventoryMovement[]
+
+  @@index([sellerId, status])
+  @@index([categorySlug, status])
+}
+
+model ProductVariant {
+  id                 String              @id
+  productId          String
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku                String?             @unique
+  name               String
+  price              Int
+  inventory          Int                 @default(0)
+  salesUnit          SalesUnit?
+  packageType        PackageType?
+  unitWeightKg       Decimal?            @db.Decimal(10, 3)
+  unitLengthCm       Decimal?            @db.Decimal(10, 3)
+  unitWidthCm        Decimal?            @db.Decimal(10, 3)
+  unitHeightCm       Decimal?            @db.Decimal(10, 3)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  orderItems         OrderItem[]
+  wishlistItems      WishlistItem[]
+  cartItems          CartItem[]
+  inventoryMovements InventoryMovement[]
+
+  @@index([productId])
+}
+
+model Discount {
+  id          String        @id @default(cuid())
+  sellerId    String
+  seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  code        String
+  description String?
+  type        DiscountType
+  value       Int
+  usageLimit  Int?
+  usageCount  Int           @default(0)
+  startsAt    DateTime
+  endsAt      DateTime?
+  isActive    Boolean       @default(true)
+  productIds  String[]
+  variantIds  String[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([sellerId, code])
+  @@index([sellerId, isActive])
+}
+
+model Cart {
+  id        String       @id @default(cuid())
+  buyerId   String       @unique
+  buyer     BuyerProfile @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model CartItem {
+  id        String          @id @default(cuid())
+  cartId    String
+  cart      Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  lineKey   String
+  quantity  Int
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@unique([cartId, lineKey])
+  @@index([cartId, updatedAt])
+}
+
+model WishlistItem {
+  id        String          @id @default(cuid())
+  buyerId   String
+  buyer     BuyerProfile    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  lineKey   String
+  createdAt DateTime        @default(now())
+
+  @@unique([buyerId, lineKey])
+  @@index([buyerId, createdAt])
+}
+
+model ParentOrder {
+  id                 String                @id @default(cuid())
+  buyerId            String
+  buyer              BuyerProfile          @relation(fields: [buyerId], references: [id], onDelete: Restrict)
+  status             ParentOrderStatus     @default(PENDING_PAYMENT)
+  paymentStatus      PaymentStatus         @default(PENDING)
+  buyerNameSnapshot  String
+  buyerEmailSnapshot String
+  buyerPhoneSnapshot String
+  productSubtotal    Int
+  totalShippingFee   Int
+  discountTotal      Int
+  grandTotal         Int
+  currencyCode       String                @default("NGN")
+  payment            Payment?
+  addressSnapshot    OrderAddressSnapshot?
+  sellerGroups       SellerOrderGroup[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  paidAt             DateTime?
+  cancelledAt        DateTime?
+
+  @@index([buyerId, createdAt])
+  @@index([status, paymentStatus])
+}
+
+model Payment {
+  id                    String          @id @default(cuid())
+  parentOrderId         String          @unique
+  parentOrder           ParentOrder     @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
+  provider              PaymentProvider @default(PAYSTACK)
+  reference             String          @unique
+  accessCode            String?
+  authorizationUrl      String?
+  amount                Int
+  currencyCode          String          @default("NGN")
+  status                PaymentStatus   @default(PENDING)
+  verifiedAt            DateTime?
+  paidAt                DateTime?
+  rawInitializeResponse Json?
+  rawVerifyResponse     Json?
+  metadata              Json?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model SellerOrderGroup {
+  id                          String                 @id @default(cuid())
+  parentOrderId               String
+  parentOrder                 ParentOrder            @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
+  sellerId                    String
+  seller                      SellerProfile          @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  status                      SellerOrderGroupStatus @default(PENDING)
+  sellerNameSnapshot          String
+  farmNameSnapshot            String
+  productSubtotal             Int
+  shippingFee                 Int
+  discountTotal               Int
+  groupTotal                  Int
+  commissionRateBpsSnapshot   Int                    @default(0)
+  platformCommissionAmount    Int                    @default(0)
+  sellerEarningsAmount        Int                    @default(0)
+  deliveryRegion              String
+  totalChargeableWeightKg     Decimal                @db.Decimal(10, 3)
+  shippingUnits               Int
+  locationRate                Int
+  discountCodeSnapshot        String?
+  discountTypeSnapshot        DiscountType?
+  discountValueSnapshot       Int?
+  discountDescriptionSnapshot String?
+  items                       OrderItem[]
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
+
+  @@index([parentOrderId])
+  @@index([sellerId, status])
+}
+
+model OrderItem {
+  id                      String              @id @default(cuid())
+  sellerOrderGroupId      String
+  sellerOrderGroup        SellerOrderGroup    @relation(fields: [sellerOrderGroupId], references: [id], onDelete: Cascade)
+  productId               String?
+  product                 Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId               String?
+  variant                 ProductVariant?     @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  sellerId                String
+  sellerNameSnapshot      String
+  farmNameSnapshot        String
+  productTitleSnapshot    String
+  productImageUrlSnapshot String?
+  variantTitleSnapshot    String?
+  salesUnitSnapshot       SalesUnit
+  packageTypeSnapshot     PackageType
+  unitWeightKgSnapshot    Decimal?            @db.Decimal(10, 3)
+  unitLengthCmSnapshot    Decimal?            @db.Decimal(10, 3)
+  unitWidthCmSnapshot     Decimal?            @db.Decimal(10, 3)
+  unitHeightCmSnapshot    Decimal?            @db.Decimal(10, 3)
+  unitPrice               Int
+  quantity                Int
+  lineSubtotal            Int
+  lineDiscountTotal       Int                 @default(0)
+  lineTotal               Int
+  inventoryMovements      InventoryMovement[]
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([sellerOrderGroupId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+model OrderAddressSnapshot {
+  id              String             @id @default(cuid())
+  parentOrderId   String             @unique
+  parentOrder     ParentOrder        @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
+  displayName     String?
+  addressLine     String
+  fullAddress     String
+  city            String
+  state           String
+  landmark        String?
+  latitude        Decimal?           @db.Decimal(10, 7)
+  longitude       Decimal?           @db.Decimal(10, 7)
+  isManualAddress Boolean            @default(false)
+  isAdminAssisted Boolean            @default(false)
+  createdByRole   AddressCreatorRole @default(BUYER)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model SellerWallet {
+  id                String              @id @default(cuid())
+  sellerId          String              @unique
+  seller            SellerProfile       @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  pendingBalance    Int                 @default(0)
+  availableBalance  Int                 @default(0)
+  processingBalance Int                 @default(0)
+  withdrawnBalance  Int                 @default(0)
+  totalEarnings     Int                 @default(0)
+  transactions      WalletTransaction[]
+  withdrawals       WithdrawalRequest[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model WalletTransaction {
+  id                     String                @id @default(cuid())
+  walletId               String
+  wallet                 SellerWallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type                   WalletTransactionType
+  amount                 Int
+  pendingBalanceAfter    Int
+  availableBalanceAfter  Int
+  processingBalanceAfter Int
+  withdrawnBalanceAfter  Int
+  description            String?
+  parentOrderId          String?
+  sellerOrderGroupId     String?
+  withdrawalRequestId    String?
+  idempotencyKey         String?               @unique
+  metadata               Json?
+  createdAt              DateTime              @default(now())
+
+  @@index([walletId, createdAt])
+}
+
+model SellerBankAccount {
+  id                    String              @id @default(cuid())
+  sellerId              String              @unique
+  seller                SellerProfile       @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  bankName              String
+  bankCode              String
+  accountNumber         String
+  accountName           String
+  paystackRecipientCode String?             @unique
+  isVerified            Boolean             @default(false)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  withdrawals           WithdrawalRequest[]
+}
+
+model WithdrawalRequest {
+  id                        String            @id @default(cuid())
+  sellerId                  String
+  seller                    SellerProfile     @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  walletId                  String
+  wallet                    SellerWallet      @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  bankAccountId             String
+  bankAccount               SellerBankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  amount                    Int
+  status                    WithdrawalStatus  @default(PENDING)
+  approvedByAdminId         String?
+  approvedByAdmin           User?             @relation("AdminApprovedWithdrawals", fields: [approvedByAdminId], references: [id], onDelete: SetNull)
+  paystackTransferCode      String?           @unique
+  paystackTransferReference String?           @unique
+  paystackTransferStatus    String?
+  failureReason             String?
+  rawTransferResponse       Json?
+  rawVerifyResponse         Json?
+  requestedAt               DateTime          @default(now())
+  approvedAt                DateTime?
+  processedAt               DateTime?
+  completedAt               DateTime?
+  idempotencyKey            String            @unique
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+
+  @@index([sellerId, status, requestedAt])
+}
+
+model Conversation {
+  id                   String                    @id @default(cuid())
+  type                 ConversationType
+  uniqueKey            String                    @unique
+  subject              String?
+  relatedParentOrderId String?
+  relatedSellerGroupId String?
+  participants         ConversationParticipant[]
+  messages             Message[]
+  lastMessageAt        DateTime?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@index([updatedAt])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime?
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id                   String              @id @default(cuid())
+  conversationId       String
+  conversation         Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId             String
+  sender               User                @relation("UserSentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  type                 MessageType         @default(TEXT)
+  body                 String?
+  relatedParentOrderId String?
+  attachments          MessageAttachment[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([conversationId, createdAt])
+}
+
+model MessageAttachment {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  secureUrl String
+  publicId  String   @unique
+  mimeType  String?
+  createdAt DateTime @default(now())
+}
+
+model IdCounter {
+  name         String   @id
+  currentValue Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  title      String
+  body       String
+  isRead     Boolean          @default(false)
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime         @default(now())
+
+  @@index([userId, isRead, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      User     @relation("AdminAuditLogs", fields: [adminId], references: [id], onDelete: Restrict)
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId, createdAt])
+}
+
+model InventoryMovement {
+  id             String                @id @default(cuid())
+  sellerId       String?
+  seller         SellerProfile?        @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  productId      String?
+  product        Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId      String?
+  variant        ProductVariant?       @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  orderItemId    String?
+  orderItem      OrderItem?            @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  type           InventoryMovementType
+  quantityDelta  Int
+  idempotencyKey String?               @unique
+  metadata       Json?
+  createdAt      DateTime              @default(now())
+
+  @@index([sellerId, createdAt])
+  @@index([productId, createdAt])
+  @@index([variantId, createdAt])
+}
+
+model PlatformSettings {
+  id              String   @id @default("platform")
+  marketplaceName String   @default("AgriTec")
+  currencyCode    String   @default("NGN")
+  countryCode     String   @default("NG")
+  supportEmail    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ShippingSettings {
+  id                              String   @id @default("shipping")
+  abujaRatePerShippingUnit        Int
+  outsideAbujaRatePerShippingUnit Int
+  weightUnitSizeKg                Decimal  @db.Decimal(10, 3)
+  volumetricDivisor               Int
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+}
+
+model CommissionSettings {
+  id                String   @id @default("commission")
+  commissionRateBps Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model PayoutSettings {
+  id                  String   @id @default("payout")
+  autoPayoutThreshold Int
+  weeklyPayoutDay     Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
