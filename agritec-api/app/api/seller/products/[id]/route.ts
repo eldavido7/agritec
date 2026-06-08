@@ -31,6 +31,43 @@ function getProductImagePublicIds(images: unknown) {
     .filter((publicId): publicId is string => Boolean(publicId));
 }
 
+function getNormalizedProductImages(images: unknown) {
+  if (!Array.isArray(images)) {
+    return [] as Array<{ secureUrl: string; publicId: string | null; altText: string | null; displayOrder: number }>;
+  }
+
+  return images
+    .map((image, index) => {
+      if (!image || typeof image !== "object") {
+        return null;
+      }
+
+      const secureUrl = (image as { secureUrl?: unknown; url?: unknown }).secureUrl;
+      const fallbackUrl = (image as { url?: unknown }).url;
+      const publicId = (image as { publicId?: unknown }).publicId;
+      const altText = (image as { altText?: unknown }).altText;
+      const displayOrder = (image as { displayOrder?: unknown }).displayOrder;
+      const resolvedUrl =
+        typeof secureUrl === "string" && secureUrl.trim()
+          ? secureUrl.trim()
+          : typeof fallbackUrl === "string" && fallbackUrl.trim()
+            ? fallbackUrl.trim()
+            : null;
+
+      if (!resolvedUrl) {
+        return null;
+      }
+
+      return {
+        secureUrl: resolvedUrl,
+        publicId: typeof publicId === "string" && publicId.trim() ? publicId : null,
+        altText: typeof altText === "string" && altText.trim() ? altText : null,
+        displayOrder: typeof displayOrder === "number" && Number.isFinite(displayOrder) ? displayOrder : index,
+      };
+    })
+    .filter((image): image is { secureUrl: string; publicId: string | null; altText: string | null; displayOrder: number } => Boolean(image));
+}
+
 async function deleteCloudinaryImages(publicIds: string[]) {
   if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
     return;
@@ -93,6 +130,27 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const rawBody = await request.json();
     const payload = await parseSellerProductPayload(rawBody);
+    const existingImages = getNormalizedProductImages(existingProduct.images);
+    payload.images = payload.images.map((image, index) => {
+      const matchedImage = existingImages.find((existingImage) => existingImage.secureUrl === image.secureUrl);
+      return {
+        ...image,
+        publicId: image.publicId ?? matchedImage?.publicId ?? null,
+        altText: image.altText ?? matchedImage?.altText ?? payload.title,
+        displayOrder: image.displayOrder ?? matchedImage?.displayOrder ?? index,
+      };
+    });
+    const removedImagePublicIds = existingImages
+      .filter(
+        (existingImage) =>
+          existingImage.publicId &&
+          !payload.images.some(
+            (image) =>
+              image.secureUrl === existingImage.secureUrl ||
+              (image.publicId && image.publicId === existingImage.publicId)
+          )
+      )
+      .map((image) => image.publicId as string);
     const missingVariantIdCount = payload.variants.filter((variant) => !variant.id?.trim()).length;
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -110,6 +168,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         include: { category: true, variants: true },
       });
     });
+
+    await deleteCloudinaryImages(removedImagePublicIds);
 
     return NextResponse.json({ success: true, product: serializeProduct(updated) });
   } catch (error) {
