@@ -317,7 +317,8 @@ export default function SignUpPage() {
             "Track seller orders and payouts",
             "Keep logistics-ready product data accurate",
             "Receive marketplace notifications in one place",
-            "Operate with the same backend used across Agritec",
+            "Access seller support and resources easily",
+            "Withdraw earnings seamlessly to your bank account",
           ].map((benefit, idx) => (
             <div key={idx} className="flex items-center gap-3">
               <CheckCircle className="w-5 h-5 text-primary shrink-0" />

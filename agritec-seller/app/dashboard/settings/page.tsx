@@ -77,6 +77,7 @@ export default function SettingsPage() {
   const [pendingAutoPayoutEnabled, setPendingAutoPayoutEnabled] = useState<
     boolean | null
   >(null);
+  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
     fullName: "",
@@ -506,37 +507,65 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Coordinates are set from the selected map location. Search for
-                your address or move the pin to update them.
-              </p>
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-slate-900">
+                      Saved Farm Location
+                    </p>
+                    <p className="text-sm text-slate-600 wrap-break-word">
+                      {profileForm.fullAddress.trim() || "No farm location saved yet."}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Click below to search for your location or place the pin on the map.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={isLocationPickerOpen ? "outline" : "default"}
+                    onClick={() => setIsLocationPickerOpen((current) => !current)}
+                  >
+                    {isLocationPickerOpen ? "Hide location search" : "Search or update location"}
+                  </Button>
+                </div>
+              </div>
 
-              <AddressMapPicker
-                latitude={Number(profileForm.latitude) || 9.082}
-                longitude={Number(profileForm.longitude) || 8.6753}
-                addressText={profileForm.fullAddress}
-                onAddressTextChange={(value) =>
-                  setProfileForm((current) => ({
-                    ...current,
-                    fullAddress: value,
-                  }))
-                }
-                onAddressSelect={(payload) =>
-                  setProfileForm((current) => ({
-                    ...current,
-                    fullAddress: payload.displayName,
-                    city: payload.city ?? current.city,
-                    state: payload.state ?? current.state,
-                    locationLabel:
-                      payload.city || payload.state
-                        ? [payload.city, payload.state]
-                            .filter(Boolean)
-                            .join(", ")
-                        : current.locationLabel,
-                  }))
-                }
-                onCoordinateChange={handleCoordinateChange}
-              />
+              {isLocationPickerOpen ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Coordinates are set from the selected map location. Use the search field to
+                    find your farm, then select a result or adjust the pin on the map.
+                  </p>
+
+                  <AddressMapPicker
+                    latitude={Number(profileForm.latitude) || 9.082}
+                    longitude={Number(profileForm.longitude) || 8.6753}
+                    addressText={profileForm.fullAddress}
+                    onAddressTextChange={(value) =>
+                      setProfileForm((current) => ({
+                        ...current,
+                        fullAddress: value,
+                      }))
+                    }
+                    onAddressSelect={(payload) =>
+                      setProfileForm((current) => ({
+                        ...current,
+                        fullAddress: payload.displayName,
+                        city: payload.city ?? current.city,
+                        state: payload.state ?? current.state,
+                        locationLabel:
+                          payload.city || payload.state
+                            ? [payload.city, payload.state]
+                                .filter(Boolean)
+                                .join(", ")
+                            : current.locationLabel,
+                      }))
+                    }
+                    onCoordinateChange={handleCoordinateChange}
+                  />
+                </div>
+              ) : null}
+
 
               <Button
                 onClick={handleProfileSave}
@@ -1047,5 +1076,6 @@ export default function SettingsPage() {
     </div>
   );
 }
+
 
 

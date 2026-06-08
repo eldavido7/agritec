@@ -30,7 +30,6 @@ export default function SignInPage() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    rememberMe: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
@@ -179,18 +178,6 @@ export default function SignInPage() {
                 {errors.form || error}
               </p>
             )}
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                name="rememberMe"
-                checked={formData.rememberMe}
-                onChange={handleChange}
-              />
-              <label className="text-sm text-muted-foreground">
-                Remember me on this device
-              </label>
-            </div>
 
             <Button
               type="submit"
