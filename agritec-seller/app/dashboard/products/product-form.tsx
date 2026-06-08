@@ -254,9 +254,15 @@ export function ProductForm({
             }
             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="">Select a category</option>
+            <option value="" className="bg-background text-foreground">
+              Select a category
+            </option>
             {categories.map((cat) => (
-              <option key={cat} value={cat}>
+              <option
+                key={cat}
+                value={cat}
+                className="bg-background text-foreground"
+              >
                 {cat}
               </option>
             ))}
@@ -274,8 +280,8 @@ export function ProductForm({
             }
             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option>Active</option>
-            <option>Inactive</option>
+            <option className="bg-background text-foreground">Active</option>
+            <option className="bg-background text-foreground">Inactive</option>
           </select>
         </div>
       </div>
@@ -327,7 +333,11 @@ export function ProductForm({
               className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {salesUnits.map((unit) => (
-                <option key={unit} value={unit}>
+                <option
+                  key={unit}
+                  value={unit}
+                  className="bg-background text-foreground"
+                >
                   {unit}
                 </option>
               ))}
@@ -349,7 +359,11 @@ export function ProductForm({
               className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {packageTypes.map((type) => (
-                <option key={type} value={type}>
+                <option
+                  key={type}
+                  value={type}
+                  className="bg-background text-foreground"
+                >
                   {type}
                 </option>
               ))}
@@ -749,7 +763,11 @@ export function ProductForm({
                             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           >
                             {salesUnits.map((unit) => (
-                              <option key={unit} value={unit}>
+                              <option
+                                key={unit}
+                                value={unit}
+                                className="bg-background text-foreground"
+                              >
                                 {unit}
                               </option>
                             ))}
@@ -784,7 +802,11 @@ export function ProductForm({
                             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           >
                             {packageTypes.map((type) => (
-                              <option key={type} value={type}>
+                              <option
+                                key={type}
+                                value={type}
+                                className="bg-background text-foreground"
+                              >
                                 {type}
                               </option>
                             ))}

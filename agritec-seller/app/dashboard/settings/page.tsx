@@ -62,7 +62,6 @@ export default function SettingsPage() {
     isLoadingBanks,
     isVerifyingBank,
     isSavingBank,
-    error,
     fetchSettingsData,
     fetchBanks,
     updateProfile,
@@ -71,11 +70,13 @@ export default function SettingsPage() {
     saveBankAccount,
     updateAutoPayoutEnabled,
     removeBankAccount,
-    clearError,
   } = useSellerSettingsStore((state) => state);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
   const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+  const [pendingAutoPayoutEnabled, setPendingAutoPayoutEnabled] = useState<
+    boolean | null
+  >(null);
 
   const [profileForm, setProfileForm] = useState({
     fullName: "",
@@ -157,11 +158,6 @@ export default function SettingsPage() {
     }));
   }, [autoPayoutEnabled]);
 
-  useEffect(() => {
-    if (!error) return;
-    toast.error(error);
-    clearError();
-  }, [clearError, error]);
 
   function openBankModal() {
     setBankForm({
@@ -180,7 +176,9 @@ export default function SettingsPage() {
     setProfileForm((current) => ({ ...current, [name]: value }));
   }
 
-  function handlePasswordInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+  function handlePasswordInputChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
     const { name, value } = event.target;
     setPasswordForm((current) => ({ ...current, [name]: value }));
   }
@@ -233,7 +231,9 @@ export default function SettingsPage() {
           : null,
       });
       toast.success("Profile updated successfully.");
-    } catch {}
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Request failed.");
+    }
   }
 
   async function handlePasswordSave() {
@@ -258,7 +258,9 @@ export default function SettingsPage() {
         newPassword: "",
         confirmPassword: "",
       });
-    } catch {}
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Request failed.");
+    }
   }
 
   async function handleVerifyBank() {
@@ -277,7 +279,9 @@ export default function SettingsPage() {
         accountNumber: bankForm.accountNumber.trim(),
       });
       toast.success("Bank account verified.");
-    } catch {}
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Request failed.");
+    }
   }
 
   async function handleSaveBank() {
@@ -302,24 +306,37 @@ export default function SettingsPage() {
       });
       toast.success("Bank account saved successfully.");
       setIsBankModalOpen(false);
-    } catch {}
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Request failed.");
+    }
   }
 
   async function handleAutoPayoutToggle(
     event: React.ChangeEvent<HTMLInputElement>,
   ) {
-    try {
-      await updateAutoPayoutEnabled(event.target.checked);
-      toast.success("Payout preference updated.");
-    } catch {}
+    setPendingAutoPayoutEnabled(event.target.checked);
   }
 
+  async function confirmAutoPayoutToggle() {
+    if (pendingAutoPayoutEnabled == null) return;
+
+    try {
+      await updateAutoPayoutEnabled(pendingAutoPayoutEnabled);
+      toast.success("Payout preference updated.");
+      setPendingAutoPayoutEnabled(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Request failed.");
+      setPendingAutoPayoutEnabled(null);
+    }
+  }
   async function handleRemoveBankAccount() {
     try {
       await removeBankAccount();
       toast.success("Bank account removed.");
       setIsBankModalOpen(false);
-    } catch {}
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Request failed.");
+    }
   }
 
   if (isLoading && !profile) {
@@ -473,7 +490,8 @@ export default function SettingsPage() {
                   <Input
                     name="latitude"
                     value={profileForm.latitude}
-                    onChange={handleProfileInputChange}
+                    readOnly
+                    disabled
                   />
                 </div>
                 <div>
@@ -483,17 +501,25 @@ export default function SettingsPage() {
                   <Input
                     name="longitude"
                     value={profileForm.longitude}
-                    onChange={handleProfileInputChange}
+                    readOnly
+                    disabled
                   />
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Coordinates are set from the selected map location. Search for
+                your address or move the pin to update them.
+              </p>
 
               <AddressMapPicker
                 latitude={Number(profileForm.latitude) || 9.082}
                 longitude={Number(profileForm.longitude) || 8.6753}
                 addressText={profileForm.fullAddress}
                 onAddressTextChange={(value) =>
-                  setProfileForm((current) => ({ ...current, fullAddress: value }))
+                  setProfileForm((current) => ({
+                    ...current,
+                    fullAddress: value,
+                  }))
                 }
                 onAddressSelect={(payload) =>
                   setProfileForm((current) => ({
@@ -594,11 +620,31 @@ export default function SettingsPage() {
             </h2>
             <div className="space-y-4">
               {[
-                ["newOrders", "New Orders", "Get notified when you receive new orders"],
-                ["deliveryUpdates", "Delivery Updates", "Updates on order delivery status"],
-                ["priceAlerts", "Price Alerts", "Get alerted on price changes in the market"],
-                ["messages", "Messages", "New messages from customers and partners"],
-                ["productAlerts", "Product Alerts", "Low stock and product status alerts"],
+                [
+                  "newOrders",
+                  "New Orders",
+                  "Get notified when you receive new orders",
+                ],
+                [
+                  "deliveryUpdates",
+                  "Delivery Updates",
+                  "Updates on order delivery status",
+                ],
+                [
+                  "priceAlerts",
+                  "Price Alerts",
+                  "Get alerted on price changes in the market",
+                ],
+                [
+                  "messages",
+                  "Messages",
+                  "New messages from customers and partners",
+                ],
+                [
+                  "productAlerts",
+                  "Product Alerts",
+                  "Low stock and product status alerts",
+                ],
               ].map(([key, label, description]) => (
                 <div
                   key={key}
@@ -606,11 +652,15 @@ export default function SettingsPage() {
                 >
                   <div>
                     <p className="font-medium text-foreground">{label}</p>
-                    <p className="text-sm text-muted-foreground">{description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {description}
+                    </p>
                   </div>
                   <input
                     type="checkbox"
-                    checked={notificationPrefs[key as keyof typeof notificationPrefs]}
+                    checked={
+                      notificationPrefs[key as keyof typeof notificationPrefs]
+                    }
                     onChange={(event) =>
                       setNotificationPrefs((current) => ({
                         ...current,
@@ -627,7 +677,9 @@ export default function SettingsPage() {
 
         {activeTab === "appearance" && (
           <Card className="max-w-2xl p-8">
-            <h2 className="mb-6 text-2xl font-bold text-foreground">Appearance</h2>
+            <h2 className="mb-6 text-2xl font-bold text-foreground">
+              Appearance
+            </h2>
             <div className="grid grid-cols-2 gap-4">
               {[
                 { name: "Light", value: "light", icon: Sun },
@@ -665,25 +717,35 @@ export default function SettingsPage() {
 
               <div className="space-y-6">
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-6">
-                  <h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
+                  <h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground dark:text-primary-foreground">
                     <CreditCard className="size-5 text-blue-600" />
                     Bank Account Details
                   </h3>
                   {bankAccount ? (
                     <div className="space-y-3 text-sm">
                       <div>
-                        <p className="mb-1 text-muted-foreground">Bank Name</p>
-                        <p className="font-semibold text-foreground">{bankAccount.bankName}</p>
+                        <p className="mb-1 text-muted-foreground dark:text-primary-foreground">
+                          Bank Name
+                        </p>
+                        <p className="font-semibold text-foreground dark:text-primary-foreground">
+                          {bankAccount.bankName}
+                        </p>
                       </div>
                       <div>
-                        <p className="mb-1 text-muted-foreground">Account Number</p>
-                        <p className="font-mono font-semibold text-foreground">
+                        <p className="mb-1 text-muted-foreground dark:text-primary-foreground">
+                          Account Number
+                        </p>
+                        <p className="font-mono font-semibold text-foreground dark:text-primary-foreground">
                           {bankAccount.accountNumber}
                         </p>
                       </div>
                       <div>
-                        <p className="mb-1 text-muted-foreground">Account Name</p>
-                        <p className="font-semibold text-foreground">{bankAccount.accountName}</p>
+                        <p className="mb-1 text-muted-foreground dark:text-primary-foreground">
+                          Account Name
+                        </p>
+                        <p className="font-semibold text-foreground dark:text-primary-foreground">
+                          {bankAccount.accountName}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span
@@ -693,7 +755,9 @@ export default function SettingsPage() {
                               : "bg-amber-100 text-amber-800"
                           }`}
                         >
-                          {canReceivePayouts ? "Payout Ready" : "Needs Attention"}
+                          {canReceivePayouts
+                            ? "Payout Ready"
+                            : "Needs Attention"}
                         </span>
                       </div>
                     </div>
@@ -711,9 +775,12 @@ export default function SettingsPage() {
                   </h3>
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="font-medium text-foreground">Weekly Automatic Payouts</p>
+                      <p className="font-medium text-foreground">
+                        Weekly Automatic Payouts
+                      </p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Earnings are automatically withdrawn when your account is eligible.
+                        Earnings are automatically withdrawn when your account
+                        is eligible.
                       </p>
                     </div>
                     <input
@@ -744,7 +811,8 @@ export default function SettingsPage() {
               Product Categories
             </h2>
             <p className="text-sm text-muted-foreground">
-              Categories are controlled by the platform. You can select from the fixed marketplace list when creating or editing products.
+              Categories are controlled by the platform. You can select from the
+              fixed marketplace list when creating or editing products.
             </p>
           </Card>
         )}
@@ -757,7 +825,9 @@ export default function SettingsPage() {
         className="max-w-2xl"
       >
         <Card className="border-destructive/20 p-8">
-          <h2 className="mb-4 text-2xl font-bold text-destructive">Danger Zone</h2>
+          <h2 className="mb-4 text-2xl font-bold text-destructive">
+            Danger Zone
+          </h2>
           <p className="mb-6 text-muted-foreground">Irreversible actions</p>
           <div className="space-y-3">
             <Button
@@ -779,6 +849,53 @@ export default function SettingsPage() {
         </Card>
       </motion.div>
 
+      {pendingAutoPayoutEnabled !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-sm rounded-lg bg-card p-6 text-center"
+          >
+            <div className="mb-4 flex justify-center">
+              <div className="flex size-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+                <AlertTriangle className="size-8 text-amber-600 dark:text-amber-400" />
+              </div>
+            </div>
+            <h3 className="mb-2 text-lg font-bold text-foreground">
+              Confirm Payout Preference
+            </h3>
+            <p className="mb-6 text-muted-foreground">
+              {pendingAutoPayoutEnabled
+                ? "Enable automatic payouts for this seller account?"
+                : "Disable automatic payouts for this seller account?"}
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setPendingAutoPayoutEnabled(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={confirmAutoPayoutToggle}
+                disabled={isSavingBank}
+              >
+                {isSavingBank ? (
+                  <>
+                    <Spinner className="mr-2 size-4" />
+                    Saving...
+                  </>
+                ) : (
+                  "Confirm"
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {isBankModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <motion.div
@@ -788,7 +905,9 @@ export default function SettingsPage() {
           >
             <div>
               <h2 className="text-2xl font-bold text-foreground">
-                {bankAccount ? "Edit Payout Information" : "Add Payout Information"}
+                {bankAccount
+                  ? "Edit Payout Information"
+                  : "Add Payout Information"}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Select your bank, verify the account number, then save.
@@ -807,9 +926,15 @@ export default function SettingsPage() {
                   disabled={isLoadingBanks || isVerifyingBank || isSavingBank}
                   className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground"
                 >
-                  <option value="">Select bank</option>
+                  <option value="" className="bg-background text-foreground">
+                    Select bank
+                  </option>
                   {banks.map((bank) => (
-                    <option key={bank.code} value={bank.code}>
+                    <option
+                      key={bank.code}
+                      value={bank.code}
+                      className="bg-background text-foreground"
+                    >
                       {bank.name}
                     </option>
                   ))}
@@ -830,15 +955,23 @@ export default function SettingsPage() {
 
               {bankVerification && (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm">
-                  <p className="font-semibold text-emerald-800">Verification successful</p>
-                  <p className="mt-1 text-emerald-700">{bankVerification.accountName}</p>
-                  <p className="text-emerald-700">{bankVerification.bankName}</p>
+                  <p className="font-semibold text-emerald-800">
+                    Verification successful
+                  </p>
+                  <p className="mt-1 text-emerald-700">
+                    {bankVerification.accountName}
+                  </p>
+                  <p className="text-emerald-700">
+                    {bankVerification.bankName}
+                  </p>
                 </div>
               )}
 
               <div className="flex items-center justify-between rounded-lg border border-border p-4">
                 <div>
-                  <p className="font-medium text-foreground">Enable automatic payouts</p>
+                  <p className="font-medium text-foreground">
+                    Enable automatic payouts
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     Only works after bank verification succeeds.
                   </p>
@@ -914,3 +1047,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+

@@ -299,6 +299,14 @@ export function AddressMapPicker({
 
   return (
     <div className="space-y-3">
+      <div className="space-y-1">
+        <label className="block text-sm font-medium text-foreground">
+          Search Farm Location
+        </label>
+        <p className="text-xs text-muted-foreground">
+          Search for your farm address, select a suggestion, or drag the pin on the map to set the exact location.
+        </p>
+      </div>
       <Input
         value={addressText}
         onChange={(event) => onQueryChanged(event.target.value)}
@@ -356,3 +364,4 @@ export function AddressMapPicker({
     </div>
   );
 }
+
