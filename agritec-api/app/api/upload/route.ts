@@ -4,7 +4,9 @@ import { z } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import cloudinary from "@/lib/cloudinary";
 
-const uploadTypeSchema = z.enum(["product", "chat"]);
+const signatureRequestSchema = z.object({
+  type: z.enum(["product", "chat"]),
+});
 
 const FOLDER_BY_TYPE = {
   product: "agritec/products",
@@ -18,58 +20,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const file = formData.get("file");
-    const type = uploadTypeSchema.parse(String(formData.get("type") || ""));
+    const payload = signatureRequestSchema.parse(await request.json());
 
-    if (type === "product" && user.role !== UserRole.SELLER) {
+    if (payload.type === "product" && user.role !== UserRole.SELLER) {
       return NextResponse.json({ success: false, message: "Only sellers can upload product images" }, { status: 403 });
     }
 
-    if (!(file instanceof File)) {
-      return NextResponse.json({ success: false, message: "No file provided" }, { status: 400 });
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      return NextResponse.json({ success: false, message: "Cloudinary is not configured" }, { status: 500 });
     }
 
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ success: false, message: "Only image uploads are supported" }, { status: 400 });
-    }
+    const folder = FOLDER_BY_TYPE[payload.type];
+    const timestamp = Math.floor(Date.now() / 1000);
+    const paramsToSign = {
+      folder,
+      timestamp,
+    };
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const folder = FOLDER_BY_TYPE[type];
-
-    const result = await new Promise<any>((resolve, reject) => {
-      cloudinary.uploader
-        .upload_stream(
-          {
-            folder,
-            resource_type: "image",
-          },
-          (error, uploadResult) => {
-            if (error) reject(error);
-            else resolve(uploadResult);
-          }
-        )
-        .end(buffer);
-    });
+    const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
 
     return NextResponse.json({
       success: true,
-      asset: {
-        secureUrl: result.secure_url,
-        publicId: result.public_id,
-        originalFilename: result.original_filename ?? file.name,
-        bytes: result.bytes ?? file.size,
-        mimeType: file.type,
+      upload: {
+        cloudName,
+        apiKey,
         folder,
+        timestamp,
+        signature,
+        resourceType: "image",
       },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ success: false, message: "Invalid upload type" }, { status: 400 });
+      return NextResponse.json({ success: false, message: error.issues[0]?.message ?? "Invalid upload request" }, { status: 400 });
     }
 
-    console.error("[UPLOAD_POST_ERROR]", error);
-    return NextResponse.json({ success: false, message: "Upload failed" }, { status: 500 });
+    console.error("[UPLOAD_SIGNATURE_POST_ERROR]", error);
+    return NextResponse.json({ success: false, message: "Failed to generate upload signature" }, { status: 500 });
   }
 }
