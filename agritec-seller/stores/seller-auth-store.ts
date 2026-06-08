@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { sellerApiRequest } from "@/lib/seller-api";
 import { useSellerProductsStore } from "@/stores/seller-products-store";
+import { useSellerWalletStore } from "@/stores/seller-wallet-store";
+import { useSellerSettingsStore } from "@/stores/seller-settings-store";
 
 const STORAGE_KEY = "agritecSellerAuth";
 
@@ -18,6 +20,8 @@ export type SellerAuthUser = {
     description?: string | null;
     locationLabel?: string | null;
     fullAddress?: string | null;
+    city?: string | null;
+    state?: string | null;
     latitude?: number | null;
     longitude?: number | null;
     autoPayoutEnabled?: boolean;
@@ -321,6 +325,8 @@ export const useSellerAuthStore = create<SellerAuthState>((set, get) => ({
     });
     clearStoredSession();
     useSellerProductsStore.getState().resetProducts();
+    useSellerWalletStore.getState().resetWallet();
+    useSellerSettingsStore.getState().resetSettings();
     set({
       token: null,
       user: null,
@@ -332,3 +338,8 @@ export const useSellerAuthStore = create<SellerAuthState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+
+
+
+

@@ -1,26 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import {
-  User,
-  Lock,
+  AlertTriangle,
   Bell,
-  Palette,
-  LogOut,
-  Sun,
-  Moon,
-  CreditCard,
   CheckCircle,
+  CreditCard,
+  Lock,
+  LogOut,
+  Moon,
+  Palette,
+  Sun,
+  Trash2,
+  User,
 } from "lucide-react";
-import { AlertTriangle } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { getSellerMockData } from "@/lib/mock-data";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { useSellerAuthStore } from "@/stores/seller-auth-store";
+import { useSellerSettingsStore } from "@/stores/seller-settings-store";
 
 const AddressMapPicker = dynamic(
   () =>
@@ -32,359 +35,589 @@ const AddressMapPicker = dynamic(
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35 } },
 };
+
+type SettingsTab =
+  | "profile"
+  | "password"
+  | "notifications"
+  | "appearance"
+  | "categories"
+  | "banking";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const seller = getSellerMockData();
-  const sellerWallet = seller.wallet;
-  const [activeTab, setActiveTab] = useState("profile");
-  const [formData, setFormData] = useState({
-    fullName: seller.name,
-    email: seller.email,
-    farmName: seller.farmName,
-    location: seller.location,
-    phone: "+234 8 1234 5678",
-    fullAddress: seller.address.fullAddress,
-    latitude: String(seller.address.latitude),
-    longitude: String(seller.address.longitude),
-    landmark: seller.address.landmark ?? "",
+  const signOut = useSellerAuthStore((state) => state.signOut);
+  const {
+    profile,
+    bankAccount,
+    autoPayoutEnabled,
+    canReceivePayouts,
+    banks,
+    bankVerification,
+    isLoading,
+    isSavingProfile,
+    isChangingPassword,
+    isLoadingBanks,
+    isVerifyingBank,
+    isSavingBank,
+    error,
+    fetchSettingsData,
+    fetchBanks,
+    updateProfile,
+    changePassword,
+    verifyBankAccount,
+    saveBankAccount,
+    updateAutoPayoutEnabled,
+    removeBankAccount,
+    clearError,
+  } = useSellerSettingsStore((state) => state);
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+
+  const [profileForm, setProfileForm] = useState({
+    fullName: "",
+    email: "",
+    farmName: "",
+    locationLabel: "",
+    phone: "",
+    description: "",
+    fullAddress: "",
+    city: "",
+    state: "",
+    latitude: "",
+    longitude: "",
   });
-  const [isEditPayoutModalOpen, setIsEditPayoutModalOpen] = useState(false);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [payoutFormData, setPayoutFormData] = useState({
-    bankName: sellerWallet.bankAccount.name,
-    accountName: sellerWallet.bankAccount.accountName,
-    accountNumber: sellerWallet.bankAccount.accountNumber,
+
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
 
+  const [bankForm, setBankForm] = useState({
+    bankCode: "",
+    accountNumber: "",
+    autoPayoutEnabled: false,
+  });
 
-  const tabs = [
-    { id: "profile", label: "Profile", icon: User },
-    { id: "password", label: "Password", icon: Lock },
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "appearance", label: "Appearance", icon: Palette },
-    { id: "categories", label: "Categories", icon: User },
-    { id: "banking", label: "Banking & Payouts", icon: CreditCard },
-  ];
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    newOrders: true,
+    deliveryUpdates: true,
+    priceAlerts: true,
+    messages: true,
+    productAlerts: true,
+  });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  const tabs = useMemo(
+    () => [
+      { id: "profile", label: "Profile", icon: User },
+      { id: "password", label: "Password", icon: Lock },
+      { id: "notifications", label: "Notifications", icon: Bell },
+      { id: "appearance", label: "Appearance", icon: Palette },
+      { id: "categories", label: "Categories", icon: User },
+      { id: "banking", label: "Banking & Payouts", icon: CreditCard },
+    ],
+    [],
+  );
 
-  const handlePayoutFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setPayoutFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  useEffect(() => {
+    void fetchSettingsData();
+  }, [fetchSettingsData]);
 
-  const openEditPayoutModal = () => {
-    setPayoutFormData({
-      bankName: sellerWallet.bankAccount.name,
-      accountName: sellerWallet.bankAccount.accountName,
-      accountNumber: sellerWallet.bankAccount.accountNumber,
+  useEffect(() => {
+    if (!profile) return;
+    setProfileForm({
+      fullName: profile.fullName ?? "",
+      email: profile.email ?? "",
+      farmName: profile.sellerProfile?.farmName ?? "",
+      locationLabel: profile.sellerProfile?.locationLabel ?? "",
+      phone: profile.phone ?? "",
+      description: profile.sellerProfile?.description ?? "",
+      fullAddress: profile.sellerProfile?.fullAddress ?? "",
+      city: profile.sellerProfile?.city ?? "",
+      state: profile.sellerProfile?.state ?? "",
+      latitude:
+        profile.sellerProfile?.latitude != null
+          ? String(profile.sellerProfile.latitude)
+          : "",
+      longitude:
+        profile.sellerProfile?.longitude != null
+          ? String(profile.sellerProfile.longitude)
+          : "",
     });
-    setIsEditPayoutModalOpen(true);
-  };
+  }, [profile]);
 
-  const handleUpdatePayoutInfo = () => {
-    // In a real app, you'd make an API call here.
-    console.log("Updating payout info:", payoutFormData);
-    setIsConfirmModalOpen(false);
-    setIsEditPayoutModalOpen(false);
-    toast.success("Payout information updated successfully!");
-  };
+  useEffect(() => {
+    setBankForm((current) => ({
+      ...current,
+      autoPayoutEnabled,
+    }));
+  }, [autoPayoutEnabled]);
 
-  const handleSave = () => {
-    // Save logic
-    console.log("Saving settings:", formData);
-  };
+  useEffect(() => {
+    if (!error) return;
+    toast.error(error);
+    clearError();
+  }, [clearError, error]);
 
-  const handleCoordinateChange = (latitude: number, longitude: number) => {
-    setFormData((prev) => ({
-      ...prev,
+  function openBankModal() {
+    setBankForm({
+      bankCode: bankAccount?.bankCode ?? "",
+      accountNumber: bankAccount?.accountNumber ?? "",
+      autoPayoutEnabled,
+    });
+    void fetchBanks();
+    setIsBankModalOpen(true);
+  }
+
+  function handleProfileInputChange(
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) {
+    const { name, value } = event.target;
+    setProfileForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function handlePasswordInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const { name, value } = event.target;
+    setPasswordForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleBankInputChange(
+    event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) {
+    const { name, value } = event.target;
+    setBankForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleCoordinateChange(latitude: number, longitude: number) {
+    setProfileForm((current) => ({
+      ...current,
       latitude: latitude.toFixed(6),
       longitude: longitude.toFixed(6),
     }));
-  };
+  }
 
+  async function handleProfileSave() {
+    if (!profileForm.fullName.trim()) {
+      toast.error("Full name is required.");
+      return;
+    }
+    if (!profileForm.email.trim()) {
+      toast.error("Email is required.");
+      return;
+    }
+    if (!profileForm.farmName.trim()) {
+      toast.error("Farm name is required.");
+      return;
+    }
+
+    try {
+      await updateProfile({
+        fullName: profileForm.fullName.trim(),
+        email: profileForm.email.trim().toLowerCase(),
+        phone: profileForm.phone.trim() || null,
+        farmName: profileForm.farmName.trim(),
+        description: profileForm.description.trim() || null,
+        locationLabel: profileForm.locationLabel.trim() || null,
+        fullAddress: profileForm.fullAddress.trim() || null,
+        city: profileForm.city.trim() || null,
+        state: profileForm.state.trim() || null,
+        latitude: profileForm.latitude.trim()
+          ? Number(profileForm.latitude)
+          : null,
+        longitude: profileForm.longitude.trim()
+          ? Number(profileForm.longitude)
+          : null,
+      });
+      toast.success("Profile updated successfully.");
+    } catch {}
+  }
+
+  async function handlePasswordSave() {
+    if (!passwordForm.currentPassword) {
+      toast.error("Current password is required.");
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters.");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("New passwords do not match.");
+      return;
+    }
+
+    try {
+      const message = await changePassword(passwordForm);
+      toast.success(message);
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+    } catch {}
+  }
+
+  async function handleVerifyBank() {
+    if (!bankForm.bankCode) {
+      toast.error("Select a bank first.");
+      return;
+    }
+    if (!/^\d{10}$/.test(bankForm.accountNumber.trim())) {
+      toast.error("Account number must be 10 digits.");
+      return;
+    }
+
+    try {
+      await verifyBankAccount({
+        bankCode: bankForm.bankCode,
+        accountNumber: bankForm.accountNumber.trim(),
+      });
+      toast.success("Bank account verified.");
+    } catch {}
+  }
+
+  async function handleSaveBank() {
+    if (!bankVerification) {
+      toast.error("Verify the bank account before saving.");
+      return;
+    }
+
+    if (
+      bankVerification.bankCode !== bankForm.bankCode ||
+      bankVerification.accountNumber !== bankForm.accountNumber.trim()
+    ) {
+      toast.error("Verify the current bank details before saving.");
+      return;
+    }
+
+    try {
+      await saveBankAccount({
+        bankCode: bankForm.bankCode,
+        accountNumber: bankForm.accountNumber.trim(),
+        autoPayoutEnabled: bankForm.autoPayoutEnabled,
+      });
+      toast.success("Bank account saved successfully.");
+      setIsBankModalOpen(false);
+    } catch {}
+  }
+
+  async function handleAutoPayoutToggle(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    try {
+      await updateAutoPayoutEnabled(event.target.checked);
+      toast.success("Payout preference updated.");
+    } catch {}
+  }
+
+  async function handleRemoveBankAccount() {
+    try {
+      await removeBankAccount();
+      toast.success("Bank account removed.");
+      setIsBankModalOpen(false);
+    } catch {}
+  }
+
+  if (isLoading && !profile) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 text-sm text-muted-foreground shadow-sm">
+          <Spinner className="size-5" />
+          <span>Loading seller settings...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <motion.div initial="hidden" animate="visible" variants={itemVariants}>
-        <div>
-          <p className="text-muted-foreground mt-2">
-            Manage your account and preferences
-          </p>
-        </div>
+        <p className="mt-2 text-muted-foreground">
+          Manage your account and preferences.
+        </p>
       </motion.div>
 
-      {/* Tabs */}
       <motion.div
         initial="hidden"
         animate="visible"
         variants={itemVariants}
-        className="flex gap-2 border-b border-border overflow-x-auto"
+        className="flex gap-2 overflow-x-auto border-b border-border"
       >
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              onClick={() => setActiveTab(tab.id as SettingsTab)}
+              className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === tab.id
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="size-4" />
               {tab.label}
             </button>
           );
         })}
       </motion.div>
 
-      {/* Content */}
       <motion.div initial="hidden" animate="visible" variants={itemVariants}>
-        {/* Profile Tab */}
         {activeTab === "profile" && (
-          <Card className="p-8 max-w-2xl">
-            <h2 className="text-2xl font-bold text-foreground mb-6">
+          <Card className="max-w-2xl p-8">
+            <h2 className="mb-6 text-2xl font-bold text-foreground">
               Profile Information
             </h2>
             <div className="space-y-6">
-              {/* Full Name */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="mb-2 block text-sm font-medium text-foreground">
                   Full Name
                 </label>
                 <Input
-                  type="text"
                   name="fullName"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  className="w-full"
+                  value={profileForm.fullName}
+                  onChange={handleProfileInputChange}
                 />
               </div>
 
-              {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="mb-2 block text-sm font-medium text-foreground">
                   Email Address
                 </label>
                 <Input
-                  type="email"
                   name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full"
+                  type="email"
+                  value={profileForm.email}
+                  onChange={handleProfileInputChange}
                 />
               </div>
 
-              {/* Farm Name */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="mb-2 block text-sm font-medium text-foreground">
                   Farm Name
                 </label>
                 <Input
-                  type="text"
                   name="farmName"
-                  value={formData.farmName}
-                  onChange={handleChange}
-                  className="w-full"
+                  value={profileForm.farmName}
+                  onChange={handleProfileInputChange}
                 />
               </div>
 
-              {/* Location */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Location
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Location Label
                 </label>
                 <Input
-                  type="text"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleChange}
-                  className="w-full"
+                  name="locationLabel"
+                  value={profileForm.locationLabel}
+                  onChange={handleProfileInputChange}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Phone Number
+                </label>
+                <Input
+                  name="phone"
+                  value={profileForm.phone}
+                  onChange={handleProfileInputChange}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Description
+                </label>
+                <textarea
+                  name="description"
+                  value={profileForm.description}
+                  onChange={handleProfileInputChange}
+                  rows={4}
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Latitude
+                  <label className="mb-2 block text-sm font-medium text-foreground">
+                    City
                   </label>
                   <Input
-                    type="text"
-                    name="latitude"
-                    value={formData.latitude}
-                    onChange={handleChange}
-                    className="w-full"
+                    name="city"
+                    value={profileForm.city}
+                    onChange={handleProfileInputChange}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
+                  <label className="mb-2 block text-sm font-medium text-foreground">
+                    State
+                  </label>
+                  <Input
+                    name="state"
+                    value={profileForm.state}
+                    onChange={handleProfileInputChange}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-foreground">
+                    Latitude
+                  </label>
+                  <Input
+                    name="latitude"
+                    value={profileForm.latitude}
+                    onChange={handleProfileInputChange}
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-foreground">
                     Longitude
                   </label>
                   <Input
-                    type="text"
                     name="longitude"
-                    value={formData.longitude}
-                    onChange={handleChange}
-                    className="w-full"
+                    value={profileForm.longitude}
+                    onChange={handleProfileInputChange}
                   />
                 </div>
               </div>
 
               <AddressMapPicker
-                latitude={Number(formData.latitude) || seller.address.latitude}
-                longitude={Number(formData.longitude) || seller.address.longitude}
-                addressText={formData.fullAddress}
+                latitude={Number(profileForm.latitude) || 9.082}
+                longitude={Number(profileForm.longitude) || 8.6753}
+                addressText={profileForm.fullAddress}
                 onAddressTextChange={(value) =>
-                  setFormData((prev) => ({ ...prev, fullAddress: value }))
+                  setProfileForm((current) => ({ ...current, fullAddress: value }))
                 }
                 onAddressSelect={(payload) =>
-                  setFormData((prev) => ({
-                    ...prev,
+                  setProfileForm((current) => ({
+                    ...current,
                     fullAddress: payload.displayName,
-                    location:
+                    city: payload.city ?? current.city,
+                    state: payload.state ?? current.state,
+                    locationLabel:
                       payload.city || payload.state
                         ? [payload.city, payload.state]
-                            .filter((item) => item && item.trim().length > 0)
+                            .filter(Boolean)
                             .join(", ")
-                        : prev.location,
+                        : current.locationLabel,
                   }))
                 }
                 onCoordinateChange={handleCoordinateChange}
               />
 
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Landmark (Optional)
-                </label>
-                <Input
-                  type="text"
-                  name="landmark"
-                  value={formData.landmark}
-                  onChange={handleChange}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Phone */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Phone Number
-                </label>
-                <Input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="w-full"
-                />
-              </div>
-
               <Button
-                onClick={handleSave}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground mt-4"
+                onClick={handleProfileSave}
+                disabled={isSavingProfile}
+                className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                Save Changes
+                {isSavingProfile ? (
+                  <>
+                    <Spinner className="mr-2 size-4" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
               </Button>
             </div>
           </Card>
         )}
 
-        {/* Password Tab */}
         {activeTab === "password" && (
-          <Card className="p-8 max-w-2xl">
-            <h2 className="text-2xl font-bold text-foreground mb-6">
+          <Card className="max-w-2xl p-8">
+            <h2 className="mb-6 text-2xl font-bold text-foreground">
               Change Password
             </h2>
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="mb-2 block text-sm font-medium text-foreground">
                   Current Password
                 </label>
                 <Input
                   type="password"
-                  placeholder="••••••••"
-                  className="w-full"
+                  name="currentPassword"
+                  value={passwordForm.currentPassword}
+                  onChange={handlePasswordInputChange}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="mb-2 block text-sm font-medium text-foreground">
                   New Password
                 </label>
                 <Input
                   type="password"
-                  placeholder="••••••••"
-                  className="w-full"
+                  name="newPassword"
+                  value={passwordForm.newPassword}
+                  onChange={handlePasswordInputChange}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="mb-2 block text-sm font-medium text-foreground">
                   Confirm New Password
                 </label>
                 <Input
                   type="password"
-                  placeholder="••••••••"
-                  className="w-full"
+                  name="confirmPassword"
+                  value={passwordForm.confirmPassword}
+                  onChange={handlePasswordInputChange}
                 />
               </div>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground mt-4">
-                Update Password
+              <Button
+                onClick={handlePasswordSave}
+                disabled={isChangingPassword}
+                className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {isChangingPassword ? (
+                  <>
+                    <Spinner className="mr-2 size-4" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Password"
+                )}
               </Button>
             </div>
           </Card>
         )}
 
-        {/* Notifications Tab */}
         {activeTab === "notifications" && (
-          <Card className="p-8 max-w-2xl">
-            <h2 className="text-2xl font-bold text-foreground mb-6">
+          <Card className="max-w-2xl p-8">
+            <h2 className="mb-6 text-2xl font-bold text-foreground">
               Notification Preferences
             </h2>
             <div className="space-y-4">
               {[
-                {
-                  label: "New Orders",
-                  description: "Get notified when you receive new orders",
-                },
-                {
-                  label: "Delivery Updates",
-                  description: "Updates on order delivery status",
-                },
-                {
-                  label: "Price Alerts",
-                  description: "Get alerted on price changes in the market",
-                },
-                {
-                  label: "Messages",
-                  description: "New messages from customers and partners",
-                },
-                {
-                  label: "Product Alerts",
-                  description: "Low stock and product status alerts",
-                },
-              ].map((notif, idx) => (
+                ["newOrders", "New Orders", "Get notified when you receive new orders"],
+                ["deliveryUpdates", "Delivery Updates", "Updates on order delivery status"],
+                ["priceAlerts", "Price Alerts", "Get alerted on price changes in the market"],
+                ["messages", "Messages", "New messages from customers and partners"],
+                ["productAlerts", "Product Alerts", "Low stock and product status alerts"],
+              ].map(([key, label, description]) => (
                 <div
-                  key={idx}
-                  className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-secondary/50 dark:hover:bg-secondary/30 dark:hover:text-white transition-colors"
+                  key={key}
+                  className="flex items-center justify-between rounded-lg bg-muted/30 p-4 transition-colors hover:bg-secondary/50"
                 >
                   <div>
-                    <p className="font-medium text-foreground">{notif.label}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {notif.description}
-                    </p>
+                    <p className="font-medium text-foreground">{label}</p>
+                    <p className="text-sm text-muted-foreground">{description}</p>
                   </div>
                   <input
                     type="checkbox"
-                    defaultChecked
-                    className="w-5 h-5 cursor-pointer accent-primary"
+                    checked={notificationPrefs[key as keyof typeof notificationPrefs]}
+                    onChange={(event) =>
+                      setNotificationPrefs((current) => ({
+                        ...current,
+                        [key]: event.target.checked,
+                      }))
+                    }
+                    className="size-5 cursor-pointer accent-primary"
                   />
                 </div>
               ))}
@@ -392,187 +625,152 @@ export default function SettingsPage() {
           </Card>
         )}
 
-        {/* Appearance Tab */}
         {activeTab === "appearance" && (
-          <Card className="p-8 max-w-2xl">
-            <h2 className="text-2xl font-bold text-foreground mb-6">
-              Appearance
-            </h2>
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-medium text-foreground mb-3">
-                  Theme Preference
-                </h3>
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    { name: "Light", value: "light", icon: Sun },
-                    { name: "Dark", value: "dark", icon: Moon },
-                  ].map((t) => {
-                    const Icon = t.icon;
-                    return (
-                      <button
-                        key={t.value}
-                        onClick={() => setTheme(t.value)}
-                        className={`p-4 border rounded-lg transition-colors ${
-                          theme === t.value
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary"
-                        }`}
-                      >
-                        <Icon className="w-6 h-6 mx-auto text-foreground mb-2" />
-                        <p className="font-medium text-foreground">{t.name}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Use {t.name} theme
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+          <Card className="max-w-2xl p-8">
+            <h2 className="mb-6 text-2xl font-bold text-foreground">Appearance</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { name: "Light", value: "light", icon: Sun },
+                { name: "Dark", value: "dark", icon: Moon },
+              ].map((mode) => {
+                const Icon = mode.icon;
+                return (
+                  <button
+                    key={mode.value}
+                    onClick={() => setTheme(mode.value)}
+                    className={`rounded-lg border p-4 transition-colors ${
+                      theme === mode.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary"
+                    }`}
+                  >
+                    <Icon className="mx-auto mb-2 size-6 text-foreground" />
+                    <p className="font-medium text-foreground">{mode.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Use {mode.name} theme
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           </Card>
         )}
 
-        {/* Banking & Payouts Tab */}
         {activeTab === "banking" && (
-          <Card className="p-8 max-w-2xl space-y-8">
+          <Card className="max-w-2xl space-y-8 p-8">
             <div>
-              <h2 className="text-2xl font-bold text-foreground mb-6">
+              <h2 className="mb-6 text-2xl font-bold text-foreground">
                 Banking & Payouts
               </h2>
 
-              {/* Bank Account Details */}
               <div className="space-y-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                  <h3 className="font-semibold text-foreground dark:text-background mb-4 flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-blue-600" />
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-6">
+                  <h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
+                    <CreditCard className="size-5 text-blue-600" />
                     Bank Account Details
                   </h3>
-                  <div className="space-y-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground dark:text-muted mb-1">Bank Name</p>
-                      <p className="font-semibold text-foreground dark:text-background">
-                        {sellerWallet.bankAccount.name}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground dark:text-muted mb-1">
-                        Account Number
-                      </p>
-                      <p className="font-mono font-semibold text-foreground dark:text-background">
-                        {sellerWallet.bankAccount.accountNumber}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground dark:text-muted mb-1">Account Name</p>
-                      <p className="font-semibold text-foreground dark:text-background">
-                        {sellerWallet.bankAccount.accountName}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground dark:text-muted mb-1">
-                        Last Payout Date
-                      </p>
-                      <p className="font-semibold text-foreground dark:text-background">
-                        {sellerWallet.bankAccount.lastPayoutDate.toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Automatic Payouts */}
-                <div className="border border-border rounded-lg p-6">
-                  <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-emerald-600" />
-                    Automatic Payouts
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between">
+                  {bankAccount ? (
+                    <div className="space-y-3 text-sm">
                       <div>
-                        <p className="font-medium text-foreground">
-                          Weekly Automatic Payouts
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Earnings are automatically withdrawn every Monday to
-                          your registered bank account
+                        <p className="mb-1 text-muted-foreground">Bank Name</p>
+                        <p className="font-semibold text-foreground">{bankAccount.bankName}</p>
+                      </div>
+                      <div>
+                        <p className="mb-1 text-muted-foreground">Account Number</p>
+                        <p className="font-mono font-semibold text-foreground">
+                          {bankAccount.accountNumber}
                         </p>
                       </div>
-                      <input
-                        type="checkbox"
-                        defaultChecked={sellerWallet.automaticPayoutsEnabled}
-                        className="w-5 h-5 cursor-pointer accent-primary mt-1"
-                      />
+                      <div>
+                        <p className="mb-1 text-muted-foreground">Account Name</p>
+                        <p className="font-semibold text-foreground">{bankAccount.accountName}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            canReceivePayouts
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {canReceivePayouts ? "Payout Ready" : "Needs Attention"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No bank account saved yet.
+                    </p>
+                  )}
                 </div>
 
-                {/* Payout Information */}
-                {/* <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground mb-1">
-                      Available Balance
-                    </p>
-                    <p className="text-2xl font-bold text-emerald-700">
-                      {formatCurrency(sellerWallet.availableBalance)}
-                    </p>
+                <div className="rounded-lg border border-border p-6">
+                  <h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
+                    <CheckCircle className="size-5 text-emerald-600" />
+                    Automatic Payouts
+                  </h3>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-medium text-foreground">Weekly Automatic Payouts</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Earnings are automatically withdrawn when your account is eligible.
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={autoPayoutEnabled}
+                      onChange={handleAutoPayoutToggle}
+                      disabled={isSavingBank}
+                      className="mt-1 size-5 cursor-pointer accent-primary"
+                    />
                   </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground mb-1">
-                      Pending Balance
-                    </p>
-                    <p className="text-2xl font-bold text-amber-700">
-                      {formatCurrency(sellerWallet.pendingBalance)}
-                    </p>
-                  </div>
-                </div> */}
+                </div>
 
                 <Button
                   variant="outline"
-                  onClick={openEditPayoutModal}
-                  className="w-full border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
+                  onClick={openBankModal}
+                  className="w-full border-border text-foreground hover:bg-secondary hover:text-secondary-foreground"
                 >
-                  Edit Payout Information
+                  {bankAccount ? "Edit Payout Information" : "Add Bank Account"}
                 </Button>
               </div>
             </div>
           </Card>
         )}
 
-        {/* Categories Tab */}
         {activeTab === "categories" && (
-          <Card className="p-8 max-w-2xl">
-            <h2 className="text-2xl font-bold text-foreground mb-6">
+          <Card className="max-w-2xl p-8">
+            <h2 className="mb-6 text-2xl font-bold text-foreground">
               Product Categories
             </h2>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Categories are controlled by the platform. You can select from the fixed marketplace list when creating or editing products.
             </p>
           </Card>
         )}
       </motion.div>
 
-      {/* Danger Zone */}
       <motion.div
         initial="hidden"
         animate="visible"
         variants={itemVariants}
         className="max-w-2xl"
       >
-        <Card className="p-8 border-destructive/20">
-          <h2 className="text-2xl font-bold text-destructive mb-4">
-            Danger Zone
-          </h2>
-          <p className="text-muted-foreground mb-6">Irreversible actions</p>
+        <Card className="border-destructive/20 p-8">
+          <h2 className="mb-4 text-2xl font-bold text-destructive">Danger Zone</h2>
+          <p className="mb-6 text-muted-foreground">Irreversible actions</p>
           <div className="space-y-3">
             <Button
               variant="outline"
+              onClick={signOut}
               className="w-full border-destructive text-destructive hover:bg-destructive/10"
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout from All Devices
+              <LogOut className="mr-2 size-4" />
+              Logout from This Device
             </Button>
             <Button
               variant="outline"
+              disabled
               className="w-full border-destructive text-destructive hover:bg-destructive/10"
             >
               Delete Account
@@ -581,124 +779,138 @@ export default function SettingsPage() {
         </Card>
       </motion.div>
 
-      {/* Edit Payout Modal */}
-      {isEditPayoutModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      {isBankModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-card rounded-lg max-w-md w-full p-8 space-y-6"
+            className="w-full max-w-md space-y-6 rounded-lg bg-card p-8"
           >
             <div>
               <h2 className="text-2xl font-bold text-foreground">
-                Edit Payout Information
+                {bankAccount ? "Edit Payout Information" : "Add Payout Information"}
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Update your bank account details for payouts.
+              <p className="mt-1 text-sm text-muted-foreground">
+                Select your bank, verify the account number, then save.
               </p>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Bank Name
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Bank
                 </label>
-                <Input
-                  type="text"
-                  name="bankName"
-                  value={payoutFormData.bankName}
-                  onChange={handlePayoutFormChange}
-                  className="w-full"
-                />
+                <select
+                  name="bankCode"
+                  value={bankForm.bankCode}
+                  onChange={handleBankInputChange}
+                  disabled={isLoadingBanks || isVerifyingBank || isSavingBank}
+                  className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground"
+                >
+                  <option value="">Select bank</option>
+                  {banks.map((bank) => (
+                    <option key={bank.code} value={bank.code}>
+                      {bank.name}
+                    </option>
+                  ))}
+                </select>
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Account Name
-                </label>
-                <Input
-                  type="text"
-                  name="accountName"
-                  value={payoutFormData.accountName}
-                  onChange={handlePayoutFormChange}
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="mb-2 block text-sm font-medium text-foreground">
                   Account Number
                 </label>
                 <Input
-                  type="text"
                   name="accountNumber"
-                  value={payoutFormData.accountNumber}
-                  onChange={handlePayoutFormChange}
-                  className="w-full"
+                  value={bankForm.accountNumber}
+                  onChange={handleBankInputChange}
+                  disabled={isVerifyingBank || isSavingBank}
+                />
+              </div>
+
+              {bankVerification && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm">
+                  <p className="font-semibold text-emerald-800">Verification successful</p>
+                  <p className="mt-1 text-emerald-700">{bankVerification.accountName}</p>
+                  <p className="text-emerald-700">{bankVerification.bankName}</p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between rounded-lg border border-border p-4">
+                <div>
+                  <p className="font-medium text-foreground">Enable automatic payouts</p>
+                  <p className="text-sm text-muted-foreground">
+                    Only works after bank verification succeeds.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={bankForm.autoPayoutEnabled}
+                  onChange={(event) =>
+                    setBankForm((current) => ({
+                      ...current,
+                      autoPayoutEnabled: event.target.checked,
+                    }))
+                  }
+                  className="size-5 cursor-pointer accent-primary"
                 />
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button
                 variant="outline"
-                onClick={() => setIsEditPayoutModalOpen(false)}
-                className="flex-1 border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
+                onClick={() => setIsBankModalOpen(false)}
+                disabled={isVerifyingBank || isSavingBank}
+                className="flex-1"
               >
                 Cancel
               </Button>
               <Button
-                onClick={() => setIsConfirmModalOpen(true)}
-                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                variant="outline"
+                onClick={handleVerifyBank}
+                disabled={isVerifyingBank || isSavingBank || isLoadingBanks}
+                className="flex-1"
               >
-                Save Changes
+                {isVerifyingBank ? (
+                  <>
+                    <Spinner className="mr-2 size-4" />
+                    Verifying...
+                  </>
+                ) : (
+                  "Verify Account"
+                )}
+              </Button>
+              <Button
+                onClick={handleSaveBank}
+                disabled={isSavingBank || !bankVerification}
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {isSavingBank ? (
+                  <>
+                    <Spinner className="mr-2 size-4" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save"
+                )}
               </Button>
             </div>
-          </motion.div>
-        </div>
-      )}
 
-      {/* Confirmation Modal */}
-      {isConfirmModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-card rounded-lg max-w-sm w-full p-6 text-center"
-          >
-            <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
-                <AlertTriangle className="w-8 h-8 text-amber-600 dark:text-amber-400" />
-              </div>
-            </div>
-            <h3 className="text-lg font-bold text-foreground mb-2">
-              Confirm Update
-            </h3>
-            <p className="text-muted-foreground mb-6">
-              Are you sure you want to update your payout information? This
-              action cannot be undone.
-            </p>
-            <div className="flex gap-3">
+            {bankAccount && (
               <Button
                 variant="outline"
-                className="flex-1 border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
-                onClick={() => setIsConfirmModalOpen(false)}
+                onClick={handleRemoveBankAccount}
+                disabled={isSavingBank || isVerifyingBank}
+                className="w-full border-destructive text-destructive hover:bg-destructive/10"
               >
-                Cancel
+                <Trash2 className="mr-2 size-4" />
+                Remove Bank Account
               </Button>
-              <Button
-                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-                onClick={handleUpdatePayoutInfo}
-              >
-                Confirm & Save
-              </Button>
-            </div>
+            )}
           </motion.div>
         </div>
       )}
-
     </div>
   );
 }
-
-
-
-

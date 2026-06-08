@@ -22,25 +22,34 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import type { SellerDiscount, SellerProduct } from "@/lib/mock-data";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
+import type { SellerDiscountRecord } from "@/stores/seller-discounts-store";
+import type { SellerProductRecord } from "@/stores/seller-products-store";
 
-type DiscountDraft = Omit<
-  SellerDiscount,
-  "id" | "sellerId" | "createdAt" | "updatedAt"
->;
+type DiscountDraft = {
+  code: string;
+  description: string;
+  type: "percentage" | "fixed";
+  value: number;
+  productIds: string[];
+  variantIds: string[];
+  startsAt: Date;
+  endsAt?: Date | null;
+  isActive: boolean;
+  usageLimit?: number | null;
+};
 
 type DiscountFormModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
-  sellerId: string;
-  products: SellerProduct[];
-  discount?: SellerDiscount | null;
-  onSubmit: (discount: SellerDiscount) => void;
+  products: SellerProductRecord[];
+  discount?: SellerDiscountRecord | null;
+  isSaving: boolean;
+  onSubmit: (discount: DiscountDraft) => Promise<void>;
 };
 
-const toInputDateTime = (date?: Date) =>
+const toInputDateTime = (date?: Date | null) =>
   date ? new Date(date).toISOString().slice(0, 16) : "";
 
 const defaultDraft = (): DiscountDraft => ({
@@ -51,46 +60,46 @@ const defaultDraft = (): DiscountDraft => ({
   productIds: [],
   variantIds: [],
   startsAt: new Date(),
-  endsAt: undefined,
+  endsAt: null,
   isActive: true,
-  usageLimit: undefined,
-  usageCount: 0,
+  usageLimit: null,
 });
 
 export function DiscountFormModal({
   open,
   onOpenChange,
   mode,
-  sellerId,
   products,
   discount,
+  isSaving,
   onSubmit,
 }: DiscountFormModalProps) {
   const [draft, setDraft] = useState<DiscountDraft>(defaultDraft);
   const [productSearch, setProductSearch] = useState("");
   const [variantSearch, setVariantSearch] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && discount) {
       setDraft({
         code: discount.code,
-        description: discount.description,
+        description: discount.description || "",
         type: discount.type,
         value: discount.value,
         productIds: discount.productIds,
         variantIds: discount.variantIds,
         startsAt: new Date(discount.startsAt),
-        endsAt: discount.endsAt ? new Date(discount.endsAt) : undefined,
+        endsAt: discount.endsAt ? new Date(discount.endsAt) : null,
         isActive: discount.isActive,
         usageLimit: discount.usageLimit,
-        usageCount: discount.usageCount,
       });
     } else {
       setDraft(defaultDraft());
     }
     setProductSearch("");
     setVariantSearch("");
+    setFormError(null);
   }, [discount, mode, open]);
 
   const allVariants = useMemo(
@@ -98,7 +107,7 @@ export function DiscountFormModal({
       products.flatMap((product) =>
         (product.variants || []).map((variant) => ({
           ...variant,
-          key: variant.id,
+          key: String(variant.id || `${product.id}-${variant.name}`),
           productId: product.id,
           productName: product.name,
         })),
@@ -111,7 +120,7 @@ export function DiscountFormModal({
     if (query.length < 2) return [];
     return products.filter((product) => {
       const hasSelectedVariant = product.variants?.some((variant) =>
-        draft.variantIds.includes(variant.id),
+        draft.variantIds.includes(String(variant.id || "")),
       );
       return (
         !hasSelectedVariant &&
@@ -134,11 +143,9 @@ export function DiscountFormModal({
     );
   }, [allVariants, draft.productIds, variantSearch]);
 
-  const addProduct = (productId: number) => {
+  const addProduct = (productId: string) => {
     const product = products.find((item) => item.id === productId);
-    const variantKeys = (product?.variants || []).map(
-      (variant) => variant.id,
-    );
+    const variantKeys = (product?.variants || []).map((variant) => String(variant.id || ""));
     setDraft((current) => ({
       ...current,
       productIds: current.productIds.includes(productId)
@@ -161,30 +168,46 @@ export function DiscountFormModal({
     }));
   };
 
-  const submit = () => {
-    if (!draft.code.trim()) return;
-    if (draft.type === "percentage" && (draft.value < 1 || draft.value > 100)) {
+  const submit = async () => {
+    setFormError(null);
+
+    if (!draft.code.trim()) {
+      setFormError("Discount code is required");
       return;
     }
-    if (draft.type === "fixed" && draft.value <= 0) return;
 
-    onSubmit({
+    if (!draft.description.trim()) {
+      setFormError("Description is required");
+      return;
+    }
+
+    if (draft.type === "percentage" && (draft.value < 1 || draft.value > 100)) {
+      setFormError("Percentage discounts must be between 1 and 100");
+      return;
+    }
+
+    if (draft.type === "fixed" && draft.value <= 0) {
+      setFormError("Fixed discounts must be greater than 0");
+      return;
+    }
+
+    if (draft.endsAt && draft.endsAt < draft.startsAt) {
+      setFormError("End date cannot be earlier than start date");
+      return;
+    }
+
+    await onSubmit({
       ...draft,
-      id:
-        mode === "edit" && discount
-          ? discount.id
-          : `disc-${sellerId}-${Date.now()}`,
-      sellerId,
       code: draft.code.trim().toUpperCase(),
-      createdAt:
-        mode === "edit" && discount ? discount.createdAt : new Date(),
-      updatedAt: new Date(),
+      description: draft.description.trim(),
+      usageLimit: draft.usageLimit ?? null,
+      endsAt: draft.endsAt ?? null,
     });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-[640px]">
+      <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-160">
         <DialogHeader>
           <DialogTitle>
             {mode === "create" ? "Create Discount" : "Edit Discount"}
@@ -212,7 +235,11 @@ export function DiscountFormModal({
               <Select
                 value={draft.type}
                 onValueChange={(value: "percentage" | "fixed") =>
-                  setDraft({ ...draft, type: value, value: value === "percentage" ? 10 : 500 })
+                  setDraft({
+                    ...draft,
+                    type: value,
+                    value: value === "percentage" ? 10 : 500,
+                  })
                 }
               >
                 <SelectTrigger>
@@ -259,14 +286,14 @@ export function DiscountFormModal({
               <Input
                 id="discount-usage-limit"
                 type="number"
-                min={0}
+                min={1}
                 value={draft.usageLimit ?? ""}
                 onChange={(event) =>
                   setDraft({
                     ...draft,
                     usageLimit: event.target.value
                       ? Number(event.target.value)
-                      : undefined,
+                      : null,
                   })
                 }
                 placeholder="Unlimited"
@@ -311,7 +338,7 @@ export function DiscountFormModal({
                     ...draft,
                     endsAt: event.target.value
                       ? new Date(event.target.value)
-                      : undefined,
+                      : null,
                   })
                 }
               />
@@ -410,18 +437,30 @@ export function DiscountFormModal({
               })}
             </div>
           </div>
+
+          {formError && (
+            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {formError}
+            </p>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancel
           </Button>
-          <Button onClick={submit}>
-            {mode === "create" ? "Create Discount" : "Save Changes"}
+          <Button onClick={() => void submit()} disabled={isSaving}>
+            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {mode === "create"
+              ? isSaving
+                ? "Creating Discount..."
+                : "Create Discount"
+              : isSaving
+                ? "Saving Changes..."
+                : "Save Changes"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-
