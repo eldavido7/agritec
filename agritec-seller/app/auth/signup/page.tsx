@@ -1,33 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { Leaf, ArrowRight, CheckCircle, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, CheckCircle, Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
+import { toast } from "sonner";
+import { useSellerAuthStore } from "@/stores/seller-auth-store";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const { token, isReady, isLoading, error, bootstrap, signUp, clearError } =
+    useSellerAuthStore();
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     password: "",
     confirmPassword: "",
     farmName: "",
-    bankName: "",
-    accountNumber: "",
-    accountName: "",
+    phone: "",
     agreeToTerms: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
+
+  useEffect(() => {
+    if (!isReady || !token) return;
+    router.replace("/dashboard");
+  }, [isReady, router, token]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
+    if (errors[name] || errors.form || error) {
+      setErrors((prev) => ({ ...prev, [name]: "", form: "" }));
+      clearError();
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -45,18 +59,13 @@ export default function SignUpPage() {
     else if (formData.password.length < 8)
       newErrors.password = "Password must be at least 8 characters";
 
-    if (formData.password !== formData.confirmPassword) {
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = "Confirm your password";
+    } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
     }
 
     if (!formData.farmName.trim()) newErrors.farmName = "Farm name is required";
-    if (!formData.bankName.trim()) newErrors.bankName = "Bank name is required";
-    if (!formData.accountName.trim())
-      newErrors.accountName = "Account name is required";
-    if (!formData.accountNumber.trim())
-      newErrors.accountNumber = "Account number is required";
-    else if (!/^\d+$/.test(formData.accountNumber))
-      newErrors.accountNumber = "Account number must contain only digits";
     if (!formData.agreeToTerms)
       newErrors.agreeToTerms = "You must agree to terms";
 
@@ -69,19 +78,31 @@ export default function SignUpPage() {
 
     if (!validateForm()) return;
 
-    setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsLoading(false);
-
-    // Redirect to dashboard
-    router.push("/dashboard");
+    try {
+      await signUp({
+        fullName: formData.fullName,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        farmName: formData.farmName,
+      });
+      console.log("[Seller Sign-up Page] Sign-up success", {
+        email: formData.email.trim().toLowerCase(),
+      });
+      toast.success("Account created successfully");
+      router.push("/dashboard");
+    } catch (signupError) {
+      console.error("[Seller Sign-up Page] Sign-up failed", signupError);
+      toast.error(error || "Unable to create seller account.");
+      setErrors({
+        form: error || "Unable to create seller account.",
+      });
+    }
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center">
           <div className="inline-block">
             <Image
@@ -95,20 +116,19 @@ export default function SignUpPage() {
           </div>
         </div>
 
-        {/* Form Card */}
         <div className="bg-card border border-border rounded-2xl p-8 shadow-lg">
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Create Account
           </h1>
           <p className="text-muted-foreground mb-8">
-            Join AgriTec and start transforming your farm today
+            Join AgriTec and start managing your farm from one place
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground mb-2">
               Personal Information
             </h2>
-            {/* Full Name */}
+
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Full Name
@@ -128,7 +148,6 @@ export default function SignUpPage() {
               )}
             </div>
 
-            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Email Address
@@ -138,7 +157,7 @@ export default function SignUpPage() {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="Kingsley@farm.com"
+                placeholder="kingsley@farm.com"
                 className={errors.email ? "border-destructive" : ""}
               />
               {errors.email && (
@@ -146,7 +165,19 @@ export default function SignUpPage() {
               )}
             </div>
 
-            {/* Farm Name */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Phone Number
+              </label>
+              <Input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                placeholder="08012345678"
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Farm Name
@@ -166,7 +197,6 @@ export default function SignUpPage() {
               )}
             </div>
 
-            {/* Password */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Password
@@ -177,7 +207,7 @@ export default function SignUpPage() {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="••••••••"
+                  placeholder="********"
                   className={errors.password ? "border-destructive" : ""}
                 />
                 <button
@@ -199,7 +229,6 @@ export default function SignUpPage() {
               )}
             </div>
 
-            {/* Confirm Password */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Confirm Password
@@ -210,7 +239,7 @@ export default function SignUpPage() {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  placeholder="••••••••"
+                  placeholder="********"
                   className={errors.confirmPassword ? "border-destructive" : ""}
                 />
                 <button
@@ -232,71 +261,12 @@ export default function SignUpPage() {
               )}
             </div>
 
-            {/* Bank Info Section */}
-            <div className="space-y-4 pt-4 border-t border-border">
-              <h2 className="text-lg font-semibold text-foreground mb-2">
-                Bank Information
-              </h2>
-              {/* Bank Name */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Bank Name
-                </label>
-                <Input
-                  type="text"
-                  name="bankName"
-                  value={formData.bankName}
-                  onChange={handleChange}
-                  placeholder="First Bank"
-                  className={errors.bankName ? "border-destructive" : ""}
-                />
-                {errors.bankName && (
-                  <p className="text-xs text-destructive mt-1">
-                    {errors.bankName}
-                  </p>
-                )}
-              </div>
-              {/* Account Name */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Account Name
-                </label>
-                <Input
-                  type="text"
-                  name="accountName"
-                  value={formData.accountName}
-                  onChange={handleChange}
-                  placeholder="Kingsley Joseph"
-                  className={errors.accountName ? "border-destructive" : ""}
-                />
-                {errors.accountName && (
-                  <p className="text-xs text-destructive mt-1">
-                    {errors.accountName}
-                  </p>
-                )}
-              </div>
-              {/* Account Number */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Account Number
-                </label>
-                <Input
-                  type="text"
-                  name="accountNumber"
-                  value={formData.accountNumber}
-                  onChange={handleChange}
-                  placeholder="1234567890"
-                  className={errors.accountNumber ? "border-destructive" : ""}
-                />
-                {errors.accountNumber && (
-                  <p className="text-xs text-destructive mt-1">
-                    {errors.accountNumber}
-                  </p>
-                )}
-              </div>
-            </div>
+            {(errors.form || error) && (
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {errors.form || error}
+              </p>
+            )}
 
-            {/* Terms Checkbox */}
             <div className="flex items-start gap-2">
               <input
                 type="checkbox"
@@ -320,7 +290,6 @@ export default function SignUpPage() {
               <p className="text-xs text-destructive">{errors.agreeToTerms}</p>
             )}
 
-            {/* Submit Button */}
             <Button
               type="submit"
               disabled={isLoading}
@@ -331,7 +300,6 @@ export default function SignUpPage() {
             </Button>
           </form>
 
-          {/* Sign In Link */}
           <p className="text-center text-muted-foreground mt-6">
             Already have an account?{" "}
             <Link
@@ -343,17 +311,16 @@ export default function SignUpPage() {
           </p>
         </div>
 
-        {/* Benefits */}
         <div className="mt-8 space-y-3">
           {[
-            "Access real-time farm monitoring",
-            "Connect with marketplace buyers",
-            "Get insights to optimize sales",
-            "Manage orders and inventory easily",
-            "Get paid securely and on time",
+            "Manage products and inventory centrally",
+            "Track seller orders and payouts",
+            "Keep logistics-ready product data accurate",
+            "Receive marketplace notifications in one place",
+            "Operate with the same backend used across Agritec",
           ].map((benefit, idx) => (
             <div key={idx} className="flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-primary flex-shrink-0" />
+              <CheckCircle className="w-5 h-5 text-primary shrink-0" />
               <p className="text-sm text-muted-foreground">{benefit}</p>
             </div>
           ))}
@@ -362,4 +329,3 @@ export default function SignUpPage() {
     </div>
   );
 }
-

@@ -21,6 +21,7 @@ import {
   mockProducts,
 } from "@/lib/mock-data";
 import { formatCurrency, formatDate } from "@/lib/formatting";
+import { useSellerAuthStore } from "@/stores/seller-auth-store";
 
 type Notification = (typeof mockNotifications)[0];
 type Order = (typeof mockOrders)[0];
@@ -44,12 +45,16 @@ export default function Navbar() {
   const pathname = usePathname();
   const pageTitle = routeTitles[pathname] || "Dashboard";
   const seller = getSellerMockData();
+  const authUser = useSellerAuthStore((state) => state.user);
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const sellerName = authUser?.fullName || seller.name;
+  const farmName = authUser?.sellerProfile?.farmName || seller.farmName;
 
   // Use mockNotifications as the source of truth
-  const [notifications, setNotifications] =
-    useState<Notification[]>(seller.notifications as Notification[]);
+  const [notifications, setNotifications] = useState<Notification[]>(
+    seller.notifications as Notification[],
+  );
   const [selectedNotification, setSelectedNotification] =
     useState<Notification | null>(null);
   const [imageIndex, setImageIndex] = useState(0);
@@ -266,8 +271,8 @@ export default function Navbar() {
             className="text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white flex items-center gap-2 ml-1 md:ml-2"
           >
             <div className="flex flex-col items-start">
-              <span className="text-sm font-medium">{seller.name}</span>
-              <span className="text-xs">{seller.farmName}</span>
+              <span className="text-sm font-medium">{sellerName}</span>
+              <span className="text-xs">{farmName}</span>
             </div>
           </Button>
         </div>
@@ -513,8 +518,5 @@ export default function Navbar() {
     </>
   );
 }
-
-
-
 
 

@@ -5,31 +5,52 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { Leaf, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
-import { authenticateSeller, getSellerSession } from "@/lib/local-auth";
-import { mockSellers } from "@/lib/mock-data";
+import { useSellerAuthStore } from "@/stores/seller-auth-store";
+import { toast } from "sonner";
+
+const sellerDemoCredentials = [
+  {
+    farmName: "Kingsley Family Farm",
+    email: "kingsley@farm.com",
+    password: "kingsley123",
+  },
+  {
+    farmName: "Bello Fresh Produce",
+    email: "amina@farm.com",
+    password: "amina123",
+  },
+];
 
 export default function SignInPage() {
   const router = useRouter();
+  const { token, isReady, isLoading, error, bootstrap, signIn, clearError } =
+    useSellerAuthStore();
   const [formData, setFormData] = useState({
-    identifier: "",
+    email: "",
     password: "",
     rememberMe: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    const session = getSellerSession();
-    if (!session) return;
+    void bootstrap();
+  }, [bootstrap]);
+
+  useEffect(() => {
+    if (!isReady || !token) return;
     const nextPath = new URLSearchParams(window.location.search).get("next");
     router.replace(nextPath || "/dashboard");
-  }, [router]);
+  }, [isReady, router, token]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
+    if (errors[name] || errors.form || error) {
+      setErrors((prev) => ({ ...prev, [name]: "", form: "" }));
+      clearError();
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -39,8 +60,8 @@ export default function SignInPage() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.identifier.trim()) {
-      newErrors.identifier = "Email or username is required";
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
     }
 
     if (!formData.password) newErrors.password = "Password is required";
@@ -54,26 +75,26 @@ export default function SignInPage() {
 
     if (!validateForm()) return;
 
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const session = authenticateSeller(formData.identifier, formData.password);
-    setIsLoading(false);
-
-    if (!session) {
-      setErrors({
-        form: "No seller matches those credentials.",
+    try {
+      await signIn(formData.email, formData.password);
+      console.log("[Seller Sign-in Page] Sign-in success", {
+        email: formData.email.trim().toLowerCase(),
       });
-      return;
+      toast.success("Sign in successful");
+      const nextPath = new URLSearchParams(window.location.search).get("next");
+      router.push(nextPath || "/dashboard");
+    } catch (signInError) {
+      console.error("[Seller Sign-in Page] Sign-in failed", signInError);
+      toast.error(error || "No seller matches those credentials.");
+      setErrors({
+        form: error || "No seller matches those credentials.",
+      });
     }
-
-    const nextPath = new URLSearchParams(window.location.search).get("next");
-    router.push(nextPath || "/dashboard");
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center">
           <div className="inline-block">
             <Image
@@ -87,7 +108,6 @@ export default function SignInPage() {
           </div>
         </div>
 
-        {/* Form Card */}
         <div className="bg-card border border-border rounded-2xl p-8 shadow-lg">
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Welcome Back
@@ -97,27 +117,23 @@ export default function SignInPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Email or Username
+                Email
               </label>
               <Input
-                type="text"
-                name="identifier"
-                value={formData.identifier}
+                type="email"
+                name="email"
+                value={formData.email}
                 onChange={handleChange}
-                placeholder="kingsley@farm.com or kingsley"
-                className={errors.identifier ? "border-destructive" : ""}
+                placeholder="kingsley@farm.com"
+                className={errors.email ? "border-destructive" : ""}
               />
-              {errors.identifier && (
-                <p className="text-xs text-destructive mt-1">
-                  {errors.identifier}
-                </p>
+              {errors.email && (
+                <p className="text-xs text-destructive mt-1">{errors.email}</p>
               )}
             </div>
 
-            {/* Password */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-medium text-foreground">
@@ -136,7 +152,7 @@ export default function SignInPage() {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="••••••••"
+                  placeholder="********"
                   className={errors.password ? "border-destructive" : ""}
                 />
                 <button
@@ -158,13 +174,12 @@ export default function SignInPage() {
               )}
             </div>
 
-            {errors.form && (
+            {(errors.form || error) && (
               <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {errors.form}
+                {errors.form || error}
               </p>
             )}
 
-            {/* Remember Me */}
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -177,7 +192,6 @@ export default function SignInPage() {
               </label>
             </div>
 
-            {/* Submit Button */}
             <Button
               type="submit"
               disabled={isLoading}
@@ -188,7 +202,6 @@ export default function SignInPage() {
             </Button>
           </form>
 
-          {/* Sign Up Link */}
           <p className="text-center text-muted-foreground mt-6">
             Don&apos;t have an account?{" "}
             <Link
@@ -199,20 +212,20 @@ export default function SignInPage() {
             </Link>
           </p>
 
-          {/* Demo Credentials */}
           <div className="mt-8 p-4 bg-muted/30 rounded-lg border border-border">
             <p className="text-xs font-semibold text-foreground mb-2">
               Seller Credentials:
             </p>
             <div className="space-y-2">
-              {mockSellers.map((seller) => (
-                <div key={seller.id} className="text-xs text-muted-foreground">
+              {sellerDemoCredentials.map((seller) => (
+                <div
+                  key={seller.email}
+                  className="text-xs text-muted-foreground"
+                >
                   <p className="font-medium text-foreground">
                     {seller.farmName}
                   </p>
-                  <p>
-                    {seller.email} / {seller.username}
-                  </p>
+                  <p>{seller.email}</p>
                   <p>Password: {seller.password}</p>
                 </div>
               ))}
@@ -223,3 +236,5 @@ export default function SignInPage() {
     </div>
   );
 }
+
+

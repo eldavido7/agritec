@@ -2,10 +2,17 @@
 
 import { create } from "zustand";
 import { categorySlugFromLabel, type ProductLogistics } from "@/lib/mock-data";
-import { sellerApiRequest } from "@/lib/seller-api";
+import { sellerApiRequest, sellerUploadRequest } from "@/lib/seller-api";
 import { useSellerAuthStore } from "@/stores/seller-auth-store";
 
 type ProductStatus = "Active" | "Inactive" | "Archived";
+
+export type SellerProductImageRecord = {
+  secureUrl: string;
+  publicId?: string | null;
+  altText?: string | null;
+  displayOrder?: number;
+};
 
 export type SellerProductVariantRecord = {
   id?: string;
@@ -27,7 +34,7 @@ export type SellerProductRecord = ProductLogistics & {
   price: number;
   inventory: number;
   status: ProductStatus;
-  images: string[];
+  images: SellerProductImageRecord[];
   variants?: SellerProductVariantRecord[];
   dateAdded?: Date;
 };
@@ -37,13 +44,18 @@ type SellerProductsState = {
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
-  fetchProducts: () => Promise<void>;
-  createProduct: (product: Partial<SellerProductRecord>) => Promise<SellerProductRecord>;
+  loadedForSellerId: string | null;
+  fetchProducts: (options?: { force?: boolean }) => Promise<void>;
+  createProduct: (
+    product: Partial<SellerProductRecord>,
+  ) => Promise<SellerProductRecord>;
   updateProduct: (
     productId: string,
     product: Partial<SellerProductRecord>,
   ) => Promise<SellerProductRecord>;
   archiveProduct: (productId: string) => Promise<void>;
+  uploadProductImage: (file: File, displayOrder?: number) => Promise<SellerProductImageRecord>;
+  resetProducts: () => void;
   clearError: () => void;
 };
 
@@ -79,17 +91,45 @@ const labelFromSlug = (slug?: string) => {
     .replace("Seafood", "Seafood");
 };
 
-const imageUrlFromValue = (image: unknown): string | null => {
-  if (typeof image === "string" && image.trim()) return image.trim();
-  if (image && typeof image === "object") {
-    const candidate =
-      "url" in image && typeof image.url === "string"
-        ? image.url
-        : "src" in image && typeof image.src === "string"
-          ? image.src
-          : null;
-    return candidate?.trim() || null;
+const imageRecordFromValue = (image: unknown, index = 0): SellerProductImageRecord | null => {
+  if (typeof image === "string" && image.trim()) {
+    return {
+      secureUrl: image.trim(),
+      publicId: null,
+      altText: null,
+      displayOrder: index,
+    };
   }
+
+  if (image && typeof image === "object") {
+    const secureUrl =
+      "secureUrl" in image && typeof image.secureUrl === "string"
+        ? image.secureUrl.trim()
+        : "url" in image && typeof image.url === "string"
+          ? image.url.trim()
+          : "src" in image && typeof image.src === "string"
+            ? image.src.trim()
+            : "";
+
+    if (!secureUrl) return null;
+
+    return {
+      secureUrl,
+      publicId:
+        "publicId" in image && typeof image.publicId === "string" && image.publicId.trim()
+          ? image.publicId.trim()
+          : null,
+      altText:
+        "altText" in image && typeof image.altText === "string" && image.altText.trim()
+          ? image.altText.trim()
+          : null,
+      displayOrder:
+        "displayOrder" in image && typeof image.displayOrder === "number"
+          ? image.displayOrder
+          : index,
+    };
+  }
+
   return null;
 };
 
@@ -128,8 +168,8 @@ const mapApiProduct = (product: any): SellerProductRecord => ({
   status: statusFromApi(product.status),
   images: Array.isArray(product.images)
     ? product.images
-        .map(imageUrlFromValue)
-        .filter((value): value is string => Boolean(value))
+        .map((image: unknown, index: number) => imageRecordFromValue(image, index))
+        .filter((value): value is SellerProductImageRecord => Boolean(value))
     : [],
   variants: Array.isArray(product.variants)
     ? product.variants.map((variant: any) => ({
@@ -177,11 +217,14 @@ const buildProductPayload = (product: Partial<SellerProductRecord>) => {
   const variants = Array.isArray(product.variants) ? product.variants : [];
   const hasVariants = variants.length > 0;
   const basePrice = hasVariants
-    ? Math.min(...variants.map((variant) => Math.round(Number(variant.price || 0))))
+    ? Math.min(
+        ...variants.map((variant) => Math.round(Number(variant.price || 0))),
+      )
     : Math.round(Number(product.price || 0));
   const inventory = hasVariants
     ? variants.reduce(
-        (sum, variant) => sum + Math.max(0, Math.round(Number(variant.inventory || 0))),
+        (sum, variant) =>
+          sum + Math.max(0, Math.round(Number(variant.inventory || 0))),
         0,
       )
     : Math.max(0, Math.round(Number(product.inventory || 0)));
@@ -191,15 +234,19 @@ const buildProductPayload = (product: Partial<SellerProductRecord>) => {
     description: product.description?.trim() || product.name?.trim() || "",
     status: statusToApi(product.status),
     categorySlug: category,
-    categoryNote: category === "other" ? product.categoryNote?.trim() || null : null,
+    categoryNote:
+      category === "other" ? product.categoryNote?.trim() || null : null,
     basePrice,
     inventory,
     images: (product.images || [])
-      .map((url, index) => ({
-        url,
-        altText: `${product.name || "Product"} image ${index + 1}`,
-      }))
-      .filter((image) => image.url?.trim()),
+      .map((image, index) => imageRecordFromValue(image, index))
+      .filter((image): image is SellerProductImageRecord => Boolean(image))
+      .map((image, index) => ({
+        secureUrl: image.secureUrl,
+        publicId: image.publicId ?? null,
+        altText: image.altText ?? `${product.name || "Product"} image ${index + 1}`,
+        displayOrder: image.displayOrder ?? index,
+      })),
     salesUnit: product.salesUnit || "PIECE",
     packageType: product.packageType || "PIECE",
     unitWeightKg: Number(product.unitWeightKg || 0),
@@ -210,19 +257,63 @@ const buildProductPayload = (product: Partial<SellerProductRecord>) => {
   };
 };
 
+const describeError = (error: unknown) => {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return {
+    message: String(error),
+  };
+};
+
 export const useSellerProductsStore = create<SellerProductsState>((set, get) => ({
   products: [],
   isLoading: false,
   isSaving: false,
   error: null,
+  loadedForSellerId: null,
 
-  fetchProducts: async () => {
+  fetchProducts: async (options) => {
     const token = useSellerAuthStore.getState().token;
-    if (!token) {
-      set({ products: [], error: "Seller session not found", isLoading: false });
+    const sellerId = useSellerAuthStore.getState().user?.sellerProfile?.id || null;
+    const state = get();
+    const force = options?.force === true;
+
+    if (!token || !sellerId) {
+      console.warn("[Seller Products] Fetch skipped: seller session not found");
+      set({
+        products: [],
+        error: "Seller session not found",
+        isLoading: false,
+        loadedForSellerId: null,
+      });
       return;
     }
 
+    if (state.isLoading) {
+      console.log("[Seller Products] Fetch skipped: request already in progress", {
+        sellerId,
+      });
+      return;
+    }
+
+    if (!force && state.loadedForSellerId === sellerId) {
+      console.log("[Seller Products] Fetch skipped: using cached store state", {
+        sellerId,
+        count: state.products.length,
+      });
+      return;
+    }
+
+    console.log("[Seller Products] Fetch start", {
+      sellerId,
+      force,
+    });
     set({ isLoading: true, error: null });
 
     try {
@@ -234,25 +325,42 @@ export const useSellerProductsStore = create<SellerProductsState>((set, get) => 
         token,
       });
 
+      const products = response.products.map(mapApiProduct);
+      console.log("[Seller Products] Fetch success", {
+        sellerId,
+        count: products.length,
+        productIds: products.map((product) => product.id),
+      });
+
       set({
-        products: response.products.map(mapApiProduct),
+        products,
         isLoading: false,
         error: null,
+        loadedForSellerId: sellerId,
       });
     } catch (error) {
+      console.error("[Seller Products] Fetch failed", describeError(error));
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : "Unable to load products",
+        error:
+          error instanceof Error ? error.message : "Unable to load products",
       });
     }
   },
 
   createProduct: async (product) => {
     const token = useSellerAuthStore.getState().token;
+    const sellerId = useSellerAuthStore.getState().user?.sellerProfile?.id || null;
     if (!token) {
       throw new Error("Seller session not found");
     }
 
+    console.log("[Seller Products] Create start", {
+      sellerId,
+      name: product.name,
+      categorySlug: product.categorySlug,
+      hasVariants: Boolean(product.variants?.length),
+    });
     set({ isSaving: true, error: null });
 
     try {
@@ -266,16 +374,28 @@ export const useSellerProductsStore = create<SellerProductsState>((set, get) => 
       });
 
       const created = mapApiProduct(response.product);
+      console.log("[Seller Products] Create success", {
+        id: created.id,
+        name: created.name,
+      });
+
       set((state) => ({
         products: [created, ...state.products],
         isSaving: false,
         error: null,
+        loadedForSellerId: sellerId,
       }));
       return created;
     } catch (error) {
+      console.error("[Seller Products] Create failed", {
+        sellerId,
+        payload: buildProductPayload(product),
+        error: describeError(error),
+      });
       set({
         isSaving: false,
-        error: error instanceof Error ? error.message : "Unable to create product",
+        error:
+          error instanceof Error ? error.message : "Unable to create product",
       });
       throw error;
     }
@@ -283,10 +403,16 @@ export const useSellerProductsStore = create<SellerProductsState>((set, get) => 
 
   updateProduct: async (productId, product) => {
     const token = useSellerAuthStore.getState().token;
+    const sellerId = useSellerAuthStore.getState().user?.sellerProfile?.id || null;
     if (!token) {
       throw new Error("Seller session not found");
     }
 
+    console.log("[Seller Products] Update start", {
+      sellerId,
+      productId,
+      name: product.name,
+    });
     set({ isSaving: true, error: null });
 
     try {
@@ -300,29 +426,65 @@ export const useSellerProductsStore = create<SellerProductsState>((set, get) => 
       });
 
       const updated = mapApiProduct(response.product);
+      console.log("[Seller Products] Update success", {
+        id: updated.id,
+        name: updated.name,
+      });
+
       set((state) => ({
         products: state.products.map((item) =>
           item.id === productId ? updated : item,
         ),
         isSaving: false,
         error: null,
+        loadedForSellerId: sellerId,
       }));
       return updated;
     } catch (error) {
+      console.error("[Seller Products] Update failed", {
+        sellerId,
+        productId,
+        payload: buildProductPayload(product),
+        error: describeError(error),
+      });
       set({
         isSaving: false,
-        error: error instanceof Error ? error.message : "Unable to update product",
+        error:
+          error instanceof Error ? error.message : "Unable to update product",
       });
       throw error;
     }
   },
 
-  archiveProduct: async (productId) => {
+  uploadProductImage: async (file, displayOrder = 0) => {
     const token = useSellerAuthStore.getState().token;
     if (!token) {
       throw new Error("Seller session not found");
     }
 
+    const response = await sellerUploadRequest(file, "product", token);
+    console.log("[Seller Products] Upload image success", {
+      secureUrl: response.asset.secureUrl,
+      publicId: response.asset.publicId,
+      displayOrder,
+    });
+
+    return {
+      secureUrl: response.asset.secureUrl,
+      publicId: response.asset.publicId,
+      altText: file.name,
+      displayOrder,
+    };
+  },
+
+  archiveProduct: async (productId) => {
+    const token = useSellerAuthStore.getState().token;
+    const sellerId = useSellerAuthStore.getState().user?.sellerProfile?.id || null;
+    if (!token) {
+      throw new Error("Seller session not found");
+    }
+
+    console.log("[Seller Products] Archive start", { sellerId, productId });
     set({ isSaving: true, error: null });
 
     try {
@@ -334,18 +496,37 @@ export const useSellerProductsStore = create<SellerProductsState>((set, get) => 
         },
       );
 
+      console.log("[Seller Products] Archive success", { productId });
       set((state) => ({
         products: state.products.filter((item) => item.id !== productId),
         isSaving: false,
         error: null,
+        loadedForSellerId: sellerId,
       }));
     } catch (error) {
+      console.error("[Seller Products] Archive failed", {
+        sellerId,
+        productId,
+        error: describeError(error),
+      });
       set({
         isSaving: false,
-        error: error instanceof Error ? error.message : "Unable to archive product",
+        error:
+          error instanceof Error ? error.message : "Unable to archive product",
       });
       throw error;
     }
+  },
+
+  resetProducts: () => {
+    console.log("[Seller Products] Reset store state");
+    set({
+      products: [],
+      isLoading: false,
+      isSaving: false,
+      error: null,
+      loadedForSellerId: null,
+    });
   },
 
   clearError: () => set({ error: null }),

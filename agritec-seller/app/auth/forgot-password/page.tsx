@@ -1,87 +1,119 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import Link from 'next/link';
-import { Leaf, ArrowRight, Mail, CheckCircle } from 'lucide-react';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import Link from "next/link";
+import { ArrowRight, Mail, CheckCircle } from "lucide-react";
+import Image from "next/image";
+import { toast } from "sonner";
+import { useSellerAuthStore } from "@/stores/seller-auth-store";
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const { isLoading, error, requestPasswordReset, clearError } =
+    useSellerAuthStore();
+  const [email, setEmail] = useState("");
+  const [formError, setFormError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
+    setFormError("");
+    clearError();
 
     if (!email.trim()) {
-      setError('Email is required');
+      setFormError("Email is required");
       return;
     }
 
-    if (!email.includes('@')) {
-      setError('Invalid email address');
+    if (!email.includes("@")) {
+      setFormError("Invalid email address");
       return;
     }
 
-    setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    setSubmitted(true);
+    try {
+      const message = await requestPasswordReset(email);
+      console.log("[Seller Forgot Password Page] Request success", {
+        email: email.trim().toLowerCase(),
+      });
+      toast.success(message);
+      setSubmittedEmail(email.trim().toLowerCase());
+      setSubmitted(true);
+    } catch (requestError) {
+      console.error("[Seller Forgot Password Page] Request failed", requestError);
+      toast.error(error || "Unable to send reset email");
+      setFormError(error || "Unable to send reset email");
+    }
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex items-center gap-2 mb-8 justify-center">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <Leaf className="w-6 h-6 text-primary-foreground" />
+        <div className="text-center mb-8">
+          <div className="inline-block">
+            <Image
+              src="/logo.png"
+              alt="AgriTec Logo"
+              width={128}
+              height={128}
+              priority
+              className="w-lg h-lg object-contain"
+            />
           </div>
-          <span className="font-bold text-2xl text-foreground">AgriTec</span>
         </div>
 
-        {/* Form Card */}
         <div className="bg-card border border-border rounded-2xl p-8 shadow-lg">
           {!submitted ? (
             <>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Reset Password</h1>
+              <h1 className="text-3xl font-bold text-foreground mb-2">
+                Reset Password
+              </h1>
               <p className="text-muted-foreground mb-8">
-                Enter your email address and we&apos;ll send you a link to reset your password
+                Enter your registered email and we&apos;ll send you a reset link.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Email */}
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Email Address</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Email Address
+                  </label>
                   <Input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (formError || error) {
+                        setFormError("");
+                        clearError();
+                      }
+                    }}
                     placeholder="kingsley@farm.com"
-                    className={error ? 'border-destructive' : ''}
+                    className={formError || error ? "border-destructive" : ""}
                   />
-                  {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+                  {(formError || error) && (
+                    <p className="text-xs text-destructive mt-1">
+                      {formError || error}
+                    </p>
+                  )}
                 </div>
 
-                {/* Submit Button */}
                 <Button
                   type="submit"
                   disabled={isLoading}
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground mt-6"
                 >
-                  {isLoading ? 'Sending Link...' : 'Send Reset Link'}
+                  {isLoading ? "Sending Link..." : "Send Reset Link"}
                   <Mail className="w-4 h-4 ml-2" />
                 </Button>
               </form>
 
-              {/* Back to Sign In */}
               <p className="text-center text-muted-foreground mt-6">
-                Remember your password?{' '}
-                <Link href="/auth/signin" className="text-primary hover:underline font-medium">
+                Remember your password?{" "}
+                <Link
+                  href="/auth/signin"
+                  className="text-primary hover:underline font-medium"
+                >
                   Sign In
                 </Link>
               </p>
@@ -90,17 +122,26 @@ export default function ForgotPasswordPage() {
             <>
               <div className="text-center">
                 <CheckCircle className="w-16 h-16 text-primary mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-foreground mb-3">Check Your Email</h2>
+                <h2 className="text-2xl font-bold text-foreground mb-3">
+                  Check Your Email
+                </h2>
                 <p className="text-muted-foreground mb-6">
-                  We&apos;ve sent a password reset link to{' '}
-                  <span className="font-semibold text-foreground">{email}</span>
+                  If an account exists for{" "}
+                  <span className="font-semibold text-foreground">
+                    {submittedEmail}
+                  </span>
+                  , a reset link has been sent.
                 </p>
                 <p className="text-sm text-muted-foreground mb-8">
-                  Click the link in the email to create a new password. The link will expire in 24 hours.
+                  The reset link expires in 1 hour.
                 </p>
 
                 <Button
-                  onClick={() => setSubmitted(false)}
+                  onClick={() => {
+                    setSubmitted(false);
+                    setSubmittedEmail("");
+                    setEmail("");
+                  }}
                   variant="outline"
                   className="w-full border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white mb-4"
                 >
@@ -113,16 +154,6 @@ export default function ForgotPasswordPage() {
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </Link>
-              </div>
-
-              <div className="mt-8 p-4 bg-muted/30 rounded-lg border border-border">
-                <p className="text-xs text-muted-foreground">
-                  Didn&apos;t receive an email? Check your spam folder or{' '}
-                  <Link href="#" className="text-primary hover:underline">
-                    contact support
-                  </Link>
-                  .
-                </p>
               </div>
             </>
           )}

@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { logoutSeller } from "@/lib/local-auth";
+import { useSellerAuthStore } from "@/stores/seller-auth-store";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
@@ -37,12 +37,13 @@ const navigation = [
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const signOut = useSellerAuthStore((state) => state.signOut);
 
   const handleLogout = () => {
-    logoutSeller();
+    signOut();
     router.push("/auth/signin");
   };
-  
+
   return (
     <>
       <Link href="/dashboard" className="group" onClick={onNavigate}>
@@ -100,7 +101,3 @@ export default function Sidebar() {
     </aside>
   );
 }
-
-
-
-

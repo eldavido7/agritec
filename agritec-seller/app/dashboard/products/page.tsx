@@ -1,24 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import {
   categorySlugFromLabel,
-  getSellerMockData,
   hasCompleteDimensions,
   packageTypes,
   salesUnits,
   unitChargeableWeightKg,
   volumetricWeightKg,
   type ProductLogistics,
-  type SellerProduct,
 } from "@/lib/mock-data";
-import { Plus, Edit, Trash2, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Edit, Trash2, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatting";
 import { toast } from "sonner";
+import { useSellerAuthStore } from "@/stores/seller-auth-store";
+import {
+  useSellerProductsStore,
+  type SellerProductRecord,
+  type SellerProductVariantRecord,
+  type SellerProductImageRecord,
+} from "@/stores/seller-products-store";
 
 const PLATFORM_CATEGORIES = [
   "Vegetables",
@@ -43,6 +48,9 @@ const itemVariants = {
 };
 
 const ITEMS_PER_PAGE = 10;
+const CLOUDINARY_FREE_IMAGE_LIMIT_BYTES = 10 * 1024 * 1024;
+
+const formatFileSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 
 const defaultLogistics = {
   salesUnit: "PIECE" as const,
@@ -60,7 +68,7 @@ const parseOptionalNumber = (value: unknown) => {
 };
 
 const buildVariantLogisticsDraft = (
-  product: Partial<SellerProduct>,
+  product: Partial<Product>,
   logistics?: Partial<ProductLogistics>,
 ): Partial<ProductLogistics> => ({
   salesUnit:
@@ -84,7 +92,7 @@ const buildVariantLogisticsDraft = (
 });
 
 const normalizeVariantLogistics = (
-  product: Partial<SellerProduct>,
+  product: Partial<Product>,
   logistics?: Partial<ProductLogistics>,
 ): ProductLogistics | undefined => {
   if (!logistics) return undefined;
@@ -101,32 +109,42 @@ const normalizeVariantLogistics = (
   };
 };
 
-type Variant = {
-  id: string;
-  name: string;
-  price: number;
-  inventory: number;
-  logistics?: ProductLogistics;
-};
-type Product = SellerProduct & { inventory: number };
+type Variant = SellerProductVariantRecord;
+type ProductImage = SellerProductImageRecord;
+type Product = SellerProductRecord;
 type ModalMode = "view" | "edit" | "create" | null;
 
 export default function ProductsPage() {
-  const seller = getSellerMockData();
-  const [products, setProducts] = useState<Product[]>(
-    seller.products as Product[],
-  );
+  const sellerProfile = useSellerAuthStore((state) => state.user?.sellerProfile);
+  const authReady = useSellerAuthStore((state) => state.isReady);
+  const {
+    products,
+    isLoading,
+    isSaving,
+    error,
+    fetchProducts,
+    createProduct,
+    updateProduct,
+    archiveProduct,
+    uploadProductImage,
+  } = useSellerProductsStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [imageIndex, setImageIndex] = useState(0);
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Product>>({});
   const categories = [...PLATFORM_CATEGORIES];
 
   const displayCategories = ["All", ...categories];
+
+  useEffect(() => {
+    if (!authReady) return;
+    void fetchProducts();
+  }, [authReady, fetchProducts]);
+
   const filteredProducts = products.filter(
     (product) =>
       (filterCategory === "All" || product.category === filterCategory) &&
@@ -156,21 +174,30 @@ export default function ProductsPage() {
     return "Active";
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     setDeleteConfirm(id);
   };
 
   const confirmDelete = () => {
-    if (deleteConfirm) {
-      const product = products.find((p) => p.id === deleteConfirm);
-      setProducts(products.filter((p) => p.id !== deleteConfirm));
-      toast.success(`${product?.name} has been deleted`);
-      setDeleteConfirm(null);
-      closeModal();
-      if (paginatedProducts.length === 1 && currentPage > 1) {
-        setCurrentPage(currentPage - 1);
-      }
-    }
+    if (!deleteConfirm) return;
+
+    const product = products.find((p) => p.id === deleteConfirm);
+    void archiveProduct(deleteConfirm)
+      .then(() => {
+        toast.success(`${product?.name} has been archived`);
+        setDeleteConfirm(null);
+        closeModal();
+        if (paginatedProducts.length === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1);
+        }
+      })
+      .catch((archiveError) =>
+        toast.error(
+          archiveError instanceof Error
+            ? archiveError.message
+            : "Unable to archive product",
+        ),
+      );
   };
 
   const openModal = (product: Product | null, mode: ModalMode) => {
@@ -190,7 +217,7 @@ export default function ProductsPage() {
     } else if (product) {
       setFormData({
         ...product,
-        images: [...(product.images || [])],
+        images: (product.images || []).map((image) => ({ ...image })),
         variants: product.variants?.map((variant) => ({
           ...variant,
           logistics: variant.logistics ? { ...variant.logistics } : undefined,
@@ -209,7 +236,7 @@ export default function ProductsPage() {
   const hasVariants =
     (formData.variants && formData.variants.length > 0) || false;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.category) {
       toast.error("Please fill in all required fields");
       return;
@@ -235,18 +262,30 @@ export default function ProductsPage() {
       return;
     }
 
-    const nextProductId =
-      modalMode === "create"
-        ? Math.max(...products.map((p) => p.id), 0) + 1
-        : selectedProduct?.id;
+    const normalizedImages = (formData.images || [])
+      .map((image, index) => {
+        if (!image?.secureUrl?.trim()) return null;
+        return {
+          secureUrl: image.secureUrl.trim(),
+          publicId: image.publicId ?? null,
+          altText: image.altText ?? `${formData.name || "Product"} image ${index + 1}`,
+          displayOrder: image.displayOrder ?? index,
+        };
+      })
+      .filter((image): image is ProductImage => Boolean(image));
+
+    if (normalizedImages.length === 0) {
+      toast.error("Add at least one product image before saving");
+      return;
+    }
 
     const normalizedVariants = hasVariants
-      ? (formData.variants || []).map((variant: any, index: number) => ({
+      ? (formData.variants || []).map((variant: any) => ({
           ...variant,
           id:
-            typeof variant.id === "string" && /^\d+-\d+$/.test(variant.id)
+            typeof variant.id === "string" && variant.id.trim().length > 0
               ? variant.id
-              : `${nextProductId}-${index + 1}`,
+              : undefined,
           logistics: normalizeVariantLogistics(formData, variant.logistics),
         }))
       : undefined;
@@ -261,59 +300,35 @@ export default function ProductsPage() {
         ) || 0
       : formData.inventory || 0;
 
-    if (modalMode === "create") {
-      const newProduct: Product = {
-        id: nextProductId || 1,
-        name: formData.name,
-        category: formData.category,
-        categorySlug:
-          formData.categorySlug || categorySlugFromLabel(formData.category),
-        price: basePrice,
-        inventory: totalInventory,
-        status: "Active",
-        images:
-          formData.images && formData.images.length > 0
-            ? formData.images
-            : [
-                "https://images.unsplash.com/photo-1586190251793-378ec6acda75?w=400&h=300&fit=crop",
-              ],
-        variants: normalizedVariants,
-        salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
-        unitWeightKg,
-        unitLengthCm,
-        unitWidthCm,
-        unitHeightCm,
-        packageType: formData.packageType || defaultLogistics.packageType,
-        dateAdded: new Date(),
-        sellerId: seller.id,
-      };
-      setProducts([...products, newProduct]);
-      toast.success(`${newProduct.name} has been created`);
-    } else if (selectedProduct && modalMode === "edit") {
-      setProducts(
-        products.map((p) =>
-          p.id === selectedProduct.id
-            ? {
-                ...p,
-                ...formData,
-                price: basePrice,
-                inventory: totalInventory,
-                status: formData.status || "Active",
-                variants: normalizedVariants,
-                salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
-                unitWeightKg,
-                unitLengthCm,
-                unitWidthCm,
-                unitHeightCm,
-                packageType:
-                  formData.packageType || defaultLogistics.packageType,
-              }
-            : p,
-        ),
+    const payload: Partial<Product> = {
+      ...formData,
+      price: basePrice,
+      inventory: totalInventory,
+      status: formData.status || "Active",
+      variants: normalizedVariants,
+      salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
+      unitWeightKg,
+      unitLengthCm,
+      unitWidthCm,
+      unitHeightCm,
+      packageType: formData.packageType || defaultLogistics.packageType,
+      images: normalizedImages,
+    };
+
+    try {
+      if (modalMode === "create") {
+        await createProduct(payload);
+        toast.success(`${payload.name} has been created`);
+      } else if (selectedProduct && modalMode === "edit") {
+        await updateProduct(selectedProduct.id, payload);
+        toast.success(`${payload.name} has been updated`);
+      }
+      closeModal();
+    } catch (saveError) {
+      toast.error(
+        saveError instanceof Error ? saveError.message : "Unable to save product",
       );
-      toast.success(`${formData.name} has been updated`);
     }
-    closeModal();
   };
 
   return (
@@ -324,7 +339,7 @@ export default function ProductsPage() {
           <div>
             <p className="text-muted-foreground mt-2">
               Manage your agricultural products and inventory for{" "}
-              {seller.farmName}
+              {sellerProfile?.farmName || "your farm"}
             </p>
           </div>
           <Button
@@ -549,8 +564,8 @@ export default function ProductsPage() {
                     <div className="relative h-64 bg-muted rounded-lg overflow-hidden">
                       <img
                         src={
-                          selectedProduct.images?.[imageIndex] ||
-                          selectedProduct.images?.[0]
+                          selectedProduct.images?.[imageIndex]?.secureUrl ||
+                          selectedProduct.images?.[0]?.secureUrl
                         }
                         alt={selectedProduct.name}
                         className="w-full h-full object-cover"
@@ -570,7 +585,7 @@ export default function ProductsPage() {
                               }`}
                             >
                               <img
-                                src={img}
+                                src={img.secureUrl}
                                 alt={`${selectedProduct.name} ${idx + 1}`}
                                 className="w-full h-full object-cover"
                               />
@@ -645,9 +660,9 @@ export default function ProductsPage() {
                           Variants
                         </p>
                         <div className="space-y-2">
-                          {selectedProduct.variants.map((variant: Variant) => (
+                          {selectedProduct.variants.map((variant) => (
                             <div
-                              key={variant.id}
+                              key={variant.id || variant.name}
                               className="flex justify-between items-center p-3 bg-muted/30 rounded-lg"
                             >
                               <div>
@@ -678,7 +693,7 @@ export default function ProductsPage() {
                       className="flex-1 border bg-red-100 border-red-200 text-red-700 hover:bg-red-200 dark:border-red-800 dark:text-red-400 dark:bg-red-900/20 dark:hover:bg-red-900/50"
                       onClick={() => handleDelete(selectedProduct.id)}
                     >
-                      Delete
+                      Archive
                     </Button>
                     <Button
                       variant="outline"
@@ -706,21 +721,47 @@ export default function ProductsPage() {
                               <input
                                 type="file"
                                 accept="image/*"
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   const file = e.target.files?.[0];
                                   if (!file) return;
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
+
+                                  if (!file.type.startsWith("image/")) {
+                                    toast.error("Only image files can be uploaded");
+                                    e.target.value = "";
+                                    return;
+                                  }
+
+                                  if (file.size > CLOUDINARY_FREE_IMAGE_LIMIT_BYTES) {
+                                    toast.error(
+                                      `Image is too large. Cloudinary free plan supports up to ${formatFileSize(CLOUDINARY_FREE_IMAGE_LIMIT_BYTES)} per image.`
+                                    );
+                                    e.target.value = "";
+                                    return;
+                                  }
+
+                                  try {
+                                    const uploadedImage = await uploadProductImage(
+                                      file,
+                                      idx,
+                                    );
                                     const newImages = [
                                       ...(formData.images || []),
                                     ];
-                                    newImages[idx] = reader.result as string;
+                                    newImages[idx] = uploadedImage;
                                     setFormData({
                                       ...formData,
                                       images: newImages.filter(Boolean),
                                     });
-                                  };
-                                  reader.readAsDataURL(file);
+                                    toast.success("Image uploaded successfully");
+                                  } catch (uploadError) {
+                                    toast.error(
+                                      uploadError instanceof Error
+                                        ? uploadError.message
+                                        : "Unable to upload image",
+                                    );
+                                  } finally {
+                                    e.target.value = "";
+                                  }
                                 }}
                                 className="hidden"
                                 id={`image-upload-${idx}`}
@@ -730,19 +771,17 @@ export default function ProductsPage() {
                                 className="cursor-pointer block"
                               >
                                 {image ? (
-                                  <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-border group">
+                                  <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-border group bg-muted/20">
                                     <img
-                                      src={
-                                        typeof image === "string"
-                                          ? image
-                                          : URL.createObjectURL(image as any)
-                                      }
+                                      src={image.secureUrl}
                                       alt={`preview ${idx + 1}`}
                                       className="w-full h-full object-cover"
                                     />
                                     <button
+                                      type="button"
                                       onClick={(e) => {
                                         e.preventDefault();
+                                        e.stopPropagation();
                                         const newImages =
                                           formData.images?.filter(
                                             (_: any, i: number) => i !== idx,
@@ -752,10 +791,11 @@ export default function ProductsPage() {
                                           images: newImages,
                                         });
                                       }}
-                                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                                      className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-100 shadow-sm transition hover:bg-black"
                                     >
-                                      <X className="w-5 h-5 text-white" />
+                                      <X className="h-4 w-4" />
                                     </button>
+                                    <div className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
                                   </div>
                                 ) : (
                                   <div className="w-full aspect-square rounded-lg border-2 border-dashed border-border hover:border-primary/50 transition-colors flex items-center justify-center bg-muted/20">
@@ -768,7 +808,10 @@ export default function ProductsPage() {
                         })}
                       </div>
                       <p className="text-xs text-muted-foreground mt-3">
-                        PNG, JPG - Click on any box to upload or replace
+                        PNG, JPG, WEBP - Click on any box to upload or replace
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Cloudinary free plan supports up to {formatFileSize(CLOUDINARY_FREE_IMAGE_LIMIT_BYTES)} per image. Uploads now go directly to Cloudinary using a signed backend payload.
                       </p>
                     </div>
 
@@ -818,7 +861,11 @@ export default function ProductsPage() {
                         <select
                           value={formData.status || "Active"}
                           onChange={(e) =>
-                            setFormData({ ...formData, status: e.target.value })
+                            setFormData({
+                              ...formData,
+                              status: e.target
+                                .value as SellerProductRecord["status"],
+                            })
                           }
                           className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                         >
@@ -871,7 +918,8 @@ export default function ProductsPage() {
                             onChange={(e) =>
                               setFormData({
                                 ...formData,
-                                salesUnit: e.target.value as any,
+                                salesUnit: e.target
+                                  .value as SellerProductRecord["salesUnit"],
                               })
                             }
                             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -895,7 +943,8 @@ export default function ProductsPage() {
                             onChange={(e) =>
                               setFormData({
                                 ...formData,
-                                packageType: e.target.value as any,
+                                packageType: e.target
+                                  .value as SellerProductRecord["packageType"],
                               })
                             }
                             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -1059,7 +1108,7 @@ export default function ProductsPage() {
                                 ...formData,
                                 variants: [
                                   {
-                                    id: `${formData.id || "new"}-${variants.length + 1}`,
+                                    id: `${formData.id || "new"}-${(formData.variants || []).length + 1}`,
                                     name: "",
                                     price: 0,
                                     inventory: 0,
@@ -1587,15 +1636,22 @@ export default function ProductsPage() {
                     <Button
                       className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
                       onClick={handleSave}
+                      disabled={isSaving}
                     >
+                      {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       {modalMode === "create"
-                        ? "Create Product"
-                        : "Save Changes"}
+                        ? isSaving
+                          ? "Creating Product..."
+                          : "Create Product"
+                        : isSaving
+                          ? "Saving Changes..."
+                          : "Save Changes"}
                     </Button>
                     <Button
                       variant="outline"
                       className="flex-1 border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
                       onClick={closeModal}
+                      disabled={isSaving}
                     >
                       Cancel
                     </Button>
@@ -1616,7 +1672,7 @@ export default function ProductsPage() {
             className="bg-card rounded-lg max-w-sm w-full p-6"
           >
             <h3 className="text-lg font-bold text-foreground mb-2">
-              Delete Product?
+              Archive Product?
             </h3>
             <p className="text-muted-foreground mb-6">
               Are you sure you want to delete this product? This action cannot
@@ -1633,8 +1689,10 @@ export default function ProductsPage() {
               <Button
                 className="flex-1 border bg-red-50 border-red-200 text-red-700 hover:bg-red-200 dark:border-red-800 dark:text-red-400 dark:bg-red-900/20 dark:hover:bg-red-900/50"
                 onClick={confirmDelete}
+                disabled={isSaving}
               >
-                Delete
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSaving ? "Deleting..." : "Delete"}
               </Button>
             </div>
           </motion.div>
@@ -1643,5 +1701,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-
-
