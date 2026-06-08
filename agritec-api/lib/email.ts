@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { SellerOrderGroupStatus } from "@prisma/client";
+import { SellerOrderGroupStatus, UserRole } from "@prisma/client";
 
 function getTransporter() {
   const user = process.env.GMAIL_USER;
@@ -117,6 +117,49 @@ export async function sendBuyerOrderGroupStatusEmail(args: {
             <div style="font-size: 14px; color: #374151; line-height: 1.6;">${args.fullAddress || args.addressLine}</div>
           </div>
         ` : ""}
+      </div>
+    `,
+  });
+}
+
+export async function sendPasswordResetEmail(args: {
+  toEmail: string;
+  fullName: string;
+  role: UserRole;
+  resetUrl: string;
+  expiresInHours: number;
+}) {
+  const transporter = getTransporter();
+  const from = process.env.GMAIL_USER as string;
+  const brand = process.env.MARKETPLACE_NAME || process.env.STORE_NAME || "Agritec";
+  const roleLabel = args.role === UserRole.SELLER ? "seller" : args.role === UserRole.BUYER ? "buyer" : "admin";
+
+  await transporter.sendMail({
+    from: `"${brand}" <${from}>`,
+    to: args.toEmail,
+    subject: `Reset your ${brand} password`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; background: #f4f7f4; color: #1f2937;">
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid #e5e7eb;">
+          <h1 style="margin: 0 0 8px; font-size: 24px; color: #14532d;">Reset your password</h1>
+          <p style="margin: 0; font-size: 15px; color: #4b5563;">Hi ${args.fullName}, we received a request to reset your ${brand} ${roleLabel} account password.</p>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid #e5e7eb;">
+          <p style="margin: 0 0 16px; font-size: 15px; color: #374151; line-height: 1.6;">
+            Use the button below to choose a new password. This link will expire in ${args.expiresInHours} hour${args.expiresInHours === 1 ? "" : "s"}.
+          </p>
+          <a href="${args.resetUrl}" style="display: inline-block; background: #166534; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 10px; font-weight: 600;">
+            Reset password
+          </a>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #e5e7eb;">
+          <p style="margin: 0 0 8px; font-size: 14px; color: #4b5563; line-height: 1.6;">
+            If the button does not open, use this link:
+          </p>
+          <p style="margin: 0; font-size: 14px; word-break: break-all; color: #166534;">${args.resetUrl}</p>
+        </div>
       </div>
     `,
   });

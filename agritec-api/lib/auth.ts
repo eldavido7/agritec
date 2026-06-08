@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { Prisma, UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -73,6 +74,10 @@ function getJwtSecret() {
   return secret;
 }
 
+function hashResetToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
@@ -93,8 +98,12 @@ export function serializeAuthUser(user: AuthUser) {
     sellerProfile: user.sellerProfile
       ? {
           ...user.sellerProfile,
-          latitude: user.sellerProfile.latitude ? Number(user.sellerProfile.latitude) : null,
-          longitude: user.sellerProfile.longitude ? Number(user.sellerProfile.longitude) : null,
+          latitude: user.sellerProfile.latitude
+            ? Number(user.sellerProfile.latitude)
+            : null,
+          longitude: user.sellerProfile.longitude
+            ? Number(user.sellerProfile.longitude)
+            : null,
         }
       : null,
   };
@@ -195,7 +204,9 @@ export async function verifyUserCredentials({
 
 export async function createBuyerAccount(input: BuyerSignupInput) {
   const normalizedEmail = normalizeEmail(input.email);
-  const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
   if (existingUser) {
     throw new Error("EMAIL_ALREADY_EXISTS");
   }
@@ -243,7 +254,9 @@ export async function createBuyerAccount(input: BuyerSignupInput) {
 
 export async function createSellerAccount(input: SellerSignupInput) {
   const normalizedEmail = normalizeEmail(input.email);
-  const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
   if (existingUser) {
     throw new Error("EMAIL_ALREADY_EXISTS");
   }
@@ -281,6 +294,109 @@ export async function createSellerAccount(input: SellerSignupInput) {
   });
 }
 
+export async function createPasswordResetToken(email: string) {
+  const normalizedEmail = normalizeEmail(email);
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: {
+      id: true,
+      email: true,
+      fullName: true,
+      role: true,
+      isActive: true,
+    },
+  });
+
+  if (!user || !user.isActive) {
+    return null;
+  }
+
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = hashResetToken(rawToken);
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
+
+  await prisma.passwordResetToken.deleteMany({
+    where: {
+      userId: user.id,
+      consumedAt: null,
+    },
+  });
+
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    },
+  });
+
+  return {
+    userId: user.id,
+    email: user.email,
+    fullName: user.fullName,
+    role: user.role,
+    token: rawToken,
+    expiresAt,
+  };
+}
+
+export async function resetPasswordWithToken(args: {
+  token: string;
+  password: string;
+}) {
+  const tokenHash = hashResetToken(args.token);
+
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          isActive: true,
+        },
+      },
+    },
+  });
+
+  if (
+    !resetToken ||
+    !resetToken.user.isActive ||
+    resetToken.consumedAt ||
+    resetToken.expiresAt.getTime() < Date.now()
+  ) {
+    throw new Error("INVALID_RESET_TOKEN");
+  }
+
+  const passwordHash = await bcrypt.hash(args.password, 12);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: resetToken.userId },
+      data: {
+        passwordHash,
+        lastActiveAt: new Date(),
+      },
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: resetToken.id },
+      data: {
+        consumedAt: new Date(),
+      },
+    }),
+    prisma.passwordResetToken.deleteMany({
+      where: {
+        userId: resetToken.userId,
+        id: { not: resetToken.id },
+      },
+    }),
+  ]);
+
+  return resetToken.user;
+}
+
 export async function getAuthenticatedUser(request: Request) {
   const token = extractBearerToken(request);
   if (!token) {
@@ -300,7 +416,10 @@ export async function getAuthenticatedUser(request: Request) {
   return user;
 }
 
-export async function requireAuthenticatedUser(request: Request, allowedRoles?: UserRole[]) {
+export async function requireAuthenticatedUser(
+  request: Request,
+  allowedRoles?: UserRole[],
+) {
   const user = await getAuthenticatedUser(request);
   if (!user) {
     return null;
