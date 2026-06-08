@@ -5,25 +5,25 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { categorySlugFromLabel } from "@/lib/mock-data";
 import {
-  categorySlugFromLabel,
-  hasCompleteDimensions,
-  packageTypes,
-  salesUnits,
-  unitChargeableWeightKg,
-  volumetricWeightKg,
-  type ProductLogistics,
-} from "@/lib/mock-data";
-import { Plus, Edit, Trash2, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+  Plus,
+  Edit,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from "lucide-react";
 import { formatCurrency } from "@/lib/formatting";
 import { toast } from "sonner";
 import { useSellerAuthStore } from "@/stores/seller-auth-store";
 import {
   useSellerProductsStore,
   type SellerProductRecord,
-  type SellerProductVariantRecord,
-  type SellerProductImageRecord,
 } from "@/stores/seller-products-store";
+import { ViewProductModal } from "./view-product-modal";
+import { CreateProductModal } from "./create-product-modal";
+import { EditProductModal } from "./edit-product-modal";
 
 const PLATFORM_CATEGORIES = [
   "Vegetables",
@@ -48,74 +48,11 @@ const itemVariants = {
 };
 
 const ITEMS_PER_PAGE = 10;
-const CLOUDINARY_FREE_IMAGE_LIMIT_BYTES = 10 * 1024 * 1024;
-
-const formatFileSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-
-const defaultLogistics = {
-  salesUnit: "PIECE" as const,
-  unitWeightKg: undefined,
-  unitLengthCm: undefined,
-  unitWidthCm: undefined,
-  unitHeightCm: undefined,
-  packageType: "PIECE" as const,
-};
-
-const parseOptionalNumber = (value: unknown) => {
-  if (value === "" || value === null || value === undefined) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-};
-
-const buildVariantLogisticsDraft = (
-  product: Partial<Product>,
-  logistics?: Partial<ProductLogistics>,
-): Partial<ProductLogistics> => ({
-  salesUnit:
-    logistics?.salesUnit || product.salesUnit || defaultLogistics.salesUnit,
-  unitWeightKg:
-    parseOptionalNumber(logistics?.unitWeightKg) ??
-    parseOptionalNumber(product.unitWeightKg),
-  unitLengthCm:
-    parseOptionalNumber(logistics?.unitLengthCm) ??
-    parseOptionalNumber(product.unitLengthCm),
-  unitWidthCm:
-    parseOptionalNumber(logistics?.unitWidthCm) ??
-    parseOptionalNumber(product.unitWidthCm),
-  unitHeightCm:
-    parseOptionalNumber(logistics?.unitHeightCm) ??
-    parseOptionalNumber(product.unitHeightCm),
-  packageType:
-    logistics?.packageType ||
-    product.packageType ||
-    defaultLogistics.packageType,
-});
-
-const normalizeVariantLogistics = (
-  product: Partial<Product>,
-  logistics?: Partial<ProductLogistics>,
-): ProductLogistics | undefined => {
-  if (!logistics) return undefined;
-  const draft = buildVariantLogisticsDraft(product, logistics);
-  const unitWeightKg = parseOptionalNumber(draft.unitWeightKg);
-  if (unitWeightKg == null) return undefined;
-  return {
-    salesUnit: draft.salesUnit || defaultLogistics.salesUnit,
-    unitWeightKg,
-    unitLengthCm: parseOptionalNumber(draft.unitLengthCm),
-    unitWidthCm: parseOptionalNumber(draft.unitWidthCm),
-    unitHeightCm: parseOptionalNumber(draft.unitHeightCm),
-    packageType: draft.packageType || defaultLogistics.packageType,
-  };
-};
-
-type Variant = SellerProductVariantRecord;
-type ProductImage = SellerProductImageRecord;
-type Product = SellerProductRecord;
-type ModalMode = "view" | "edit" | "create" | null;
 
 export default function ProductsPage() {
-  const sellerProfile = useSellerAuthStore((state) => state.user?.sellerProfile);
+  const sellerProfile = useSellerAuthStore(
+    (state) => state.user?.sellerProfile,
+  );
   const authReady = useSellerAuthStore((state) => state.isReady);
   const {
     products,
@@ -131,14 +68,22 @@ export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
-  const [modalMode, setModalMode] = useState<ModalMode>(null);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] =
+    useState<SellerProductRecord | null>(null);
   const [imageIndex, setImageIndex] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Partial<Product>>({});
+  const [formData, setFormData] = useState<Partial<SellerProductRecord>>({});
+  const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(
+    null,
+  );
   const categories = [...PLATFORM_CATEGORIES];
 
   const displayCategories = ["All", ...categories];
+  const isImageUploading = uploadingImageIndex !== null;
+  const isFormBusy = isSaving || isImageUploading;
 
   useEffect(() => {
     if (!authReady) return;
@@ -157,17 +102,17 @@ export default function ProductsPage() {
     currentPage * ITEMS_PER_PAGE,
   );
 
-  const getTotalInventory = (product: Product) => {
+  const getTotalInventory = (product: SellerProductRecord) => {
     if (!product.variants || product.variants.length === 0) {
       return product.inventory || 0;
     }
     return product.variants.reduce(
-      (sum: number, v: Variant) => sum + (v.inventory || 0),
+      (sum: number, v) => sum + (v.inventory || 0),
       0,
     );
   };
 
-  const getProductStatus = (product: Product) => {
+  const getProductStatus = (product: SellerProductRecord) => {
     const totalInv = getTotalInventory(product);
     if (totalInv === 0) return "Sold Out";
     if (totalInv <= 10) return "Low Stock";
@@ -186,7 +131,8 @@ export default function ProductsPage() {
       .then(() => {
         toast.success(`${product?.name} has been archived`);
         setDeleteConfirm(null);
-        closeModal();
+        setUploadingImageIndex(null);
+        setViewModalOpen(false);
         if (paginatedProducts.length === 1 && currentPage > 1) {
           setCurrentPage(currentPage - 1);
         }
@@ -200,135 +146,56 @@ export default function ProductsPage() {
       );
   };
 
-  const openModal = (product: Product | null, mode: ModalMode) => {
+  const openViewModal = (product: SellerProductRecord) => {
     setSelectedProduct(product);
-    setModalMode(mode);
+    setViewModalOpen(true);
     setImageIndex(0);
     setDeleteConfirm(null);
-    if (mode === "create") {
-      setFormData({
-        category: categories[0] || "Vegetables",
-        categorySlug: categorySlugFromLabel(categories[0] || "Vegetables"),
-        status: "Active",
-        variants: [],
-        images: [],
-        ...defaultLogistics,
-      });
-    } else if (product) {
-      setFormData({
-        ...product,
-        images: (product.images || []).map((image) => ({ ...image })),
-        variants: product.variants?.map((variant) => ({
-          ...variant,
-          logistics: variant.logistics ? { ...variant.logistics } : undefined,
-        })),
-      });
-    }
   };
 
-  const closeModal = () => {
-    setModalMode(null);
+  const openEditModal = (product: SellerProductRecord) => {
+    setSelectedProduct(product);
+    setEditModalOpen(true);
+    setImageIndex(0);
+    setDeleteConfirm(null);
+    setFormData({
+      ...product,
+      images: (product.images || []).map((image) => ({ ...image })),
+      variants: product.variants?.map((variant) => ({
+        ...variant,
+        logistics: variant.logistics ? { ...variant.logistics } : undefined,
+      })),
+    });
+  };
+
+  const openCreateModal = () => {
+    setSelectedProduct(null);
+    setCreateModalOpen(true);
+    setImageIndex(0);
+    setDeleteConfirm(null);
+    setFormData({
+      category: categories[0] || "Vegetables",
+      categorySlug: categorySlugFromLabel(categories[0] || "Vegetables"),
+      status: "Active",
+      variants: [],
+      images: [],
+      salesUnit: "PIECE",
+      unitWeightKg: undefined,
+      unitLengthCm: undefined,
+      unitWidthCm: undefined,
+      unitHeightCm: undefined,
+      packageType: "PIECE",
+    });
+  };
+
+  const closeAllModals = () => {
+    setViewModalOpen(false);
+    setCreateModalOpen(false);
+    setEditModalOpen(false);
     setSelectedProduct(null);
     setImageIndex(0);
+    setUploadingImageIndex(null);
     setFormData({});
-  };
-
-  const hasVariants =
-    (formData.variants && formData.variants.length > 0) || false;
-
-  const handleSave = async () => {
-    if (!formData.name || !formData.category) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    if (!hasVariants && !formData.price) {
-      toast.error("Please enter price (no variants) or add variants");
-      return;
-    }
-
-    if (hasVariants && (!formData.variants || formData.variants.length === 0)) {
-      toast.error("Please add at least one variant");
-      return;
-    }
-
-    const unitWeightKg = parseOptionalNumber(formData.unitWeightKg);
-    const unitLengthCm = parseOptionalNumber(formData.unitLengthCm);
-    const unitWidthCm = parseOptionalNumber(formData.unitWidthCm);
-    const unitHeightCm = parseOptionalNumber(formData.unitHeightCm);
-
-    if (unitWeightKg == null) {
-      toast.error("Unit weight is required for shipping calculation");
-      return;
-    }
-
-    const normalizedImages = (formData.images || [])
-      .map((image, index) => {
-        if (!image?.secureUrl?.trim()) return null;
-        return {
-          secureUrl: image.secureUrl.trim(),
-          publicId: image.publicId ?? null,
-          altText: image.altText ?? `${formData.name || "Product"} image ${index + 1}`,
-          displayOrder: image.displayOrder ?? index,
-        };
-      })
-      .filter((image): image is ProductImage => Boolean(image));
-
-    if (normalizedImages.length === 0) {
-      toast.error("Add at least one product image before saving");
-      return;
-    }
-
-    const normalizedVariants = hasVariants
-      ? (formData.variants || []).map((variant: any) => ({
-          ...variant,
-          id:
-            typeof variant.id === "string" && variant.id.trim().length > 0
-              ? variant.id
-              : undefined,
-          logistics: normalizeVariantLogistics(formData, variant.logistics),
-        }))
-      : undefined;
-
-    const basePrice = hasVariants
-      ? formData.variants?.[0]?.price || 0
-      : formData.price || 0;
-    const totalInventory = hasVariants
-      ? formData.variants?.reduce(
-          (sum: number, v: any) => sum + (v.inventory || 0),
-          0,
-        ) || 0
-      : formData.inventory || 0;
-
-    const payload: Partial<Product> = {
-      ...formData,
-      price: basePrice,
-      inventory: totalInventory,
-      status: formData.status || "Active",
-      variants: normalizedVariants,
-      salesUnit: formData.salesUnit || defaultLogistics.salesUnit,
-      unitWeightKg,
-      unitLengthCm,
-      unitWidthCm,
-      unitHeightCm,
-      packageType: formData.packageType || defaultLogistics.packageType,
-      images: normalizedImages,
-    };
-
-    try {
-      if (modalMode === "create") {
-        await createProduct(payload);
-        toast.success(`${payload.name} has been created`);
-      } else if (selectedProduct && modalMode === "edit") {
-        await updateProduct(selectedProduct.id, payload);
-        toast.success(`${payload.name} has been updated`);
-      }
-      closeModal();
-    } catch (saveError) {
-      toast.error(
-        saveError instanceof Error ? saveError.message : "Unable to save product",
-      );
-    }
   };
 
   return (
@@ -344,7 +211,7 @@ export default function ProductsPage() {
           </div>
           <Button
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
-            onClick={() => openModal(null, "create")}
+            onClick={openCreateModal}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Product
@@ -436,7 +303,7 @@ export default function ProductsPage() {
                     >
                       <td className="py-3 px-4">
                         <button
-                          onClick={() => openModal(product, "view")}
+                          onClick={() => openViewModal(product)}
                           className="text-sm font-medium text-primary hover:underline"
                         >
                           {product.name}
@@ -464,7 +331,7 @@ export default function ProductsPage() {
                             size="sm"
                             variant="ghost"
                             className="text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
-                            onClick={() => openModal(product, "edit")}
+                            onClick={() => openEditModal(product)}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -534,1134 +401,78 @@ export default function ProductsPage() {
         </Card>
       </motion.div>
 
-      {/* Main Modal */}
-      {modalMode && !deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-card rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="sticky top-0 flex justify-between items-center p-6 border-b border-border bg-card">
-              <h2 className="text-xl font-bold text-foreground">
-                {modalMode === "view" && "View Product"}
-                {modalMode === "edit" && "Edit Product"}
-                {modalMode === "create" && "Create Product"}
-              </h2>
-              <button
-                onClick={closeModal}
-                className="text-muted-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white p-1 rounded-md transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+      {/* Modals */}
+      <ViewProductModal
+        isOpen={viewModalOpen}
+        product={selectedProduct}
+        imageIndex={imageIndex}
+        onImageIndexChange={setImageIndex}
+        onClose={closeAllModals}
+        onEdit={(product) => {
+          openEditModal(product);
+          setViewModalOpen(false);
+        }}
+        onDelete={handleDelete}
+        getTotalInventory={getTotalInventory}
+        getProductStatus={getProductStatus}
+      />
 
-            <div className="p-6 space-y-6">
-              {modalMode === "view" && selectedProduct ? (
-                <>
-                  {/* Image Gallery */}
-                  <div className="space-y-4">
-                    <div className="relative h-64 bg-muted rounded-lg overflow-hidden">
-                      <img
-                        src={
-                          selectedProduct.images?.[imageIndex]?.secureUrl ||
-                          selectedProduct.images?.[0]?.secureUrl
-                        }
-                        alt={selectedProduct.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    {selectedProduct.images &&
-                      selectedProduct.images.length > 1 && (
-                        <div className="flex gap-2">
-                          {selectedProduct.images.map((img, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => setImageIndex(idx)}
-                              className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
-                                imageIndex === idx
-                                  ? "border-primary"
-                                  : "border-border hover:border-primary/50"
-                              }`}
-                            >
-                              <img
-                                src={img.secureUrl}
-                                alt={`${selectedProduct.name} ${idx + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                  </div>
+      <CreateProductModal
+        isOpen={createModalOpen}
+        formData={formData}
+        onFormDataChange={setFormData}
+        categories={categories}
+        uploadingImageIndex={uploadingImageIndex}
+        isSaving={isSaving}
+        isImageUploading={isImageUploading}
+        onClose={closeAllModals}
+        onSave={async (payload) => {
+          await createProduct(payload);
+        }}
+        onUploadImage={async (file, index) => {
+          setUploadingImageIndex(index);
+          try {
+            const result = await uploadProductImage(file, index);
+            return {
+              secureUrl: result.secureUrl,
+              publicId: result.publicId ?? null,
+              altText: result.altText ?? undefined,
+              displayOrder: result.displayOrder,
+            };
+          } finally {
+            setUploadingImageIndex(null);
+          }
+        }}
+      />
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Name</p>
-                      <p className="font-semibold text-foreground">
-                        {selectedProduct.name}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Category
-                      </p>
-                      <p className="font-semibold text-foreground">
-                        {selectedProduct.category}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Price
-                      </p>
-                      <p className="font-semibold text-primary">
-                        {formatCurrency(selectedProduct.price)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Inventory
-                      </p>
-                      <p className="font-semibold text-foreground">
-                        {getTotalInventory(selectedProduct)} units
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Status
-                      </p>
-                      <p className="font-semibold text-foreground">
-                        {getProductStatus(selectedProduct)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Sales Unit
-                      </p>
-                      <p className="font-semibold text-foreground">
-                        {selectedProduct.salesUnit}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Chargeable Weight
-                      </p>
-                      <p className="font-semibold text-foreground">
-                        {unitChargeableWeightKg(selectedProduct).toFixed(1)}{" "}
-                        kg/unit
-                      </p>
-                    </div>
-                  </div>
-
-                  {selectedProduct.variants &&
-                    selectedProduct.variants.length > 0 && (
-                      <div>
-                        <p className="text-sm font-semibold text-foreground mb-3">
-                          Variants
-                        </p>
-                        <div className="space-y-2">
-                          {selectedProduct.variants.map((variant) => (
-                            <div
-                              key={variant.id || variant.name}
-                              className="flex justify-between items-center p-3 bg-muted/30 rounded-lg"
-                            >
-                              <div>
-                                <p className="text-foreground">
-                                  {variant.name}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {variant.inventory} in stock
-                                </p>
-                              </div>
-                              <span className="font-semibold text-primary">
-                                {formatCurrency(variant.price)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                  <div className="flex gap-3 pt-4 border-t border-border">
-                    <Button
-                      className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-                      onClick={() => openModal(selectedProduct, "edit")}
-                    >
-                      Edit Product
-                    </Button>
-                    <Button
-                      className="flex-1 border bg-red-100 border-red-200 text-red-700 hover:bg-red-200 dark:border-red-800 dark:text-red-400 dark:bg-red-900/20 dark:hover:bg-red-900/50"
-                      onClick={() => handleDelete(selectedProduct.id)}
-                    >
-                      Archive
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1 border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
-                      onClick={closeModal}
-                    >
-                      Close
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Edit/Create Form */}
-                  <div className="space-y-4">
-                    {/* Image Upload Section */}
-                    <div>
-                      <label className="text-sm font-medium text-foreground mb-2 block">
-                        Product Images (1-4)
-                      </label>
-                      <div className="grid grid-cols-4 gap-4">
-                        {[0, 1, 2, 3].map((idx) => {
-                          const image = formData.images?.[idx];
-                          return (
-                            <div key={idx}>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0];
-                                  if (!file) return;
-
-                                  if (!file.type.startsWith("image/")) {
-                                    toast.error("Only image files can be uploaded");
-                                    e.target.value = "";
-                                    return;
-                                  }
-
-                                  if (file.size > CLOUDINARY_FREE_IMAGE_LIMIT_BYTES) {
-                                    toast.error(
-                                      `Image is too large. Cloudinary free plan supports up to ${formatFileSize(CLOUDINARY_FREE_IMAGE_LIMIT_BYTES)} per image.`
-                                    );
-                                    e.target.value = "";
-                                    return;
-                                  }
-
-                                  try {
-                                    const uploadedImage = await uploadProductImage(
-                                      file,
-                                      idx,
-                                    );
-                                    const newImages = [
-                                      ...(formData.images || []),
-                                    ];
-                                    newImages[idx] = uploadedImage;
-                                    setFormData({
-                                      ...formData,
-                                      images: newImages.filter(Boolean),
-                                    });
-                                    toast.success("Image uploaded successfully");
-                                  } catch (uploadError) {
-                                    toast.error(
-                                      uploadError instanceof Error
-                                        ? uploadError.message
-                                        : "Unable to upload image",
-                                    );
-                                  } finally {
-                                    e.target.value = "";
-                                  }
-                                }}
-                                className="hidden"
-                                id={`image-upload-${idx}`}
-                              />
-                              <label
-                                htmlFor={`image-upload-${idx}`}
-                                className="cursor-pointer block"
-                              >
-                                {image ? (
-                                  <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-border group bg-muted/20">
-                                    <img
-                                      src={image.secureUrl}
-                                      alt={`preview ${idx + 1}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        const newImages =
-                                          formData.images?.filter(
-                                            (_: any, i: number) => i !== idx,
-                                          ) || [];
-                                        setFormData({
-                                          ...formData,
-                                          images: newImages,
-                                        });
-                                      }}
-                                      className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-100 shadow-sm transition hover:bg-black"
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </button>
-                                    <div className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
-                                  </div>
-                                ) : (
-                                  <div className="w-full aspect-square rounded-lg border-2 border-dashed border-border hover:border-primary/50 transition-colors flex items-center justify-center bg-muted/20">
-                                    <Plus className="w-6 h-6 text-muted-foreground" />
-                                  </div>
-                                )}
-                              </label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-3">
-                        PNG, JPG, WEBP - Click on any box to upload or replace
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Cloudinary free plan supports up to {formatFileSize(CLOUDINARY_FREE_IMAGE_LIMIT_BYTES)} per image. Uploads now go directly to Cloudinary using a signed backend payload.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium text-foreground">
-                        Product Name *
-                      </label>
-                      <Input
-                        value={formData.name || ""}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
-                        placeholder="Enter product name"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-foreground">
-                          Category *
-                        </label>
-                        <select
-                          value={formData.category || ""}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              category: e.target.value,
-                              categorySlug: categorySlugFromLabel(
-                                e.target.value,
-                              ),
-                            })
-                          }
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                          <option value="">Select a category</option>
-                          {categories.map((cat) => (
-                            <option key={cat} value={cat}>
-                              {cat}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-foreground">
-                          Status
-                        </label>
-                        <select
-                          value={formData.status || "Active"}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              status: e.target
-                                .value as SellerProductRecord["status"],
-                            })
-                          }
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                          <option>Active</option>
-                          <option>Inactive</option>
-                        </select>
-                      </div>
-                    </div>
-                    {formData.category === "Other" && (
-                      <div>
-                        <label className="text-sm font-medium text-foreground">
-                          Category Note (Optional)
-                        </label>
-                        <Input
-                          value={(formData as any).categoryNote || ""}
-                          onChange={(e) =>
-                            setFormData({
-                              ...(formData as any),
-                              categoryNote: e.target.value,
-                            })
-                          }
-                          placeholder="e.g. Natural Sweeteners"
-                        />
-                      </div>
-                    )}
-
-                    <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          Sales unit and logistics
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Buyers purchase by sales unit. Weight and dimensions
-                          are used only by platform delivery pricing.
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Dimensions are optional. If left empty, shipping will
-                          be calculated using the product&apos;s weight only.
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                          <label className="text-sm font-medium text-foreground">
-                            Sales Unit
-                          </label>
-                          <select
-                            value={
-                              formData.salesUnit || defaultLogistics.salesUnit
-                            }
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                salesUnit: e.target
-                                  .value as SellerProductRecord["salesUnit"],
-                              })
-                            }
-                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                          >
-                            {salesUnits.map((unit) => (
-                              <option key={unit} value={unit}>
-                                {unit}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-foreground">
-                            Package Type
-                          </label>
-                          <select
-                            value={
-                              formData.packageType ||
-                              defaultLogistics.packageType
-                            }
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                packageType: e.target
-                                  .value as SellerProductRecord["packageType"],
-                              })
-                            }
-                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                          >
-                            {packageTypes.map((type) => (
-                              <option key={type} value={type}>
-                                {type}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-foreground">
-                            Unit Weight (kg)
-                          </label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            placeholder="e.g. 2.5"
-                            value={formData.unitWeightKg ?? ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                unitWeightKg:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : Number(e.target.value),
-                              })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-foreground">
-                            Length (cm)
-                          </label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            placeholder="e.g. 30"
-                            value={formData.unitLengthCm ?? ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                unitLengthCm:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : Number(e.target.value),
-                              })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-foreground">
-                            Width (cm)
-                          </label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            placeholder="e.g. 20"
-                            value={formData.unitWidthCm ?? ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                unitWidthCm:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : Number(e.target.value),
-                              })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-foreground">
-                            Height (cm)
-                          </label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            placeholder="e.g. 15"
-                            value={formData.unitHeightCm ?? ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                unitHeightCm:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : Number(e.target.value),
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                      {(() => {
-                        const logisticsPreview = {
-                          salesUnit:
-                            formData.salesUnit || defaultLogistics.salesUnit,
-                          unitWeightKg:
-                            parseOptionalNumber(formData.unitWeightKg) || 0,
-                          unitLengthCm: parseOptionalNumber(
-                            formData.unitLengthCm,
-                          ),
-                          unitWidthCm: parseOptionalNumber(
-                            formData.unitWidthCm,
-                          ),
-                          unitHeightCm: parseOptionalNumber(
-                            formData.unitHeightCm,
-                          ),
-                          packageType:
-                            formData.packageType ||
-                            defaultLogistics.packageType,
-                        } satisfies ProductLogistics;
-                        const volumetric = volumetricWeightKg(logisticsPreview);
-                        const chargeable =
-                          unitChargeableWeightKg(logisticsPreview);
-                        return (
-                          <div className="space-y-1 text-xs font-medium text-primary">
-                            <p>
-                              Actual weight:{" "}
-                              {logisticsPreview.unitWeightKg > 0
-                                ? `${logisticsPreview.unitWeightKg.toFixed(1)} kg`
-                                : "Enter unit weight to preview shipping."}
-                            </p>
-                            {hasCompleteDimensions(logisticsPreview) &&
-                            volumetric != null ? (
-                              <>
-                                <p>
-                                  Volumetric weight: {volumetric.toFixed(1)} kg
-                                </p>
-                                <p>
-                                  Chargeable weight preview:{" "}
-                                  {chargeable.toFixed(1)} kg per sales unit
-                                </p>
-                              </>
-                            ) : logisticsPreview.unitWeightKg > 0 ? (
-                              <>
-                                <p>Using actual weight only</p>
-                                <p>
-                                  Chargeable weight preview:{" "}
-                                  {chargeable.toFixed(1)} kg per sales unit
-                                </p>
-                              </>
-                            ) : null}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Variant Toggle */}
-                    <div className="border-t border-border pt-4">
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={hasVariants}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({
-                                ...formData,
-                                variants: [
-                                  {
-                                    id: `${formData.id || "new"}-${(formData.variants || []).length + 1}`,
-                                    name: "",
-                                    price: 0,
-                                    inventory: 0,
-                                  },
-                                ],
-                                price: undefined,
-                              });
-                            } else {
-                              setFormData({
-                                ...formData,
-                                variants: undefined,
-                                price: formData.price || 0,
-                              });
-                            }
-                          }}
-                          className="w-4 h-4 rounded border border-border cursor-pointer"
-                        />
-                        <span className="text-sm font-medium text-foreground">
-                          This product has variants
-                        </span>
-                      </label>
-                    </div>
-
-                    {/* Price & Inventory (if no variants) */}
-                    {!hasVariants && (
-                      <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
-                        <div>
-                          <label className="text-sm font-medium text-foreground">
-                            Price (?) *
-                          </label>
-                          <Input
-                            type="number"
-                            value={formData.price || ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                price: Number(e.target.value),
-                              })
-                            }
-                            placeholder="Enter price"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-foreground">
-                            Inventory (units)
-                          </label>
-                          <Input
-                            type="number"
-                            value={formData.inventory || ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                inventory: Number(e.target.value),
-                              })
-                            }
-                            placeholder="Enter stock count"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Variants Section */}
-                    {hasVariants && (
-                      <div className="border-t border-border pt-4">
-                        <div className="flex justify-between items-center mb-3">
-                          <div>
-                            <label className="text-sm font-medium text-foreground">
-                              Variants
-                            </label>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Variants inherit the product logistics by default.
-                              Add custom logistics only when a variant changes
-                              the shipping weight or package size.
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const variants = formData.variants || [];
-                              setFormData({
-                                ...formData,
-                                variants: [
-                                  ...variants,
-                                  {
-                                    id: `${formData.id || "new"}-${variants.length + 1}`,
-                                    name: "",
-                                    price: 0,
-                                    inventory: 0,
-                                  },
-                                ],
-                              });
-                            }}
-                            className="border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
-                          >
-                            <Plus className="w-3 h-3 mr-1" />
-                            Add Variant
-                          </Button>
-                        </div>
-                        <div className="space-y-4 max-h-128 overflow-y-auto pr-1">
-                          {(formData.variants || []).map(
-                            (variant: any, idx: number) => {
-                              const variantLogisticsDraft =
-                                buildVariantLogisticsDraft(
-                                  formData,
-                                  variant.logistics,
-                                );
-                              const variantLogisticsPreview = {
-                                salesUnit:
-                                  variantLogisticsDraft.salesUnit ||
-                                  defaultLogistics.salesUnit,
-                                unitWeightKg:
-                                  parseOptionalNumber(
-                                    variantLogisticsDraft.unitWeightKg,
-                                  ) || 0,
-                                unitLengthCm: parseOptionalNumber(
-                                  variantLogisticsDraft.unitLengthCm,
-                                ),
-                                unitWidthCm: parseOptionalNumber(
-                                  variantLogisticsDraft.unitWidthCm,
-                                ),
-                                unitHeightCm: parseOptionalNumber(
-                                  variantLogisticsDraft.unitHeightCm,
-                                ),
-                                packageType:
-                                  variantLogisticsDraft.packageType ||
-                                  defaultLogistics.packageType,
-                              } satisfies ProductLogistics;
-                              const variantVolumetric = variant.logistics
-                                ? volumetricWeightKg(variantLogisticsPreview)
-                                : null;
-                              const variantChargeable = variant.logistics
-                                ? unitChargeableWeightKg(
-                                    variantLogisticsPreview,
-                                  )
-                                : null;
-
-                              return (
-                                <div
-                                  key={variant.id}
-                                  className="space-y-4 rounded-lg border border-border bg-muted/30 p-4"
-                                >
-                                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_auto] md:items-end">
-                                    <Input
-                                      placeholder="Variant name (e.g., 1kg bag)"
-                                      value={variant.name || ""}
-                                      onChange={(e) => {
-                                        const newVariants = [
-                                          ...(formData.variants || []),
-                                        ];
-                                        newVariants[idx].name = e.target.value;
-                                        setFormData({
-                                          ...formData,
-                                          variants: newVariants,
-                                        });
-                                      }}
-                                    />
-                                    <Input
-                                      type="number"
-                                      placeholder="Price"
-                                      value={variant.price || ""}
-                                      onChange={(e) => {
-                                        const newVariants = [
-                                          ...(formData.variants || []),
-                                        ];
-                                        newVariants[idx].price = Number(
-                                          e.target.value,
-                                        );
-                                        setFormData({
-                                          ...formData,
-                                          variants: newVariants,
-                                        });
-                                      }}
-                                    />
-                                    <Input
-                                      type="number"
-                                      placeholder="Stock"
-                                      value={variant.inventory || ""}
-                                      onChange={(e) => {
-                                        const newVariants = [
-                                          ...(formData.variants || []),
-                                        ];
-                                        newVariants[idx].inventory = Number(
-                                          e.target.value,
-                                        );
-                                        setFormData({
-                                          ...formData,
-                                          variants: newVariants,
-                                        });
-                                      }}
-                                    />
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => {
-                                        const newVariants = (
-                                          formData.variants || []
-                                        ).filter(
-                                          (_: any, i: number) => i !== idx,
-                                        );
-                                        if (newVariants.length === 0) {
-                                          setFormData({
-                                            ...formData,
-                                            variants: undefined,
-                                            price: 0,
-                                          });
-                                        } else {
-                                          setFormData({
-                                            ...formData,
-                                            variants: newVariants,
-                                          });
-                                        }
-                                      }}
-                                      className="text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/20"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-
-                                  <label className="flex items-center gap-3 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(variant.logistics)}
-                                      onChange={(e) => {
-                                        const newVariants = [
-                                          ...(formData.variants || []),
-                                        ];
-                                        newVariants[idx] = {
-                                          ...newVariants[idx],
-                                          logistics: e.target.checked
-                                            ? (buildVariantLogisticsDraft(
-                                                formData,
-                                              ) as ProductLogistics)
-                                            : undefined,
-                                        };
-                                        setFormData({
-                                          ...formData,
-                                          variants: newVariants,
-                                        });
-                                      }}
-                                      className="w-4 h-4 rounded border border-border cursor-pointer"
-                                    />
-                                    <span className="text-sm font-medium text-foreground">
-                                      Use variant-specific logistics
-                                    </span>
-                                  </label>
-
-                                  {variant.logistics ? (
-                                    <div className="rounded-lg border border-border bg-background/70 p-4 space-y-4">
-                                      <p className="text-xs text-muted-foreground">
-                                        Leave this off when the variant ships
-                                        the same way as the main product. When
-                                        enabled, this variant uses its own
-                                        weight and optional dimensions.
-                                      </p>
-                                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                        <div>
-                                          <label className="text-sm font-medium text-foreground">
-                                            Sales Unit
-                                          </label>
-                                          <select
-                                            value={
-                                              variant.logistics?.salesUnit ||
-                                              defaultLogistics.salesUnit
-                                            }
-                                            onChange={(e) => {
-                                              const newVariants = [
-                                                ...(formData.variants || []),
-                                              ];
-                                              newVariants[idx] = {
-                                                ...newVariants[idx],
-                                                logistics: {
-                                                  ...(newVariants[idx]
-                                                    .logistics || {}),
-                                                  salesUnit: e.target
-                                                    .value as ProductLogistics["salesUnit"],
-                                                } as ProductLogistics,
-                                              };
-                                              setFormData({
-                                                ...formData,
-                                                variants: newVariants,
-                                              });
-                                            }}
-                                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                                          >
-                                            {salesUnits.map((unit) => (
-                                              <option key={unit} value={unit}>
-                                                {unit}
-                                              </option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="text-sm font-medium text-foreground">
-                                            Package Type
-                                          </label>
-                                          <select
-                                            value={
-                                              variant.logistics?.packageType ||
-                                              defaultLogistics.packageType
-                                            }
-                                            onChange={(e) => {
-                                              const newVariants = [
-                                                ...(formData.variants || []),
-                                              ];
-                                              newVariants[idx] = {
-                                                ...newVariants[idx],
-                                                logistics: {
-                                                  ...(newVariants[idx]
-                                                    .logistics || {}),
-                                                  packageType: e.target
-                                                    .value as ProductLogistics["packageType"],
-                                                } as ProductLogistics,
-                                              };
-                                              setFormData({
-                                                ...formData,
-                                                variants: newVariants,
-                                              });
-                                            }}
-                                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                                          >
-                                            {packageTypes.map((type) => (
-                                              <option key={type} value={type}>
-                                                {type}
-                                              </option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="text-sm font-medium text-foreground">
-                                            Unit Weight (kg)
-                                          </label>
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            step="0.1"
-                                            placeholder="e.g. 5"
-                                            value={
-                                              variant.logistics?.unitWeightKg ??
-                                              ""
-                                            }
-                                            onChange={(e) => {
-                                              const newVariants = [
-                                                ...(formData.variants || []),
-                                              ];
-                                              newVariants[idx] = {
-                                                ...newVariants[idx],
-                                                logistics: {
-                                                  ...(newVariants[idx]
-                                                    .logistics || {}),
-                                                  unitWeightKg:
-                                                    e.target.value === ""
-                                                      ? undefined
-                                                      : Number(e.target.value),
-                                                } as ProductLogistics,
-                                              };
-                                              setFormData({
-                                                ...formData,
-                                                variants: newVariants,
-                                              });
-                                            }}
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="text-sm font-medium text-foreground">
-                                            Length (cm)
-                                          </label>
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            step="0.1"
-                                            placeholder="Optional"
-                                            value={
-                                              variant.logistics?.unitLengthCm ??
-                                              ""
-                                            }
-                                            onChange={(e) => {
-                                              const newVariants = [
-                                                ...(formData.variants || []),
-                                              ];
-                                              newVariants[idx] = {
-                                                ...newVariants[idx],
-                                                logistics: {
-                                                  ...(newVariants[idx]
-                                                    .logistics || {}),
-                                                  unitLengthCm:
-                                                    e.target.value === ""
-                                                      ? undefined
-                                                      : Number(e.target.value),
-                                                } as ProductLogistics,
-                                              };
-                                              setFormData({
-                                                ...formData,
-                                                variants: newVariants,
-                                              });
-                                            }}
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="text-sm font-medium text-foreground">
-                                            Width (cm)
-                                          </label>
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            step="0.1"
-                                            placeholder="Optional"
-                                            value={
-                                              variant.logistics?.unitWidthCm ??
-                                              ""
-                                            }
-                                            onChange={(e) => {
-                                              const newVariants = [
-                                                ...(formData.variants || []),
-                                              ];
-                                              newVariants[idx] = {
-                                                ...newVariants[idx],
-                                                logistics: {
-                                                  ...(newVariants[idx]
-                                                    .logistics || {}),
-                                                  unitWidthCm:
-                                                    e.target.value === ""
-                                                      ? undefined
-                                                      : Number(e.target.value),
-                                                } as ProductLogistics,
-                                              };
-                                              setFormData({
-                                                ...formData,
-                                                variants: newVariants,
-                                              });
-                                            }}
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="text-sm font-medium text-foreground">
-                                            Height (cm)
-                                          </label>
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            step="0.1"
-                                            placeholder="Optional"
-                                            value={
-                                              variant.logistics?.unitHeightCm ??
-                                              ""
-                                            }
-                                            onChange={(e) => {
-                                              const newVariants = [
-                                                ...(formData.variants || []),
-                                              ];
-                                              newVariants[idx] = {
-                                                ...newVariants[idx],
-                                                logistics: {
-                                                  ...(newVariants[idx]
-                                                    .logistics || {}),
-                                                  unitHeightCm:
-                                                    e.target.value === ""
-                                                      ? undefined
-                                                      : Number(e.target.value),
-                                                } as ProductLogistics,
-                                              };
-                                              setFormData({
-                                                ...formData,
-                                                variants: newVariants,
-                                              });
-                                            }}
-                                          />
-                                        </div>
-                                      </div>
-                                      <div className="space-y-1 text-xs font-medium text-primary">
-                                        <p>
-                                          Actual weight:{" "}
-                                          {variantLogisticsPreview.unitWeightKg >
-                                          0
-                                            ? `${variantLogisticsPreview.unitWeightKg.toFixed(1)} kg`
-                                            : "Enter unit weight to preview shipping."}
-                                        </p>
-                                        {hasCompleteDimensions(
-                                          variantLogisticsPreview,
-                                        ) &&
-                                        variantVolumetric != null &&
-                                        variantChargeable != null ? (
-                                          <>
-                                            <p>
-                                              Volumetric weight:{" "}
-                                              {variantVolumetric.toFixed(1)} kg
-                                            </p>
-                                            <p>
-                                              Chargeable weight preview:{" "}
-                                              {variantChargeable.toFixed(1)} kg
-                                              per sales unit
-                                            </p>
-                                          </>
-                                        ) : variantChargeable != null &&
-                                          variantLogisticsPreview.unitWeightKg >
-                                            0 ? (
-                                          <>
-                                            <p>Using actual weight only</p>
-                                            <p>
-                                              Chargeable weight preview:{" "}
-                                              {variantChargeable.toFixed(1)} kg
-                                              per sales unit
-                                            </p>
-                                          </>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground">
-                                      This variant will inherit the product
-                                      logistics above until you enable custom
-                                      logistics.
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            },
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3 pt-4 border-t border-border">
-                    <Button
-                      className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-                      onClick={handleSave}
-                      disabled={isSaving}
-                    >
-                      {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      {modalMode === "create"
-                        ? isSaving
-                          ? "Creating Product..."
-                          : "Create Product"
-                        : isSaving
-                          ? "Saving Changes..."
-                          : "Save Changes"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1 border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
-                      onClick={closeModal}
-                      disabled={isSaving}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          </motion.div>
-        </div>
-      )}
+      <EditProductModal
+        isOpen={editModalOpen}
+        formData={formData}
+        onFormDataChange={setFormData}
+        categories={categories}
+        uploadingImageIndex={uploadingImageIndex}
+        isSaving={isSaving}
+        isImageUploading={isImageUploading}
+        onClose={closeAllModals}
+        onSave={async (productId, payload) => {
+          await updateProduct(productId, payload);
+        }}
+        onUploadImage={async (file, index) => {
+          setUploadingImageIndex(index);
+          try {
+            const result = await uploadProductImage(file, index);
+            return {
+              secureUrl: result.secureUrl,
+              publicId: result.publicId ?? null,
+              altText: result.altText ?? undefined,
+              displayOrder: result.displayOrder,
+            };
+          } finally {
+            setUploadingImageIndex(null);
+          }
+        }}
+        selectedProductId={selectedProduct?.id ?? null}
+      />
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
