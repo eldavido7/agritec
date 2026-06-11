@@ -5,6 +5,8 @@ import { sellerApiRequest } from "@/lib/seller-api";
 import { useSellerProductsStore } from "@/stores/seller-products-store";
 import { useSellerWalletStore } from "@/stores/seller-wallet-store";
 import { useSellerSettingsStore } from "@/stores/seller-settings-store";
+import { useSellerNotificationsStore } from "@/stores/seller-notifications-store";
+import { useSellerMessagesStore } from "@/stores/seller-messages-store";
 
 const STORAGE_KEY = "agritecSellerAuth";
 
@@ -327,6 +329,8 @@ export const useSellerAuthStore = create<SellerAuthState>((set, get) => ({
     useSellerProductsStore.getState().resetProducts();
     useSellerWalletStore.getState().resetWallet();
     useSellerSettingsStore.getState().resetSettings();
+    useSellerNotificationsStore.getState().resetNotifications();
+    useSellerMessagesStore.getState().resetMessages();
     set({
       token: null,
       user: null,
@@ -338,6 +342,9 @@ export const useSellerAuthStore = create<SellerAuthState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+
+
 
 
 

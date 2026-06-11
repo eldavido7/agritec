@@ -1,450 +1,307 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { Bell, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
+import { useSellerAuthStore } from "@/stores/seller-auth-store";
 import {
-  getSellerMockData,
-  mockNotifications,
-  mockOrders,
-  mockProducts,
-} from "@/lib/mock-data";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
-import { formatDateTime, formatCurrency, formatDate } from "@/lib/formatting";
+  SellerNotificationRecord,
+  useSellerNotificationsStore,
+} from "@/stores/seller-notifications-store";
+import { formatDateTime } from "@/lib/formatting";
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35 } },
 };
 
-const ITEMS_PER_PAGE = 10;
+function notificationTargetLabel(notification: SellerNotificationRecord) {
+  if (!notification.targetType || !notification.targetId) {
+    return "General update";
+  }
 
-type Notification = (typeof mockNotifications)[0];
-type Order = (typeof mockOrders)[0];
-type Product = (typeof mockProducts)[0];
-type Variant = { id: string; name: string; price: number; inventory: number };
+  return `${notification.targetType}: ${notification.targetId}`;
+}
 
 export default function NotificationsPage() {
-  const seller = getSellerMockData();
-  const [notifications, setNotifications] =
-    useState<Notification[]>(seller.notifications as Notification[]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedNotification, setSelectedNotification] =
-    useState<Notification | null>(null);
-  const [imageIndex, setImageIndex] = useState(0);
+  const authReady = useSellerAuthStore((state) => state.isReady);
+  const sellerProfile = useSellerAuthStore((state) => state.user?.sellerProfile);
+  const {
+    notifications,
+    unreadCount,
+    pagination,
+    isLoading,
+    isMarkingAllRead,
+    error,
+    fetchNotifications,
+    markNotificationAsRead,
+    markAllAsRead,
+    clearError,
+  } = useSellerNotificationsStore((state) => state);
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((notif) => ({ ...notif, read: true })));
-  };
+  const [selectedNotificationId, setSelectedNotificationId] = useState<
+    string | null
+  >(null);
 
-  const handleSelectNotification = (notification: Notification) => {
-    setNotifications((prev) =>
-      prev.map((notif) =>
-        notif.id === notification.id ? { ...notif, read: true } : notif,
-      ),
-    );
-    setSelectedNotification({ ...notification, read: true });
-  };
+  useEffect(() => {
+    if (!authReady || !sellerProfile) return;
+    void fetchNotifications();
+  }, [authReady, sellerProfile, fetchNotifications]);
 
-  const totalPages = Math.ceil(notifications.length / ITEMS_PER_PAGE);
-  const paginatedNotifications = notifications.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
+  useEffect(() => {
+    if (!error) return;
+    toast.error(error);
+    clearError();
+  }, [error, clearError]);
+
+  const selectedNotification = useMemo(
+    () =>
+      selectedNotificationId
+        ? notifications.find((entry) => entry.id === selectedNotificationId) ??
+          null
+        : null,
+    [notifications, selectedNotificationId],
   );
 
-  const getTotalInventory = (product: Product) => {
-    if (!product.variants || product.variants.length === 0) {
-      return product.inventory || 0;
+  async function handleSelect(notification: SellerNotificationRecord) {
+    setSelectedNotificationId(notification.id);
+
+    if (!notification.isRead) {
+      try {
+        await markNotificationAsRead(notification.id);
+      } catch (actionError) {
+        toast.error(
+          actionError instanceof Error
+            ? actionError.message
+            : "Failed to update notification",
+        );
+      }
     }
-    return product.variants.reduce(
-      (sum: number, v: Variant) => sum + (v.inventory || 0),
-      0,
-    );
-  };
+  }
 
-  const getRelatedOrder = (orderId: string): Order | null => {
-    return (seller.orders.find((o) => o.id === orderId) as Order) || null;
-  };
-
-  const getRelatedProduct = (productId: number): Product | null => {
-    return (seller.products.find((p) => p.id === productId) as Product) || null;
-  };
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case "order":
-        return "📦";
-      case "product":
-        return "⚠️";
-      case "message":
-        return "💬";
-      default:
-        return "🔔";
+  async function handleMarkAllAsRead() {
+    try {
+      await markAllAsRead();
+      toast.success("All notifications marked as read");
+    } catch (actionError) {
+      toast.error(
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to mark notifications as read",
+      );
     }
-  };
+  }
 
-  const closeModal = () => {
-    setSelectedNotification(null);
-    setImageIndex(0);
-  };
+  async function goToPage(page: number) {
+    try {
+      await fetchNotifications({
+        force: true,
+        page,
+        pageSize: pagination.pageSize,
+      });
+    } catch {
+      // store error toast handles fetch failures
+    }
+  }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <motion.div initial="hidden" animate="visible" variants={itemVariants}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-muted-foreground mt-2">
-              Order updates, product alerts, and messages for {seller.farmName}
+            <p className="mt-2 text-muted-foreground">
+              Order updates, payout alerts, and marketplace notifications for{" "}
+              {sellerProfile?.farmName ?? "your farm"}.
             </p>
           </div>
           <Button
             size="sm"
             variant="outline"
-            onClick={markAllAsRead}
-            disabled={notifications.every((notif) => notif.read)}
+            onClick={handleMarkAllAsRead}
+            disabled={isMarkingAllRead || unreadCount === 0}
             className="h-11"
           >
-            Mark all as read
+            {isMarkingAllRead ? (
+              <>
+                <Spinner className="mr-2 size-4" />
+                Updating...
+              </>
+            ) : (
+              "Mark all as read"
+            )}
           </Button>
         </div>
       </motion.div>
 
-      {/* Notifications List */}
-      <motion.div initial="hidden" animate="visible" variants={itemVariants}>
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={itemVariants}
+        className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]"
+      >
         <Card className="p-6">
-          <div className="space-y-3">
-            {paginatedNotifications.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No notifications
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                Notifications
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {unreadCount} unread
               </p>
-            ) : (
-              paginatedNotifications.map((notif) => (
-                <motion.button
-                  key={notif.id}
-                  onClick={() => handleSelectNotification(notif)}
-                  className={`w-full text-left p-4 rounded-lg border border-border hover:bg-secondary/50 hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white transition-colors ${
-                    !notif.read ? "bg-muted/30 border-primary/30" : ""
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="flex min-h-70 items-center justify-center">
+              <Spinner className="size-6" />
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="flex min-h-70 flex-col items-center justify-center text-center">
+              <Bell className="mb-3 size-10 text-muted-foreground/60" />
+              <p className="font-medium text-foreground">
+                No notifications yet
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                New payout, order, and message activity will show here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {notifications.map((notification) => (
+                <button
+                  key={notification.id}
+                  type="button"
+                  onClick={() => void handleSelect(notification)}
+                  className={`w-full rounded-xl border p-4 text-left transition-colors hover:bg-secondary/40 ${
+                    selectedNotificationId === notification.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border"
                   }`}
-                  whileHover={{ x: 4 }}
                 >
-                  <div className="flex gap-4">
-                    <div className="text-2xl flex-shrink-0">
-                      {getNotificationIcon(notif.type)}
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1">
+                      <div
+                        className={`size-2 rounded-full ${
+                          notification.isRead ? "bg-muted" : "bg-primary"
+                        }`}
+                      />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-semibold text-foreground">
-                            {notif.title}
-                          </p>
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                            {notif.message}
-                          </p>
-                        </div>
-                        {!notif.read && (
-                          <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
-                        )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="font-semibold text-foreground">
+                          {notification.title}
+                        </p>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {formatDateTime(new Date(notification.createdAt))}
+                        </span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {formatDate(notif.timestamp)}
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                        {notification.body}
+                      </p>
+                      <p className="mt-2 text-xs uppercase tracking-wide text-muted-foreground">
+                        {notification.type.replaceAll("_", " ")}
                       </p>
                     </div>
                   </div>
-                </motion.button>
-              ))
-            )}
-          </div>
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6 pt-6 border-t border-border">
+          {pagination.totalPages > 1 ? (
+            <div className="mt-6 flex items-center justify-between border-t border-border pt-6">
               <p className="text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages} ({notifications.length}{" "}
-                notifications)
+                Page {pagination.page} of {pagination.totalPages} (
+                {pagination.total} notifications)
               </p>
               <div className="flex gap-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  className="border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={pagination.page <= 1 || isLoading}
+                  onClick={() => void goToPage(pagination.page - 1)}
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="size-4" />
                 </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <Button
-                      key={page}
-                      size="sm"
-                      variant={currentPage === page ? "default" : "outline"}
-                      onClick={() => setCurrentPage(page)}
-                      className={
-                        currentPage === page
-                          ? "bg-primary text-primary-foreground"
-                          : "border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
-                      }
-                    >
-                      {page}
-                    </Button>
-                  ),
-                )}
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  className="border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={
+                    pagination.page >= pagination.totalPages || isLoading
+                  }
+                  onClick={() => void goToPage(pagination.page + 1)}
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="size-4" />
                 </Button>
               </div>
+            </div>
+          ) : null}
+        </Card>
+
+        <Card className="p-6">
+          {selectedNotification ? (
+            <div className="space-y-5">
+              <div>
+                <p className="text-sm uppercase tracking-wide text-muted-foreground">
+                  {selectedNotification.type.replaceAll("_", " ")}
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-foreground">
+                  {selectedNotification.title}
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {formatDateTime(new Date(selectedNotification.createdAt))}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                  {selectedNotification.body}
+                </p>
+              </div>
+
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-3">
+                  <span className="text-muted-foreground">Status</span>
+                  <span className="font-medium text-foreground">
+                    {selectedNotification.isRead ? "Read" : "Unread"}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-3">
+                  <span className="text-muted-foreground">Target</span>
+                  <span className="text-right font-medium text-foreground">
+                    {notificationTargetLabel(selectedNotification)}
+                  </span>
+                </div>
+                {selectedNotification.metadata ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <ExternalLink className="size-4" />
+                      <span>Metadata</span>
+                    </div>
+                    <pre className="overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">
+                      {JSON.stringify(selectedNotification.metadata, null, 2)}
+                    </pre>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="flex min-h-90 flex-col items-center justify-center text-center">
+              <Bell className="mb-3 size-10 text-muted-foreground/60" />
+              <p className="font-medium text-foreground">
+                Select a notification
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Notification details and related metadata will appear here.
+              </p>
             </div>
           )}
         </Card>
       </motion.div>
-
-      {/* Detail Modal */}
-      {selectedNotification && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-card rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="sticky top-0 flex justify-between items-center p-6 border-b border-border bg-card">
-              <h2 className="text-xl font-bold text-foreground">
-                {selectedNotification.title}
-              </h2>
-              <button
-                onClick={closeModal}
-                className="text-muted-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white p-1 rounded-md transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Order Details */}
-              {selectedNotification.type === "order" &&
-              "orderId" in selectedNotification
-                ? (() => {
-                    const order = getRelatedOrder(
-                      (selectedNotification as any).orderId,
-                    );
-                    return order ? (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Order ID
-                            </p>
-                            <p className="font-semibold text-foreground">
-                              {order.id}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Status
-                            </p>
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                order.status === "Delivered"
-                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                                  : order.status === "In Transit"
-                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
-                                    : order.status === "Processing"
-                                      ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
-                                      : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100"
-                              }`}
-                            >
-                              {order.status}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Buyer
-                            </p>
-                            <p className="font-semibold text-foreground">
-                              {order.buyer}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Order Date
-                            </p>
-                            <p className="font-semibold text-foreground">
-                              {formatDate(order.date)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Product
-                            </p>
-                            <p className="font-semibold text-foreground">
-                              {order.product}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Variant & Quantity
-                            </p>
-                            <p className="font-semibold text-foreground">
-                              {order.quantity} x {order.variant}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="border-t border-b border-border py-4">
-                          <p className="text-sm text-muted-foreground mb-2">
-                            Total Amount
-                          </p>
-                          <p className="text-2xl font-bold text-primary">
-                            {formatCurrency(order.price)}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-muted-foreground">Order not found</p>
-                    );
-                  })()
-                : null}
-
-              {/* Product Details */}
-              {selectedNotification.type === "product" &&
-              "productId" in selectedNotification
-                ? (() => {
-                    const product = getRelatedProduct(
-                      (selectedNotification as any).productId,
-                    );
-                    return product ? (
-                      <div className="space-y-4">
-                        {/* Image Gallery */}
-                        {product.images && product.images.length > 0 && (
-                          <div className="space-y-3">
-                            <div className="relative h-64 bg-muted rounded-lg overflow-hidden">
-                              <img
-                                src={product.images[imageIndex]}
-                                alt={product.name}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            {product.images.length > 1 && (
-                              <div className="flex gap-2">
-                                {product.images.map((img, idx) => (
-                                  <button
-                                    key={idx}
-                                    onClick={() => setImageIndex(idx)}
-                                    className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
-                                      imageIndex === idx
-                                        ? "border-primary"
-                                        : "border-border hover:border-primary/50"
-                                    }`}
-                                  >
-                                    <img
-                                      src={img}
-                                      alt={`${product.name} ${idx + 1}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Name
-                            </p>
-                            <p className="font-semibold text-foreground">
-                              {product.name}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Category
-                            </p>
-                            <p className="font-semibold text-foreground">
-                              {product.category}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Base Price
-                            </p>
-                            <p className="font-semibold text-primary">
-                              {formatCurrency(product.price)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              Total Stock
-                            </p>
-                            <p className="font-semibold text-foreground">
-                              {getTotalInventory(product)} units
-                            </p>
-                          </div>
-                        </div>
-
-                        {product.variants && product.variants.length > 0 && (
-                          <div className="border-t border-border pt-4">
-                            <p className="text-sm font-semibold text-foreground mb-3">
-                              Variants
-                            </p>
-                            <div className="space-y-2">
-                              {product.variants.map((variant: Variant) => (
-                                <div
-                                  key={variant.id}
-                                  className="flex justify-between items-center p-3 bg-muted/30 rounded-lg"
-                                >
-                                  <div>
-                                    <p className="text-foreground">
-                                      {variant.name}
-                                    </p>
-                                    <p
-                                      className={`text-xs ${
-                                        variant.inventory === 0
-                                          ? "text-red-600"
-                                          : variant.inventory <= 10
-                                            ? "text-yellow-600"
-                                            : "text-green-600"
-                                      }`}
-                                    >
-                                      {variant.inventory} in stock
-                                    </p>
-                                  </div>
-                                  <span className="font-semibold text-primary">
-                                    {formatCurrency(variant.price)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-muted-foreground">Product not found</p>
-                    );
-                  })()
-                : null}
-
-              <div className="flex gap-3 pt-4 border-t border-border">
-                <Button
-                  variant="outline"
-                  className="flex-1 border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
-                  onClick={closeModal}
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 }
-

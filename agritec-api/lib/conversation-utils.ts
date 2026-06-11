@@ -201,6 +201,36 @@ export async function ensureBuyerSupportConversation(tx: TxClient, args: {
 
   return tx.conversation.findUniqueOrThrow({ where: { id: conversationId } });
 }
+export async function ensureSellerSupportConversation(tx: TxClient, args: {
+  sellerUserId: string;
+  supportUserId: string;
+  subject?: string | null;
+}) {
+  const uniqueKey = `admin-seller:${args.supportUserId}:${args.sellerUserId}`;
+  const existing = await tx.conversation.findUnique({ where: { uniqueKey } });
+  if (existing) return existing;
+
+  const conversationId = await reserveSequentialId(tx, "conversation");
+  const participantId1 = await reserveSequentialId(tx, "conversation_participant");
+  const participantId2 = await reserveSequentialId(tx, "conversation_participant");
+
+  await tx.conversation.create({
+    data: {
+      id: conversationId,
+      type: ConversationType.BUYER_SUPPORT,
+      uniqueKey,
+      subject: args.subject ?? "Seller support",
+      participants: {
+        create: [
+          { id: participantId1, userId: args.supportUserId },
+          { id: participantId2, userId: args.sellerUserId },
+        ],
+      },
+    },
+  });
+
+  return tx.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+}
 
 export async function createConversationMessage(tx: TxClient, args: {
   conversationId: string;
@@ -272,3 +302,4 @@ export async function createConversationMessage(tx: TxClient, args: {
 
   return message;
 }
+

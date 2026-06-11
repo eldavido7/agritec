@@ -1,311 +1,418 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { MessageSquare, RotateCw, Search, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { getSellerMockData } from "@/lib/mock-data";
-import { Send, ChevronLeft, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime } from "@/lib/formatting";
+import { useSellerAuthStore } from "@/stores/seller-auth-store";
+import {
+  SellerConversationRecord,
+  useSellerMessagesStore,
+} from "@/stores/seller-messages-store";
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35 } },
 };
 
-const CHATS_PER_PAGE = 10;
+function getConversationDisplayName(
+  conversation: SellerConversationRecord,
+  sellerUserId: string | null,
+) {
+  const otherParticipant = conversation.participants.find(
+    (participant) => participant.userId !== sellerUserId,
+  );
 
-type ChatType = "customers" | "admin";
+  if (otherParticipant?.role === "ADMIN") {
+    return "AgriTec Support";
+  }
 
-interface Message {
-  id: string;
-  sender: "me" | "them";
-  text: string;
-  timestamp: Date;
+  return (
+    otherParticipant?.fullName ||
+    conversation.subject ||
+    `Conversation #${conversation.id}`
+  );
 }
 
 export default function MessagesPage() {
-  const seller = getSellerMockData();
-  const sellerChatMessages: Record<ChatType, Record<string, Message[]>> = {
-    customers: Object.fromEntries(
-      seller.messages.map((message) => [
-        message.from,
-        [
-          {
-            id: String(message.id),
-            sender: "them" as const,
-            text: message.message,
-            timestamp: message.timestamp,
-          },
-        ],
-      ]),
-    ),
-    admin: {
-      "AgriTec Support": [
-        {
-          id: `support-${seller.id}`,
-          sender: "them",
-          text: `${seller.name}, your ${seller.farmName} seller account is active and ready for orders.`,
-          timestamp: new Date("2024-05-20T09:00:00"),
-        },
-      ],
-    },
-  };
-  const [activeTab, setActiveTab] = useState<ChatType>("customers");
+  const authReady = useSellerAuthStore((state) => state.isReady);
+  const sellerUserId = useSellerAuthStore((state) => state.user?.id ?? null);
+  const sellerProfile = useSellerAuthStore((state) => state.user?.sellerProfile);
+  const {
+    conversations,
+    messagesByConversationId,
+    selectedConversationId,
+    isLoadingConversations,
+    isLoadingMessages,
+    isSendingMessage,
+    error,
+    fetchConversations,
+    fetchMessages,
+    selectConversation,
+    sendMessage,
+    retryMessage,
+    clearError,
+  } = useSellerMessagesStore((state) => state);
+
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
-  const [chats, setChats] = useState(sellerChatMessages);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [isWindowActive, setIsWindowActive] = useState(true);
 
-  const currentChats = Object.keys(chats[activeTab]).sort((a, b) => {
-    const aLastMsg =
-      chats[activeTab][a]?.[chats[activeTab][a].length - 1]?.timestamp ||
-      new Date(0);
-    const bLastMsg =
-      chats[activeTab][b]?.[chats[activeTab][b].length - 1]?.timestamp ||
-      new Date(0);
-    return new Date(bLastMsg).getTime() - new Date(aLastMsg).getTime();
-  });
+  useEffect(() => {
+    if (!authReady || !sellerProfile) return;
+    void fetchConversations();
+  }, [authReady, sellerProfile, fetchConversations]);
 
-  const filteredChats = currentChats.filter((chat) =>
-    chat.toLowerCase().includes(searchQuery.toLowerCase()),
+  useEffect(() => {
+    if (!error) return;
+    toast.error(error);
+    clearError();
+  }, [error, clearError]);
+
+  const filteredConversations = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return conversations;
+
+    return conversations.filter((conversation) => {
+      const label = getConversationDisplayName(conversation, sellerUserId)
+        .toLowerCase();
+      const latestMessage = conversation.latestMessage?.body.toLowerCase() ?? "";
+      return label.includes(query) || latestMessage.includes(query);
+    });
+  }, [conversations, searchQuery, sellerUserId]);
+
+  const selectedConversation = useMemo(
+    () =>
+      selectedConversationId
+        ? conversations.find((entry) => entry.id === selectedConversationId) ??
+          null
+        : null,
+    [conversations, selectedConversationId],
   );
 
-  const totalPages = Math.ceil(filteredChats.length / CHATS_PER_PAGE);
-  const paginatedChats = filteredChats.slice(
-    (currentPage - 1) * CHATS_PER_PAGE,
-    currentPage * CHATS_PER_PAGE,
-  );
+  const selectedMessages = selectedConversationId
+    ? messagesByConversationId[selectedConversationId] ?? []
+    : [];
 
-  const selectedChatMessages = selectedChat
-    ? chats[activeTab][selectedChat]
-    : null;
+  useEffect(() => {
+    if (!selectedConversationId) return;
+    void fetchMessages(selectedConversationId).catch(() => undefined);
+  }, [selectedConversationId, fetchMessages]);
 
-  const handleSendReply = () => {
-    if (!replyText.trim() || !selectedChat) return;
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      sender: "me",
-      text: replyText,
-      timestamp: new Date(),
+  useEffect(() => {
+    if (!selectedConversationId && filteredConversations.length > 0) {
+      selectConversation(filteredConversations[0].id);
+    }
+  }, [filteredConversations, selectedConversationId, selectConversation]);
+  useEffect(() => {
+    const handleFocus = () => {
+      setIsWindowActive(true);
+      void fetchConversations({ force: true });
+      if (selectedConversationId) {
+        void fetchMessages(selectedConversationId, { force: true });
+      }
     };
 
-    setChats((prev) => ({
-      ...prev,
-      [activeTab]: {
-        ...prev[activeTab],
-        [selectedChat]: [...(prev[activeTab][selectedChat] || []), newMessage],
-      },
-    }));
-    setReplyText("");
-  };
+    const handleBlur = () => setIsWindowActive(false);
+    const handleVisibilityChange = () => {
+      const visible = document.visibilityState === "visible";
+      setIsWindowActive(visible);
+      if (visible) {
+        void fetchConversations({ force: true });
+        if (selectedConversationId) {
+          void fetchMessages(selectedConversationId, { force: true });
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("blur", handleBlur);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchConversations, fetchMessages, selectedConversationId]);
+
+  useEffect(() => {
+    if (!authReady || !sellerProfile || !isWindowActive) return;
+
+    const conversationInterval = window.setInterval(() => {
+      void fetchConversations({ force: true });
+    }, 12000);
+
+    return () => window.clearInterval(conversationInterval);
+  }, [authReady, sellerProfile, isWindowActive, fetchConversations]);
+
+  useEffect(() => {
+    if (!selectedConversationId || !isWindowActive) return;
+
+    const messagesInterval = window.setInterval(() => {
+      void fetchMessages(selectedConversationId, { force: true });
+    }, 4000);
+
+    return () => window.clearInterval(messagesInterval);
+  }, [selectedConversationId, isWindowActive, fetchMessages]);
+
+  async function handleSelectConversation(conversationId: string) {
+    selectConversation(conversationId);
+    try {
+      await fetchMessages(conversationId);
+    } catch {
+      // store toast handles errors
+    }
+  }
+
+  async function handleSendMessage() {
+    const conversationId = selectedConversationId;
+    const body = replyText.trim();
+    if (!conversationId || !body) return;
+
+    try {
+      await sendMessage(
+        conversationId,
+        body,
+        selectedConversation?.relatedParentOrderId ?? null,
+      );
+      setReplyText("");
+      toast.success("Reply sent");
+    } catch (actionError) {
+      toast.error(
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to send reply",
+      );
+    }
+  }
+  async function handleRetryMessage(clientTempId: string) {
+    if (!selectedConversationId) return;
+
+    try {
+      await retryMessage(selectedConversationId, clientTempId);
+      toast.success("Message resent");
+    } catch (actionError) {
+      toast.error(
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to resend message",
+      );
+    }
+  }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <motion.div initial="hidden" animate="visible" variants={itemVariants}>
         <div>
-          <p className="text-muted-foreground mt-2">
-            Communicate with customers and admin for {seller.farmName}
+          <p className="mt-2 text-muted-foreground">
+            Buyers initiate chats. Sellers reply here for{" "}
+            {sellerProfile?.farmName ?? "your farm"}.
           </p>
         </div>
       </motion.div>
 
-      {/* Tabs */}
       <motion.div
         initial="hidden"
         animate="visible"
         variants={itemVariants}
-        className="flex gap-2"
+        className="grid min-h-160 grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]"
       >
-        {[
-          { id: "customers", label: "Customers" },
-          { id: "admin", label: "Admin" },
-        ].map((tab) => (
-          <Button
-            key={tab.id}
-            variant={activeTab === tab.id ? "default" : "outline"}
-            onClick={() => {
-              setActiveTab(tab.id as ChatType);
-              setSelectedChat(null);
-              setReplyText("");
-              setCurrentPage(1);
-            }}
-            className={
-              activeTab === tab.id
-                ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                : "border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white"
-            }
-          >
-            {tab.label}
-          </Button>
-        ))}
-      </motion.div>
-
-      {/* Main Content */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={itemVariants}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[600px]"
-      >
-        {/* Chat List */}
-        <div className="lg:col-span-1">
-          <Card className="h-full flex flex-col overflow-hidden">
-            {/* Search */}
-            <div className="p-4 border-b border-border">
+        <Card className="flex h-full flex-col overflow-hidden">
+          <div className="border-b border-border p-4">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                type="text"
-                placeholder="Search conversations..."
                 value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search conversations..."
+                className="pl-9"
               />
             </div>
+          </div>
 
-            {/* Chats */}
-            <div className="flex-1 overflow-y-auto">
-              {paginatedChats.length > 0 ? (
-                paginatedChats.map((chat) => (
+          <div className="flex-1 overflow-y-auto">
+            {isLoadingConversations ? (
+              <div className="flex min-h-70 items-center justify-center">
+                <Spinner className="size-6" />
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="flex min-h-70 flex-col items-center justify-center px-6 text-center">
+                <MessageSquare className="mb-3 size-10 text-muted-foreground/60" />
+                <p className="font-medium text-foreground">
+                  No conversations yet
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Buyer messages will appear here once a conversation starts.
+                </p>
+              </div>
+            ) : (
+              filteredConversations.map((conversation) => {
+                const label = getConversationDisplayName(
+                  conversation,
+                  sellerUserId,
+                );
+
+                return (
                   <button
-                    key={chat}
-                    onClick={() => setSelectedChat(chat)}
-                    className={`w-full text-left p-4 border-b border-border hover:bg-secondary/50 dark:hover:bg-secondary/30 dark:hover:text-white transition-colors ${
-                      selectedChat === chat ? "bg-muted" : ""
+                    key={conversation.id}
+                    type="button"
+                    onClick={() => void handleSelectConversation(conversation.id)}
+                    className={`w-full border-b border-border px-4 py-4 text-left transition-colors hover:bg-secondary/40 ${
+                      selectedConversationId === conversation.id
+                        ? "bg-primary/5"
+                        : ""
                     }`}
                   >
-                    <p className="font-medium text-foreground text-sm">
-                      {chat}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                      {chats[activeTab][chat]?.[
-                        chats[activeTab][chat].length - 1
-                      ]?.text || "No messages"}
-                    </p>
-                  </button>
-                ))
-              ) : (
-                <div className="p-4 text-center">
-                  <p className="text-muted-foreground text-sm">
-                    No conversations found
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="p-4 border-t border-border space-y-3">
-                <p className="text-xs text-muted-foreground text-center">
-                  Page {currentPage} of {totalPages}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                    className="flex-1 border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    className="flex-1 border-border text-foreground hover:bg-secondary hover:text-secondary-foreground dark:hover:bg-secondary/30 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Card>
-        </div>
-
-        {/* Chat Detail */}
-        <div className="lg:col-span-2">
-          {selectedChat && selectedChatMessages ? (
-            <Card className="h-full flex flex-col overflow-hidden">
-              {/* Header */}
-              <div className="p-6 border-b border-border">
-                <h2 className="text-xl font-bold text-foreground">
-                  {selectedChat}
-                </h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {selectedChatMessages.length} messages
-                </p>
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {selectedChatMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender === "me" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-xs px-4 py-2 rounded-lg ${
-                        msg.sender === "me"
-                          ? "bg-primary text-primary-foreground rounded-br-none"
-                          : "bg-muted text-foreground rounded-bl-none"
-                      }`}
-                    >
-                      <p className="text-sm leading-relaxed">{msg.text}</p>
-                      <p
-                        className={`text-xs mt-1 ${
-                          msg.sender === "me"
-                            ? "text-primary-foreground/70"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {formatDateTime(msg.timestamp)}
-                      </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-foreground">
+                          {label}
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                          {conversation.latestMessage?.body ||
+                            "No messages yet"}
+                        </p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {conversation.lastMessageAt
+                            ? formatDateTime(new Date(conversation.lastMessageAt))
+                            : "No activity yet"}
+                        </p>
+                      </div>
+                      {conversation.unreadCount > 0 ? (
+                        <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">
+                          {conversation.unreadCount}
+                        </span>
+                      ) : null}
                     </div>
-                  </div>
-                ))}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </Card>
+
+        <Card className="flex h-full flex-col overflow-hidden">
+          {selectedConversation ? (
+            <>
+              <div className="border-b border-border p-6">
+                <h2 className="text-xl font-semibold text-foreground">
+                  {getConversationDisplayName(selectedConversation, sellerUserId)}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {selectedConversation.relatedParentOrderId
+                    ? `Order reference: ${selectedConversation.relatedParentOrderId}`
+                    : "Conversation history"}
+                </p>
               </div>
 
-              {/* Reply Section */}
-              <div className="p-6 border-t border-border">
+              <div className="flex-1 overflow-y-auto p-6">
+                {isLoadingMessages && selectedMessages.length === 0 ? (
+                  <div className="flex min-h-70 items-center justify-center">
+                    <Spinner className="size-6" />
+                  </div>
+                ) : selectedMessages.length === 0 ? (
+                  <div className="flex min-h-70 items-center justify-center text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No messages yet in this conversation.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedMessages.map((message) => {
+                      const isMine = message.sender.id === sellerUserId;
+
+                      return (
+                        <div
+                          key={message.id}
+                          className={`flex ${
+                            isMine ? "justify-end" : "justify-start"
+                          }`}
+                        >
+                          <div
+                            className={`max-w-[78%] rounded-2xl px-4 py-3 ${
+                              isMine
+                                ? "rounded-br-md bg-primary text-primary-foreground"
+                                : "rounded-bl-md bg-muted text-foreground"
+                            }`}
+                          >
+                            {!isMine ? (
+                              <p className="mb-1 text-xs font-semibold opacity-80">
+                                {message.sender.fullName}
+                              </p>
+                            ) : null}
+                            <p className="whitespace-pre-wrap text-sm leading-6">
+                              {message.body}
+                            </p>
+                            <p
+                              className={`mt-2 text-xs ${
+                                isMine
+                                  ? "text-primary-foreground/75"
+                                  : "text-muted-foreground"
+                              }`}
+                            >
+                              {formatDateTime(new Date(message.createdAt))}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-border p-6">
                 <div className="space-y-3">
                   <textarea
-                    placeholder="Write your reply..."
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
                     rows={3}
-                    className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                    value={replyText}
+                    onChange={(event) => setReplyText(event.target.value)}
+                    placeholder="Write your reply..."
+                    disabled={isSendingMessage}
+                    className="w-full resize-none rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none ring-0 transition focus:border-primary"
                   />
                   <Button
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
-                    onClick={handleSendReply}
-                    disabled={!replyText.trim()}
+                    onClick={() => void handleSendMessage()}
+                    disabled={isSendingMessage || replyText.trim().length === 0}
+                    className="w-full"
                   >
-                    <Send className="w-4 h-4 mr-2" />
-                    Send Reply
+                    {isSendingMessage ? (
+                      <>
+                        <Spinner className="mr-2 size-4" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 size-4" />
+                        Send Reply
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
-            </Card>
+            </>
           ) : (
-            <Card className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-muted-foreground text-lg">
-                  {filteredChats.length === 0
-                    ? "No conversations in this tab"
-                    : "Select a conversation to view messages"}
-                </p>
-              </div>
-            </Card>
+            <div className="flex min-h-90 flex-col items-center justify-center text-center">
+              <MessageSquare className="mb-3 size-10 text-muted-foreground/60" />
+              <p className="font-medium text-foreground">
+                Select a conversation
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Conversation history and replies will appear here.
+              </p>
+            </div>
           )}
-        </div>
+        </Card>
       </motion.div>
     </div>
   );
 }
+
+
+
+

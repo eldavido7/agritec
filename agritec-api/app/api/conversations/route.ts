@@ -24,6 +24,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
+    if (user.role === UserRole.SELLER && user.sellerProfile) {
+      await prisma.$transaction(async (tx) => {
+        const supportUser = await findSupportAdminUser(tx);
+        if (!supportUser) {
+          return;
+        }
+
+        await ensureSellerSupportConversation(tx, {
+          sellerUserId: user.id,
+          supportUserId: supportUser.id,
+          subject: "Seller support",
+        });
+      });
+    }
+
     const conversations = await prisma.conversation.findMany({
       where: {
         participants: { some: { userId: user.id } },
@@ -185,3 +200,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: "Failed to create conversation" }, { status: 500 });
   }
 }
+
