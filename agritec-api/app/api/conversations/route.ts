@@ -5,6 +5,7 @@ import { requireAuthenticatedUser } from "@/lib/auth";
 import {
   ensureBuyerSellerConversation,
   ensureBuyerSupportConversation,
+  ensureSellerSupportConversation,
   findSupportAdminUser,
   serializeConversation,
 } from "@/lib/conversation-utils";
@@ -200,4 +201,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: "Failed to create conversation" }, { status: 500 });
   }
 }
+
+
 
