@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
     const payload = createAdminSchema.parse(await request.json());
     const email = normalizeEmail(payload.email);
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findFirst({ where: { email, role: UserRole.ADMIN } });
     if (existing) {
       return NextResponse.json({ success: false, message: "Email already exists" }, { status: 409 });
     }
@@ -104,3 +104,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: "Failed to create admin" }, { status: 500 });
   }
 }
+

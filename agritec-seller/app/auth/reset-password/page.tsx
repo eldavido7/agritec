@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { useSellerAuthStore } from "@/stores/seller-auth-store";
 
 function ResetPasswordContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
   const { isLoading, error, resetPassword, clearError } = useSellerAuthStore();
@@ -176,16 +175,12 @@ function ResetPasswordContent() {
               <h2 className="text-2xl font-bold text-foreground mb-3">
                 Password Updated
               </h2>
-              <p className="text-muted-foreground mb-8">
-                Your password has been reset successfully. You can now sign in.
+              <p className="text-muted-foreground mb-3">
+                Your password has been reset successfully.
               </p>
-              <Button
-                onClick={() => router.push("/auth/signin")}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                Back to Sign In
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              <p className="text-sm text-muted-foreground">
+                Go back and log in with your new password on the appropriate platform.
+              </p>
             </div>
           )}
 
@@ -219,4 +214,3 @@ export default function ResetPasswordPage() {
     </Suspense>
   );
 }
-

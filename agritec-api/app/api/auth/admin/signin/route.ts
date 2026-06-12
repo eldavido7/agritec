@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const existingUser = await findAuthUserByEmail(email);
+    const existingUser = await findAuthUserByEmail(email, UserRole.ADMIN);
     if (existingUser?.role === UserRole.ADMIN && existingUser.isActive === false) {
       return NextResponse.json(
         { success: false, message: "Your admin account is disabled." },
@@ -54,3 +54,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

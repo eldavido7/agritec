@@ -1,21 +1,36 @@
 import { NextResponse } from "next/server";
+import { UserRole } from "@prisma/client";
 import { createPasswordResetToken } from "@/lib/auth";
 import { sendPasswordResetEmail } from "@/lib/email";
 
-function getResetPasswordUrl(token: string) {
-  const baseUrl =
+function resolveRole(input: unknown) {
+  if (!input || typeof input !== "string") {
+    return undefined;
+  }
+
+  const normalizedRole = input.toUpperCase();
+  return Object.values(UserRole).includes(normalizedRole as UserRole)
+    ? (normalizedRole as UserRole)
+    : undefined;
+}
+
+function getResetPasswordUrl(role?: UserRole) {
+  const buyerBaseUrl = process.env.BUYER_APP_URL?.trim();
+  const sellerBaseUrl =
     process.env.SELLER_APP_URL?.trim() ||
     process.env.APP_URL?.trim() ||
     "http://localhost:3000";
+
+  const baseUrl = role === UserRole.BUYER ? buyerBaseUrl || sellerBaseUrl : sellerBaseUrl;
   const normalizedBaseUrl = baseUrl.endsWith("/")
     ? baseUrl.slice(0, -1)
     : baseUrl;
-  return `${normalizedBaseUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
+  return `${normalizedBaseUrl}/auth/reset-password`;
 }
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
+    const { email, role } = await request.json();
 
     if (!email || typeof email !== "string") {
       return NextResponse.json(
@@ -24,10 +39,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const resetToken = await createPasswordResetToken(email);
+    const resolvedRole = resolveRole(role);
+    if (role && !resolvedRole) {
+      return NextResponse.json(
+        { success: false, message: "Invalid role" },
+        { status: 400 },
+      );
+    }
+
+    const resetToken = await createPasswordResetToken(email, resolvedRole);
 
     if (resetToken) {
-      const resetUrl = getResetPasswordUrl(resetToken.token);
+      const resetUrl = `${getResetPasswordUrl(resolvedRole)}?token=${encodeURIComponent(resetToken.token)}`;
       await sendPasswordResetEmail({
         toEmail: resetToken.email,
         fullName: resetToken.fullName,
@@ -41,7 +64,10 @@ export async function POST(request: Request) {
         role: resetToken.role,
       });
     } else {
-      console.log("[FORGOT_PASSWORD] No active user found for email", { email });
+      console.log("[FORGOT_PASSWORD] No active user found for email and role", {
+        email,
+        role: resolvedRole ?? null,
+      });
     }
 
     return NextResponse.json({

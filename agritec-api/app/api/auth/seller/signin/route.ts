@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { UserRole } from "@prisma/client";
 import {
   findAuthUserByEmail,
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const existingUser = await findAuthUserByEmail(email);
+    const existingUser = await findAuthUserByEmail(email, UserRole.SELLER);
     if (
       existingUser &&
       existingUser.role === UserRole.SELLER &&
@@ -61,3 +61,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

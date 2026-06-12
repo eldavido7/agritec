@@ -147,10 +147,14 @@ export function verifyAuthToken(token: string): AuthTokenPayload | null {
   }
 }
 
-export async function findAuthUserByEmail(email: string) {
-  return prisma.user.findUnique({
-    where: { email: normalizeEmail(email) },
+export async function findAuthUserByEmail(email: string, role?: UserRole) {
+  return prisma.user.findFirst({
+    where: {
+      email: normalizeEmail(email),
+      ...(role ? { role } : {}),
+    },
     select: authUserSelect,
+    orderBy: { createdAt: "asc" },
   });
 }
 
@@ -172,40 +176,47 @@ export async function verifyUserCredentials({
 }) {
   const normalizedEmail = normalizeEmail(email);
 
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
+  const users = await prisma.user.findMany({
+    where: {
+      email: normalizedEmail,
+      ...(role ? { role } : {}),
+    },
     select: {
       ...authUserSelect,
       passwordHash: true,
     },
+    orderBy: { createdAt: "asc" },
   });
 
-  if (!user || !user.isActive) {
-    return null;
+  for (const user of users) {
+    if (!user.isActive) {
+      continue;
+    }
+
+    const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordMatches) {
+      continue;
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastActiveAt: new Date() },
+    });
+
+    const { passwordHash: _, ...safeUser } = user;
+    return safeUser;
   }
 
-  if (role && user.role !== role) {
-    return null;
-  }
-
-  const passwordMatches = await bcrypt.compare(password, user.passwordHash);
-  if (!passwordMatches) {
-    return null;
-  }
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastActiveAt: new Date() },
-  });
-
-  const { passwordHash: _, ...safeUser } = user;
-  return safeUser;
+  return null;
 }
 
 export async function createBuyerAccount(input: BuyerSignupInput) {
   const normalizedEmail = normalizeEmail(input.email);
-  const existingUser = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      email: normalizedEmail,
+      role: UserRole.BUYER,
+    },
   });
   if (existingUser) {
     throw new Error("EMAIL_ALREADY_EXISTS");
@@ -254,8 +265,11 @@ export async function createBuyerAccount(input: BuyerSignupInput) {
 
 export async function createSellerAccount(input: SellerSignupInput) {
   const normalizedEmail = normalizeEmail(input.email);
-  const existingUser = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      email: normalizedEmail,
+      role: UserRole.SELLER,
+    },
   });
   if (existingUser) {
     throw new Error("EMAIL_ALREADY_EXISTS");
@@ -294,10 +308,13 @@ export async function createSellerAccount(input: SellerSignupInput) {
   });
 }
 
-export async function createPasswordResetToken(email: string) {
+export async function createPasswordResetToken(email: string, role?: UserRole) {
   const normalizedEmail = normalizeEmail(email);
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
+  const users = await prisma.user.findMany({
+    where: {
+      email: normalizedEmail,
+      ...(role ? { role } : {}),
+    },
     select: {
       id: true,
       email: true,
@@ -305,9 +322,18 @@ export async function createPasswordResetToken(email: string) {
       role: true,
       isActive: true,
     },
+    orderBy: { createdAt: "asc" },
   });
 
-  if (!user || !user.isActive) {
+  const activeUsers = users.filter((user) => user.isActive);
+  const user =
+    role != null
+      ? activeUsers.find((candidate) => candidate.role === role) ?? null
+      : activeUsers.length == 1
+      ? activeUsers[0]
+      : null;
+
+  if (!user) {
     return null;
   }
 
@@ -431,3 +457,7 @@ export async function requireAuthenticatedUser(
 
   return user;
 }
+
+
+
+

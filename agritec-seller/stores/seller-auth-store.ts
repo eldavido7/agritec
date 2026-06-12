@@ -267,7 +267,7 @@ export const useSellerAuthStore = create<SellerAuthState>((set, get) => ({
         message: string;
       }>("/api/auth/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ email: normalizedEmail }),
+        body: JSON.stringify({ email: normalizedEmail, role: "SELLER" }),
       });
 
       console.log("[Seller Auth] Forgot-password success", {
@@ -342,6 +342,7 @@ export const useSellerAuthStore = create<SellerAuthState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
 
 
 
