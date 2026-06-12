@@ -307,7 +307,7 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
               (conversation) => conversation.id === state.selectedConversationId,
             )
               ? state.selectedConversationId
-              : conversations[0]?.id ?? null,
+              : null,
         }));
       } catch (error) {
         console.error(
@@ -583,6 +583,7 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
     clearError: () => set({ error: null }),
   }),
 );
+
 
 
 
