@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { UserRole } from "@prisma/client";
 import {
+  findAuthUserByEmail,
   serializeAuthUser,
   signAuthToken,
   verifyUserCredentials,
@@ -14,6 +15,21 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, message: "Email and password are required" },
         { status: 400 }
+      );
+    }
+
+    const existingUser = await findAuthUserByEmail(email);
+    if (
+      existingUser &&
+      existingUser.role === UserRole.SELLER &&
+      !existingUser.isActive
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Your seller account is suspended. Please contact admin for assistance.",
+        },
+        { status: 403 }
       );
     }
 
