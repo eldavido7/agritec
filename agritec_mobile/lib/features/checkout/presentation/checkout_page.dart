@@ -174,9 +174,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Discount Code',
-                  hintText: 'Enter code for any eligible seller items',
+                decoration: InputDecoration(
+                  labelText: ref.tr('checkout.discountCode'),
+                  hintText: ref.tr('checkout.discountHint'),
                   border: InputBorder.none,
                 ),
                 onChanged: (value) => setState(() {
@@ -441,6 +441,7 @@ class _SellerCheckoutCard extends ConsumerWidget {
             const Divider(),
             _breakdownLine(ref.tr('checkout.subtotal'), currency.format(group.sellerTotal)),
             _breakdownLine(ref.tr('checkout.shippingFee'), currency.format(shippingQuote.shippingFee)),
+            _breakdownLine(ref.tr('checkout.deliveryRegion'), shippingQuote.deliveryRegion),
             if (shippingQuote.usedVolumetricWeight && shippingQuote.totalVolumetricWeightKg != null)
               _breakdownLine(ref.tr('checkout.chargeableWeight'), '${shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg'),
             if (!shippingQuote.usedVolumetricWeight)
@@ -451,6 +452,22 @@ class _SellerCheckoutCard extends ConsumerWidget {
                   style: const TextStyle(color: Color(0xFF65706B), fontSize: 12),
                 ),
               ),
+            _breakdownLine(
+              ref.tr('checkout.weightUnitSize'),
+              '${shippingQuote.weightUnitSizeKg.toStringAsFixed(1)} kg',
+            ),
+            _breakdownLine(
+              ref.tr('checkout.minimumFee'),
+              currency.format(shippingQuote.minimumFee),
+            ),
+            _breakdownLine(
+              ref.tr('checkout.additionalUnitFee'),
+              currency.format(shippingQuote.additionalUnitFee),
+            ),
+            _breakdownLine(
+              ref.tr('checkout.shippingUnits'),
+              '${shippingQuote.shippingUnits}',
+            ),
             _breakdownLine(ref.tr('checkout.discount'), '- ${currency.format(discountAmount)}'),
             const Divider(),
             _breakdownLine(ref.tr('checkout.groupTotal'), currency.format(groupTotal), bold: true),

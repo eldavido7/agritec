@@ -65,8 +65,10 @@ export type SellerOrderGroupRecord = {
   discountTotal: number;
   groupTotal: number;
   deliveryRegion?: string | null;
+  weightUnitSizeKg?: number | null;
   shippingUnits?: number | null;
-  locationRate?: number | null;
+  minimumFee?: number | null;
+  additionalUnitFee?: number | null;
   totalChargeableWeightKg?: number | null;
   commissionRateBpsSnapshot?: number | null;
   platformCommissionAmount?: number | null;
@@ -109,8 +111,12 @@ const mapOrderGroup = (group: any): SellerOrderGroupRecord => ({
   discountTotal: toNumber(group.discountTotal),
   groupTotal: toNumber(group.groupTotal),
   deliveryRegion: group.deliveryRegion ? String(group.deliveryRegion) : null,
+  weightUnitSizeKg:
+    group.weightUnitSizeKg == null ? null : toNumber(group.weightUnitSizeKg),
   shippingUnits: group.shippingUnits == null ? null : toNumber(group.shippingUnits),
-  locationRate: group.locationRate == null ? null : toNumber(group.locationRate),
+  minimumFee: group.minimumFee == null ? null : toNumber(group.minimumFee),
+  additionalUnitFee:
+    group.additionalUnitFee == null ? null : toNumber(group.additionalUnitFee),
   totalChargeableWeightKg:
     group.totalChargeableWeightKg == null
       ? null

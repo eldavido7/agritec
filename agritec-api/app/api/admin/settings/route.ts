@@ -14,8 +14,10 @@ const patchSchema = z.object({
     supportEmail: z.string().trim().email().nullable().optional(),
   }).optional(),
   shipping: z.object({
-    abujaRatePerShippingUnit: z.number().int().nonnegative().optional(),
-    outsideAbujaRatePerShippingUnit: z.number().int().nonnegative().optional(),
+    abujaMinimumFee: z.number().int().nonnegative().optional(),
+    abujaAdditionalUnitFee: z.number().int().nonnegative().optional(),
+    outsideMinimumFee: z.number().int().nonnegative().optional(),
+    outsideAdditionalUnitFee: z.number().int().nonnegative().optional(),
     weightUnitSizeKg: z.number().positive().optional(),
     volumetricDivisor: z.number().int().positive().optional(),
   }).optional(),
@@ -81,8 +83,10 @@ export async function PATCH(request: Request) {
         await tx.shippingSettings.update({
           where: { id: "shipping" },
           data: {
-            ...(payload.shipping.abujaRatePerShippingUnit !== undefined ? { abujaRatePerShippingUnit: payload.shipping.abujaRatePerShippingUnit } : {}),
-            ...(payload.shipping.outsideAbujaRatePerShippingUnit !== undefined ? { outsideAbujaRatePerShippingUnit: payload.shipping.outsideAbujaRatePerShippingUnit } : {}),
+            ...(payload.shipping.abujaMinimumFee !== undefined ? { abujaMinimumFee: payload.shipping.abujaMinimumFee } : {}),
+            ...(payload.shipping.abujaAdditionalUnitFee !== undefined ? { abujaAdditionalUnitFee: payload.shipping.abujaAdditionalUnitFee } : {}),
+            ...(payload.shipping.outsideMinimumFee !== undefined ? { outsideMinimumFee: payload.shipping.outsideMinimumFee } : {}),
+            ...(payload.shipping.outsideAdditionalUnitFee !== undefined ? { outsideAdditionalUnitFee: payload.shipping.outsideAdditionalUnitFee } : {}),
             ...(payload.shipping.weightUnitSizeKg !== undefined ? { weightUnitSizeKg: payload.shipping.weightUnitSizeKg } : {}),
             ...(payload.shipping.volumetricDivisor !== undefined ? { volumetricDivisor: payload.shipping.volumetricDivisor } : {}),
           },

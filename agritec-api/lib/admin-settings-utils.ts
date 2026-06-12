@@ -17,8 +17,10 @@ export function serializePlatformSettings(platform: any, shipping: any, commissi
     },
     shipping: {
       id: shipping.id,
-      abujaRatePerShippingUnit: shipping.abujaRatePerShippingUnit,
-      outsideAbujaRatePerShippingUnit: shipping.outsideAbujaRatePerShippingUnit,
+      abujaMinimumFee: shipping.abujaMinimumFee,
+      abujaAdditionalUnitFee: shipping.abujaAdditionalUnitFee,
+      outsideMinimumFee: shipping.outsideMinimumFee,
+      outsideAdditionalUnitFee: shipping.outsideAdditionalUnitFee,
       weightUnitSizeKg: decimalToNumber(shipping.weightUnitSizeKg),
       volumetricDivisor: shipping.volumetricDivisor,
       createdAt: shipping.createdAt,

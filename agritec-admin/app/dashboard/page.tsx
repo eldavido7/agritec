@@ -65,14 +65,20 @@ export default function DashboardPage() {
   const fetchPayouts = useAdminPayoutsStore((state) => state.fetchPayouts);
   const fetchConversations = useAdminMessagesStore((state) => state.fetchConversations);
   const fetchSettings = useAdminSettingsStore((state) => state.fetchSettings);
+  const isSellersLoading = useAdminSellersStore((state) => state.isLoading);
+  const isBuyersLoading = useAdminBuyersStore((state) => state.isLoading);
+  const isOrdersLoading = useAdminOrdersStore((state) => state.isLoading);
+  const isPayoutsLoading = useAdminPayoutsStore((state) => state.isLoading);
+  const isMessagesLoading = useAdminMessagesStore((state) => state.isLoading);
+  const isSettingsLoading = useAdminSettingsStore((state) => state.isLoading);
 
   const isLoading =
-    useAdminSellersStore((state) => state.isLoading) ||
-    useAdminBuyersStore((state) => state.isLoading) ||
-    useAdminOrdersStore((state) => state.isLoading) ||
-    useAdminPayoutsStore((state) => state.isLoading) ||
-    useAdminMessagesStore((state) => state.isLoading) ||
-    useAdminSettingsStore((state) => state.isLoading);
+    isSellersLoading ||
+    isBuyersLoading ||
+    isOrdersLoading ||
+    isPayoutsLoading ||
+    isMessagesLoading ||
+    isSettingsLoading;
 
   useEffect(() => {
     void fetchSellers();
@@ -269,10 +275,10 @@ export default function DashboardPage() {
                 <div className="flex min-w-0 items-start gap-3">
                   <CreditCard className="h-4 w-4 shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
-                    <p className="break-words font-medium text-foreground">
+                    <p className="wrap-break-word font-medium text-foreground">
                       {payout.sellerName}
                     </p>
-                    <p className="break-words text-sm text-muted-foreground">
+                    <p className="wrap-break-word text-sm text-muted-foreground">
                       Pending payout of {formatCurrency(payout.amount)}
                     </p>
                   </div>
@@ -291,10 +297,10 @@ export default function DashboardPage() {
                   <div className="flex min-w-0 items-start gap-3">
                     <MessageCircle className="h-4 w-4 shrink-0 text-secondary" />
                     <div className="min-w-0 flex-1">
-                      <p className="break-words font-medium text-foreground">
+                      <p className="wrap-break-word font-medium text-foreground">
                         {otherParticipant?.fullName || "Conversation"}
                       </p>
-                      <p className="break-words text-sm text-muted-foreground">
+                      <p className="wrap-break-word text-sm text-muted-foreground">
                         {conversation.latestMessage?.body || "Unread conversation"}
                       </p>
                     </div>

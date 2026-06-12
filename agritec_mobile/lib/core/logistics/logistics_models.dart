@@ -85,18 +85,29 @@ class LogisticsMetadata {
 
 class PlatformShippingSettings {
   const PlatformShippingSettings({
-    required this.abujaRatePerShippingUnit,
-    required this.outsideAbujaRatePerShippingUnit,
+    required this.abujaMinimumFee,
+    required this.abujaAdditionalUnitFee,
+    required this.outsideMinimumFee,
+    required this.outsideAdditionalUnitFee,
     required this.weightUnitSizeKg,
     required this.volumetricDivisor,
   });
-  final int abujaRatePerShippingUnit;
-  final int outsideAbujaRatePerShippingUnit;
+  final int abujaMinimumFee;
+  final int abujaAdditionalUnitFee;
+  final int outsideMinimumFee;
+  final int outsideAdditionalUnitFee;
   final double weightUnitSizeKg;
   final double volumetricDivisor;
 }
 
-const platformShippingSettings = PlatformShippingSettings(abujaRatePerShippingUnit: 5000, outsideAbujaRatePerShippingUnit: 10000, weightUnitSizeKg: 10, volumetricDivisor: 5000);
+const platformShippingSettings = PlatformShippingSettings(
+  abujaMinimumFee: 2500,
+  abujaAdditionalUnitFee: 2500,
+  outsideMinimumFee: 5000,
+  outsideAdditionalUnitFee: 5000,
+  weightUnitSizeKg: 10,
+  volumetricDivisor: 5000,
+);
 
 class ShippingQuote {
   const ShippingQuote({
@@ -105,8 +116,10 @@ class ShippingQuote {
     this.totalVolumetricWeightKg,
     required this.usedVolumetricWeight,
     required this.totalChargeableWeightKg,
+    required this.weightUnitSizeKg,
     required this.shippingUnits,
-    required this.locationRate,
+    required this.minimumFee,
+    required this.additionalUnitFee,
     required this.shippingFee,
   });
   final String deliveryRegion;
@@ -114,8 +127,10 @@ class ShippingQuote {
   final double? totalVolumetricWeightKg;
   final bool usedVolumetricWeight;
   final double totalChargeableWeightKg;
+  final double weightUnitSizeKg;
   final int shippingUnits;
-  final int locationRate;
+  final int minimumFee;
+  final int additionalUnitFee;
   final int shippingFee;
   Map<String, dynamic> toJson() => {
         'deliveryRegion': deliveryRegion,
@@ -123,8 +138,10 @@ class ShippingQuote {
         'totalVolumetricWeightKg': totalVolumetricWeightKg,
         'usedVolumetricWeight': usedVolumetricWeight,
         'totalChargeableWeightKg': totalChargeableWeightKg,
+        'weightUnitSizeKg': weightUnitSizeKg,
         'shippingUnits': shippingUnits,
-        'locationRate': locationRate,
+        'minimumFee': minimumFee,
+        'additionalUnitFee': additionalUnitFee,
         'shippingFee': shippingFee,
       };
   factory ShippingQuote.fromJson(Map<String, dynamic> json) => ShippingQuote(
@@ -135,8 +152,14 @@ class ShippingQuote {
             (json['totalVolumetricWeightKg'] as num?)?.toDouble(),
         usedVolumetricWeight: json['usedVolumetricWeight'] as bool? ?? false,
         totalChargeableWeightKg: (json['totalChargeableWeightKg'] as num).toDouble(),
-        shippingUnits: (json['shippingUnits'] as num).toInt(),
-        locationRate: (json['locationRate'] as num).toInt(),
+        weightUnitSizeKg: (json['weightUnitSizeKg'] as num?)?.toDouble() ?? 10,
+        shippingUnits: (json['shippingUnits'] as num?)?.toInt() ?? 1,
+        minimumFee: (json['minimumFee'] as num?)?.toInt() ??
+            (json['locationRate'] as num?)?.toInt() ??
+            0,
+        additionalUnitFee: (json['additionalUnitFee'] as num?)?.toInt() ??
+            (json['locationRate'] as num?)?.toInt() ??
+            0,
         shippingFee: (json['shippingFee'] as num).toInt(),
       );
 }

@@ -16,8 +16,10 @@ export type AdminPlatformSettingsRecord = {
   };
   shipping: {
     id: string;
-    abujaRatePerShippingUnit: number;
-    outsideAbujaRatePerShippingUnit: number;
+    abujaMinimumFee: number;
+    abujaAdditionalUnitFee: number;
+    outsideMinimumFee: number;
+    outsideAdditionalUnitFee: number;
     weightUnitSizeKg: number;
     volumetricDivisor: number;
     createdAt: string;
@@ -47,8 +49,10 @@ type UpdateSettingsPayload = {
     supportEmail?: string | null;
   };
   shipping?: {
-    abujaRatePerShippingUnit?: number;
-    outsideAbujaRatePerShippingUnit?: number;
+    abujaMinimumFee?: number;
+    abujaAdditionalUnitFee?: number;
+    outsideMinimumFee?: number;
+    outsideAdditionalUnitFee?: number;
     weightUnitSizeKg?: number;
     volumetricDivisor?: number;
   };
@@ -88,11 +92,13 @@ function normalizeSettings(settings: any): AdminPlatformSettingsRecord {
     },
     shipping: {
       id: String(settings.shipping?.id || "shipping"),
-      abujaRatePerShippingUnit: Number(
-        settings.shipping?.abujaRatePerShippingUnit || 0,
+      abujaMinimumFee: Number(settings.shipping?.abujaMinimumFee || 0),
+      abujaAdditionalUnitFee: Number(
+        settings.shipping?.abujaAdditionalUnitFee || 0,
       ),
-      outsideAbujaRatePerShippingUnit: Number(
-        settings.shipping?.outsideAbujaRatePerShippingUnit || 0,
+      outsideMinimumFee: Number(settings.shipping?.outsideMinimumFee || 0),
+      outsideAdditionalUnitFee: Number(
+        settings.shipping?.outsideAdditionalUnitFee || 0,
       ),
       weightUnitSizeKg: Number(settings.shipping?.weightUnitSizeKg || 0),
       volumetricDivisor: Number(settings.shipping?.volumetricDivisor || 0),

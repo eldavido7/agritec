@@ -46,8 +46,10 @@ export const packageTypes = [
 ] as const;
 
 export const platformShippingSettings = {
-  abujaRatePerShippingUnit: 5000,
-  outsideAbujaRatePerShippingUnit: 10000,
+  abujaMinimumFee: 2500,
+  abujaAdditionalUnitFee: 2500,
+  outsideMinimumFee: 5000,
+  outsideAdditionalUnitFee: 5000,
   weightUnitSizeKg: 10,
   volumetricDivisor: 5000,
 };

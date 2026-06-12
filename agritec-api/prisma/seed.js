@@ -506,8 +506,10 @@ async function main() {
   await prisma.shippingSettings.create({
     data: {
       id: 'shipping',
-      abujaRatePerShippingUnit: 5000,
-      outsideAbujaRatePerShippingUnit: 10000,
+      abujaMinimumFee: 2500,
+      abujaAdditionalUnitFee: 2500,
+      outsideMinimumFee: 5000,
+      outsideAdditionalUnitFee: 5000,
       weightUnitSizeKg: decimal(10),
       volumetricDivisor: 5000,
     },

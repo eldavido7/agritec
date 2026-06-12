@@ -93,6 +93,28 @@ export default function MessagesPage() {
     };
   }, [fetchConversations, fetchMessages, selectedConversationId]);
 
+  const participants = useMemo(
+    () => [
+      ...sellers.map((seller) => ({
+        id: seller.id,
+        userId: seller.userId,
+        name: seller.fullName,
+        type: "seller" as const,
+        email: seller.email,
+        phone: seller.phone || "",
+      })),
+      ...buyers.map((buyer) => ({
+        id: buyer.id,
+        userId: buyer.userId,
+        name: buyer.fullName,
+        type: "buyer" as const,
+        email: buyer.email,
+        phone: buyer.phone || "",
+      })),
+    ],
+    [buyers, sellers],
+  );
+
   useEffect(() => {
     const participantType = searchParams.get("participantType");
     const participantId = searchParams.get("participantId");
@@ -128,28 +150,6 @@ export default function MessagesPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selectedConversationId, messagesByConversationId]);
-
-  const participants = useMemo(
-    () => [
-      ...sellers.map((seller) => ({
-        id: seller.id,
-        userId: seller.userId,
-        name: seller.fullName,
-        type: "seller" as const,
-        email: seller.email,
-        phone: seller.phone || "",
-      })),
-      ...buyers.map((buyer) => ({
-        id: buyer.id,
-        userId: buyer.userId,
-        name: buyer.fullName,
-        type: "buyer" as const,
-        email: buyer.email,
-        phone: buyer.phone || "",
-      })),
-    ],
-    [buyers, sellers],
-  );
 
   const filteredParticipants = participants.filter((participant) =>
     `${participant.name} ${participant.email} ${participant.phone}`

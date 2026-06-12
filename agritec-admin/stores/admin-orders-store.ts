@@ -43,8 +43,10 @@ export type AdminSellerOrderGroupRecord = {
   sellerEarningsAmount: number;
   deliveryRegion: string;
   totalChargeableWeightKg: number | null;
+  weightUnitSizeKg: number | null;
   shippingUnits: number;
-  locationRate: number;
+  minimumFee: number;
+  additionalUnitFee: number;
   discountCodeSnapshot: string | null;
   discountTypeSnapshot: string | null;
   discountValueSnapshot: number | null;
@@ -221,8 +223,10 @@ function normalizeSellerGroup(group: any): AdminSellerOrderGroupRecord {
     sellerEarningsAmount: Number(group.sellerEarningsAmount || 0),
     deliveryRegion: String(group.deliveryRegion || ""),
     totalChargeableWeightKg: group.totalChargeableWeightKg == null ? null : Number(group.totalChargeableWeightKg),
+    weightUnitSizeKg: group.weightUnitSizeKg == null ? null : Number(group.weightUnitSizeKg),
     shippingUnits: Number(group.shippingUnits || 0),
-    locationRate: Number(group.locationRate || 0),
+    minimumFee: Number(group.minimumFee || 0),
+    additionalUnitFee: Number(group.additionalUnitFee || 0),
     discountCodeSnapshot: group.discountCodeSnapshot ? String(group.discountCodeSnapshot) : null,
     discountTypeSnapshot: group.discountTypeSnapshot ? String(group.discountTypeSnapshot) : null,
     discountValueSnapshot: group.discountValueSnapshot == null ? null : Number(group.discountValueSnapshot),

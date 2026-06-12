@@ -1,10 +1,10 @@
 ﻿import { DiscountType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
+  calculatePlatformShippingBreakdown,
   chargeableWeightKg,
   decimalToNumber,
   getActiveSellerDiscountByCode,
-  isAbujaRegion,
   lineDiscountAmount,
   normalizeDiscountCode,
   volumetricWeightKg,
@@ -60,11 +60,6 @@ export async function buildCheckoutQuote(args: {
   }
 
   const volumetricDivisor = shippingSettings.volumetricDivisor;
-  const weightUnitSizeKg = decimalToNumber(shippingSettings.weightUnitSizeKg) ?? 10;
-  const locationRate = isAbujaRegion(address)
-    ? shippingSettings.abujaRatePerShippingUnit
-    : shippingSettings.outsideAbujaRatePerShippingUnit;
-  const deliveryRegion = isAbujaRegion(address) ? "Abuja / FCT" : "Outside Abuja / FCT";
 
   let productSubtotal = 0;
   let totalShippingFee = 0;
@@ -127,8 +122,12 @@ export async function buildCheckoutQuote(args: {
         };
       });
 
-      const shippingUnits = Math.max(1, Math.ceil(totalChargeableWeight / weightUnitSizeKg));
-      const shippingFee = shippingUnits * locationRate;
+      const shippingBreakdown = calculatePlatformShippingBreakdown({
+        totalChargeableWeightKg: totalChargeableWeight,
+        address,
+        settings: shippingSettings,
+      });
+      const shippingFee = shippingBreakdown.shippingFee;
       const groupTotal = groupProductSubtotal - groupDiscountTotal + shippingFee;
 
       productSubtotal += groupProductSubtotal;
@@ -143,14 +142,16 @@ export async function buildCheckoutQuote(args: {
         sellerEmail: seller.user.email,
         sellerPhone: seller.user.phone,
         farmName: seller.farmName,
-        deliveryRegion,
+        deliveryRegion: shippingBreakdown.deliveryRegion,
         productSubtotal: groupProductSubtotal,
         discountTotal: groupDiscountTotal,
         shippingFee,
         groupTotal,
         totalChargeableWeightKg: Number(totalChargeableWeight.toFixed(3)),
-        shippingUnits,
-        locationRate,
+        weightUnitSizeKg: shippingBreakdown.weightUnitSizeKg,
+        shippingUnits: shippingBreakdown.shippingUnits,
+        minimumFee: shippingBreakdown.minimumFee,
+        additionalUnitFee: shippingBreakdown.additionalUnitFee,
         discountCode: discount ? discount.code : requestedDiscountCode,
         discountApplied: Boolean(discount),
         discountSummary: discount

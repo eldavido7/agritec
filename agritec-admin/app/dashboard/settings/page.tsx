@@ -42,8 +42,10 @@ export default function SettingsPage() {
   const [currencyCode, setCurrencyCode] = useState("NGN");
   const [countryCode, setCountryCode] = useState("NG");
   const [commissionRatePercent, setCommissionRatePercent] = useState("");
-  const [abujaRate, setAbujaRate] = useState("");
-  const [outsideAbujaRate, setOutsideAbujaRate] = useState("");
+  const [abujaMinimumFee, setAbujaMinimumFee] = useState("");
+  const [abujaAdditionalUnitFee, setAbujaAdditionalUnitFee] = useState("");
+  const [outsideMinimumFee, setOutsideMinimumFee] = useState("");
+  const [outsideAdditionalUnitFee, setOutsideAdditionalUnitFee] = useState("");
   const [weightUnitSizeKg, setWeightUnitSizeKg] = useState("");
   const [volumetricDivisor, setVolumetricDivisor] = useState("");
   const [autoPayoutThreshold, setAutoPayoutThreshold] = useState("");
@@ -71,8 +73,10 @@ export default function SettingsPage() {
     setCurrencyCode(settings.platform.currencyCode);
     setCountryCode(settings.platform.countryCode);
     setCommissionRatePercent(String(settings.commission.commissionRatePercent));
-    setAbujaRate(String(settings.shipping.abujaRatePerShippingUnit));
-    setOutsideAbujaRate(String(settings.shipping.outsideAbujaRatePerShippingUnit));
+    setAbujaMinimumFee(String(settings.shipping.abujaMinimumFee));
+    setAbujaAdditionalUnitFee(String(settings.shipping.abujaAdditionalUnitFee));
+    setOutsideMinimumFee(String(settings.shipping.outsideMinimumFee));
+    setOutsideAdditionalUnitFee(String(settings.shipping.outsideAdditionalUnitFee));
     setWeightUnitSizeKg(String(settings.shipping.weightUnitSizeKg));
     setVolumetricDivisor(String(settings.shipping.volumetricDivisor));
     setAutoPayoutThreshold(String(settings.payout.autoPayoutThreshold));
@@ -91,8 +95,10 @@ export default function SettingsPage() {
 
   const handleSaveSettings = async () => {
     const commission = Number(commissionRatePercent);
-    const abuja = Number(abujaRate);
-    const outside = Number(outsideAbujaRate);
+    const abujaMinimum = Number(abujaMinimumFee);
+    const abujaAdditional = Number(abujaAdditionalUnitFee);
+    const outsideMinimum = Number(outsideMinimumFee);
+    const outsideAdditional = Number(outsideAdditionalUnitFee);
     const weightUnit = Number(weightUnitSizeKg);
     const divisor = Number(volumetricDivisor);
     const payoutThreshold = Number(autoPayoutThreshold);
@@ -105,12 +111,16 @@ export default function SettingsPage() {
       toast.error("Enter a valid support email.");
       return;
     }
-    if ([commission, abuja, outside, weightUnit, divisor, payoutThreshold].some((value) => Number.isNaN(value))) {
+    if ([commission, abujaMinimum, abujaAdditional, outsideMinimum, outsideAdditional, weightUnit, divisor, payoutThreshold].some((value) => Number.isNaN(value))) {
       toast.error("All numeric settings must be valid numbers.");
       return;
     }
     if (commission < 0 || commission > 100) {
       toast.error("Commission rate must be between 0 and 100.");
+      return;
+    }
+    if ([abujaMinimum, abujaAdditional, outsideMinimum, outsideAdditional].some((value) => value < 0)) {
+      toast.error("Shipping fees cannot be negative.");
       return;
     }
     if (weightUnit <= 0 || divisor <= 0) {
@@ -127,8 +137,10 @@ export default function SettingsPage() {
           countryCode: countryCode.trim().toUpperCase(),
         },
         shipping: {
-          abujaRatePerShippingUnit: abuja,
-          outsideAbujaRatePerShippingUnit: outside,
+          abujaMinimumFee: abujaMinimum,
+          abujaAdditionalUnitFee: abujaAdditional,
+          outsideMinimumFee: outsideMinimum,
+          outsideAdditionalUnitFee: outsideAdditional,
           weightUnitSizeKg: weightUnit,
           volumetricDivisor: divisor,
         },
@@ -305,28 +317,50 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="text-sm text-muted-foreground">
-            Delivery is calculated by the platform from product logistics metadata. Sellers do not manage shipping options.
+            Delivery is calculated platform-wide from chargeable weight. The first weight unit uses the minimum fee, and each extra unit adds the additional unit fee.
           </p>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                Abuja/FCT Rate Per Shipping Unit
+                Abuja/FCT Minimum Fee
               </label>
               <Input
                 type="number"
-                value={abujaRate}
-                onChange={(event) => setAbujaRate(event.target.value)}
+                value={abujaMinimumFee}
+                onChange={(event) => setAbujaMinimumFee(event.target.value)}
                 disabled={isUpdatingSettings}
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                Outside Abuja Rate Per Shipping Unit
+                Abuja/FCT Additional Unit Fee
               </label>
               <Input
                 type="number"
-                value={outsideAbujaRate}
-                onChange={(event) => setOutsideAbujaRate(event.target.value)}
+                value={abujaAdditionalUnitFee}
+                onChange={(event) => setAbujaAdditionalUnitFee(event.target.value)}
+                disabled={isUpdatingSettings}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Outside Abuja/FCT Minimum Fee
+              </label>
+              <Input
+                type="number"
+                value={outsideMinimumFee}
+                onChange={(event) => setOutsideMinimumFee(event.target.value)}
+                disabled={isUpdatingSettings}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Outside Abuja/FCT Additional Unit Fee
+              </label>
+              <Input
+                type="number"
+                value={outsideAdditionalUnitFee}
+                onChange={(event) => setOutsideAdditionalUnitFee(event.target.value)}
                 disabled={isUpdatingSettings}
               />
             </div>

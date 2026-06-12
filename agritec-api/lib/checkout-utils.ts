@@ -60,6 +60,50 @@ export function isAbujaRegion(address: { city?: string | null; state?: string | 
   return normalized.includes("abuja") || normalized.includes("fct");
 }
 
+export function calculatePlatformShippingBreakdown(args: {
+  totalChargeableWeightKg: number;
+  address: { city?: string | null; state?: string | null };
+  settings: {
+    abujaMinimumFee: number;
+    abujaAdditionalUnitFee: number;
+    outsideMinimumFee: number;
+    outsideAdditionalUnitFee: number;
+    weightUnitSizeKg: Prisma.Decimal | number;
+  };
+}) {
+  const { totalChargeableWeightKg, address, settings } = args;
+  const weightUnitSizeKg = decimalToNumber(settings.weightUnitSizeKg) ?? 10;
+  const abujaRegion = isAbujaRegion(address);
+  const minimumFee = abujaRegion
+    ? settings.abujaMinimumFee
+    : settings.outsideMinimumFee;
+  const additionalUnitFee = abujaRegion
+    ? settings.abujaAdditionalUnitFee
+    : settings.outsideAdditionalUnitFee;
+  const normalizedChargeableWeight =
+    Number.isFinite(totalChargeableWeightKg) && totalChargeableWeightKg > 0
+      ? totalChargeableWeightKg
+      : 0;
+
+  const shippingUnits =
+    normalizedChargeableWeight <= weightUnitSizeKg
+      ? 1
+      : Math.max(1, Math.ceil(normalizedChargeableWeight / weightUnitSizeKg));
+  const shippingFee =
+    normalizedChargeableWeight <= weightUnitSizeKg
+      ? minimumFee
+      : minimumFee + (shippingUnits - 1) * additionalUnitFee;
+
+  return {
+    deliveryRegion: abujaRegion ? "Abuja / FCT" : "Outside Abuja / FCT",
+    weightUnitSizeKg,
+    minimumFee,
+    additionalUnitFee,
+    shippingUnits,
+    shippingFee,
+  };
+}
+
 export function normalizeDiscountCode(code: string) {
   return code.trim().toUpperCase();
 }

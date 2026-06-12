@@ -333,7 +333,7 @@ export default function OrdersPage() {
                           <p className="font-semibold text-foreground">{group.farmNameSnapshot}</p>
                           <p className="text-muted-foreground">{group.sellerNameSnapshot}</p>
                           <p className="text-xs text-muted-foreground">
-                            {group.deliveryRegion} . {group.shippingUnits} shipping unit(s)
+                            {group.deliveryRegion} . {group.totalChargeableWeightKg?.toFixed?.(1) ?? "0.0"}kg chargeable . {group.shippingUnits} unit(s)
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -355,6 +355,24 @@ export default function OrdersPage() {
                         <div className="rounded-md bg-muted/40 p-3"><p className="text-muted-foreground">Products</p><p className="font-semibold">{formatCurrency(group.productSubtotal)}</p></div>
                         <div className="rounded-md bg-muted/40 p-3"><p className="text-muted-foreground">Shipping</p><p className="font-semibold">{formatCurrency(group.shippingFee)}</p></div>
                         <div className="rounded-md bg-muted/40 p-3"><p className="text-muted-foreground">Group Total</p><p className="font-semibold">{formatCurrency(group.groupTotal)}</p></div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-4">
+                        <div className="rounded-md border border-border/50 p-3">
+                          <p>Weight Unit Size</p>
+                          <p className="mt-1 font-semibold text-foreground">{group.weightUnitSizeKg?.toFixed?.(1) ?? "0.0"}kg</p>
+                        </div>
+                        <div className="rounded-md border border-border/50 p-3">
+                          <p>Minimum Fee</p>
+                          <p className="mt-1 font-semibold text-foreground">{formatCurrency(group.minimumFee)}</p>
+                        </div>
+                        <div className="rounded-md border border-border/50 p-3">
+                          <p>Additional Unit Fee</p>
+                          <p className="mt-1 font-semibold text-foreground">{formatCurrency(group.additionalUnitFee)}</p>
+                        </div>
+                        <div className="rounded-md border border-border/50 p-3">
+                          <p>Chargeable Weight</p>
+                          <p className="mt-1 font-semibold text-foreground">{group.totalChargeableWeightKg?.toFixed?.(1) ?? "0.0"}kg</p>
+                        </div>
                       </div>
                       <div className="mt-3 space-y-2">
                         {group.items.map((item) => (

@@ -33,9 +33,17 @@ ShippingQuote calculatePlatformShippingQuote({
   final city = (buyerAddress?.city ?? '').toLowerCase();
   final isAbuja =
       city.contains('abuja') || state.contains('abuja') || state.contains('fct');
-  final rate =
-      isAbuja ? settings.abujaRatePerShippingUnit : settings.outsideAbujaRatePerShippingUnit;
-  final units = max(1, (totalChargeableWeight / settings.weightUnitSizeKg).ceil());
+  final minimumFee =
+      isAbuja ? settings.abujaMinimumFee : settings.outsideMinimumFee;
+  final additionalUnitFee = isAbuja
+      ? settings.abujaAdditionalUnitFee
+      : settings.outsideAdditionalUnitFee;
+  final units = totalChargeableWeight <= settings.weightUnitSizeKg
+      ? 1
+      : max(1, (totalChargeableWeight / settings.weightUnitSizeKg).ceil());
+  final shippingFee = totalChargeableWeight <= settings.weightUnitSizeKg
+      ? minimumFee
+      : minimumFee + ((units - 1) * additionalUnitFee);
 
   return ShippingQuote(
     deliveryRegion: isAbuja ? 'Abuja / FCT' : 'Outside Abuja',
@@ -43,8 +51,10 @@ ShippingQuote calculatePlatformShippingQuote({
     totalVolumetricWeightKg: hasVolumetricData ? totalVolumetricWeight : null,
     usedVolumetricWeight: hasVolumetricData,
     totalChargeableWeightKg: totalChargeableWeight,
+    weightUnitSizeKg: settings.weightUnitSizeKg,
     shippingUnits: units,
-    locationRate: rate,
-    shippingFee: units * rate,
+    minimumFee: minimumFee,
+    additionalUnitFee: additionalUnitFee,
+    shippingFee: shippingFee,
   );
 }

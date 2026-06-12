@@ -423,8 +423,10 @@ model SellerOrderGroup {
   sellerEarningsAmount        Int                    @default(0)
   deliveryRegion              String
   totalChargeableWeightKg     Decimal                @db.Decimal(10, 3)
+  weightUnitSizeKg            Decimal                @default(10) @db.Decimal(10, 3)
   shippingUnits               Int
-  locationRate                Int
+  minimumFee                  Int                    @default(0)
+  additionalUnitFee           Int                    @default(0)
   discountCodeSnapshot        String?
   discountTypeSnapshot        DiscountType?
   discountValueSnapshot       Int?
@@ -693,10 +695,12 @@ model PlatformSettings {
 
 model ShippingSettings {
   id                              String   @id @default("shipping")
-  abujaRatePerShippingUnit        Int
-  outsideAbujaRatePerShippingUnit Int
-  weightUnitSizeKg                Decimal  @db.Decimal(10, 3)
-  volumetricDivisor               Int
+  abujaMinimumFee                 Int      @default(2500)
+  abujaAdditionalUnitFee          Int      @default(2500)
+  outsideMinimumFee               Int      @default(5000)
+  outsideAdditionalUnitFee        Int      @default(5000)
+  weightUnitSizeKg                Decimal  @default(10) @db.Decimal(10, 3)
+  volumetricDivisor               Int      @default(5000)
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
 }
