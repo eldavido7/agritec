@@ -1,4 +1,4 @@
-import { ConversationType, UserRole } from "@prisma/client";
+﻿import { ConversationType, UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth";
@@ -63,9 +63,39 @@ export async function GET(request: Request) {
       orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
     });
 
+    const currentParticipants = await prisma.conversationParticipant.findMany({
+      where: {
+        userId: admin.id,
+        conversationId: { in: conversations.map((conversation) => conversation.id) },
+      },
+      select: {
+        conversationId: true,
+        lastReadAt: true,
+      },
+    });
+    const lastReadMap = new Map(
+      currentParticipants.map((participant) => [participant.conversationId, participant.lastReadAt]),
+    );
+
+    const unreadCounts = await Promise.all(
+      conversations.map((conversation) =>
+        prisma.message.count({
+          where: {
+            conversationId: conversation.id,
+            senderId: { not: admin.id },
+            ...(lastReadMap.get(conversation.id)
+              ? { createdAt: { gt: lastReadMap.get(conversation.id)! } }
+              : {}),
+          },
+        }),
+      ),
+    );
+
     return NextResponse.json({
       success: true,
-      conversations: conversations.map((conversation) => serializeConversation(conversation, admin.id, 0)),
+      conversations: conversations.map((conversation, index) =>
+        serializeConversation(conversation, admin.id, unreadCounts[index] ?? 0),
+      ),
     });
   } catch (error) {
     console.error("[ADMIN_CONVERSATIONS_GET_ERROR]", error);

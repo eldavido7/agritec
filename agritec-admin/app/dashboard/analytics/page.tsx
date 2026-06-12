@@ -1,35 +1,30 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useMemo } from "react";
 import {
-  settings,
-  orders,
-  farmers,
-  buyers,
-  listings,
-  payouts,
-  platformCategories,
-} from "@/lib/mock-data";
-import {
-  LineChart,
-  Line,
-  BarChart,
   Bar,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from "recharts";
-import { analytics } from "@/lib/mock-data";
-import { TrendingUp, Users, ShoppingCart, DollarSign } from "lucide-react";
+import { DollarSign, ShoppingCart, TrendingUp, Users } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAdminBuyersStore } from "@/stores/admin-buyers-store";
+import { useAdminOrdersStore } from "@/stores/admin-orders-store";
+import { useAdminPayoutsStore } from "@/stores/admin-payouts-store";
+import { useAdminSellersStore } from "@/stores/admin-sellers-store";
+import { useAdminSettingsStore } from "@/stores/admin-settings-store";
 
-const formatCurrency = (value: number) => {
+function formatCurrency(value: number) {
   if (value >= 1000000) {
     return `₦${(value / 1000000).toFixed(1)}M`;
   }
@@ -37,184 +32,218 @@ const formatCurrency = (value: number) => {
     return `₦${(value / 1000).toFixed(0)}K`;
   }
   return `₦${value}`;
-};
+}
 
-const formatShortCurrency = (value: number) => {
+function formatShortCurrency(value: number) {
   if (value >= 1000000) {
     return `${(value / 1000000).toFixed(1)}M`;
   }
   if (value >= 1000) {
     return `${(value / 1000).toFixed(0)}K`;
   }
-  return value.toString();
-};
+  return String(value);
+}
 
-const CustomTooltip = (props: any) => {
-  const { active, payload } = props;
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-card border border-border rounded p-2">
-        <p className="text-sm font-medium text-foreground">
-          {payload[0].payload.month || payload[0].payload.name}
-        </p>
-        <p className="text-sm text-primary">
-          {formatCurrency(payload[0].value)}
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
-const CustomCurrencyTooltip = (props: any) => {
-  const { active, payload } = props;
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-card border border-border rounded p-2">
-        <p className="text-sm font-medium text-foreground">
-          {payload[0].payload.name}
-        </p>
-        <p className="text-sm text-primary">
-          ₦{(payload[0].value / 1000000).toFixed(1)}M
-        </p>
-      </div>
-    );
-  }
-  return null;
+const CustomTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded border border-border bg-card p-2">
+      <p className="text-sm font-medium text-foreground">
+        {payload[0].payload.month || payload[0].payload.name}
+      </p>
+      <p className="text-sm text-primary">
+        {formatCurrency(Number(payload[0].value || 0))}
+      </p>
+    </div>
+  );
 };
 
 export default function AnalyticsPage() {
-  // Calculate key metrics
-  const totalRevenue = orders.reduce(
-    (sum, order) => sum + order.totalAmount,
-    0,
+  const sellers = useAdminSellersStore((state) => state.sellers);
+  const buyers = useAdminBuyersStore((state) => state.buyers);
+  const orders = useAdminOrdersStore((state) => state.orders);
+  const payouts = useAdminPayoutsStore((state) => state.payouts);
+  const settings = useAdminSettingsStore((state) => state.settings);
+
+  const fetchSellers = useAdminSellersStore((state) => state.fetchSellers);
+  const fetchBuyers = useAdminBuyersStore((state) => state.fetchBuyers);
+  const fetchOrders = useAdminOrdersStore((state) => state.fetchOrders);
+  const fetchPayouts = useAdminPayoutsStore((state) => state.fetchPayouts);
+  const fetchSettings = useAdminSettingsStore((state) => state.fetchSettings);
+
+  useEffect(() => {
+    void fetchSellers();
+    void fetchBuyers();
+    void fetchOrders();
+    void fetchPayouts();
+    void fetchSettings();
+  }, [fetchBuyers, fetchOrders, fetchPayouts, fetchSellers, fetchSettings]);
+
+  const totalRevenue = useMemo(
+    () => orders.reduce((sum, order) => sum + order.grandTotal, 0),
+    [orders],
   );
-  const commissionEarned = totalRevenue * (settings.commissionRate / 100);
-  const totalEarnings = commissionEarned;
-  const sellerSettlements = totalRevenue - totalEarnings;
-  const processingPayoutAmount = payouts
-    .filter((p) => p.status === "in_progress")
-    .reduce((sum, payout) => sum + payout.amount, 0);
-  const avgOrderValue = totalRevenue / orders.length;
-  const completedOrders = orders.filter((o) => o.status === "completed").length;
-  const pendingOrders = orders.filter((o) => o.status === "pending").length;
-  const inTransitOrders = orders.filter(
-    (o) => o.status === "in_transit",
-  ).length;
-
-  // Payout analytics
-  const totalPayouts = payouts.reduce((sum, p) => sum + p.amount, 0);
-  const completedPayouts = payouts.filter(
-    (p) => p.status === "completed",
-  ).length;
-  const pendingPayouts = payouts.filter((p) => p.status === "pending").length;
-  const inProgressPayouts = payouts.filter(
-    (p) => p.status === "in_progress",
-  ).length;
-
-  // Seller analytics
-  const topSellers = [...farmers]
-    .sort((a, b) => b.totalSales - a.totalSales)
-    .slice(0, 5)
-    .map((farmer) => ({
-      name: farmer.name,
-      sales: farmer.totalSales,
-      orders: farmer.ordersCompleted,
-      location: farmer.location,
-    }));
-
-  // Buyer analytics
-  const topBuyers = [...buyers]
-    .sort((a, b) => b.totalPurchases - a.totalPurchases)
-    .slice(0, 5)
-    .map((buyer) => ({
-      name: buyer.name,
-      purchases: buyer.totalPurchases,
-      orders: buyer.orderCount,
-    }));
-
-  // Product category breakdown
-  const categoryBreakdown = platformCategories.map((category) => {
-    const categoryListings = listings.filter(
-      (listing) => listing.category === category.label,
-    );
-    return {
-      name: category.label,
-      count: categoryListings.length,
-      value: categoryListings.reduce(
-        (sum, listing) => sum + listing.pricePerUnit * listing.quantity,
+  const totalCommission = useMemo(
+    () =>
+      orders.reduce(
+        (sum, order) =>
+          sum +
+          order.sellerGroups.reduce(
+            (groupSum, group) => groupSum + group.platformCommissionAmount,
+            0,
+          ),
         0,
       ),
-    };
-  });
+    [orders],
+  );
+  const sellerSettlements = useMemo(
+    () =>
+      orders.reduce(
+        (sum, order) =>
+          sum +
+          order.sellerGroups.reduce(
+            (groupSum, group) => groupSum + group.sellerEarningsAmount,
+            0,
+          ),
+        0,
+      ),
+    [orders],
+  );
+  const averageOrderValue = orders.length > 0 ? totalRevenue / orders.length : 0;
 
-  // Regional sales breakdown
-  const regionSales = farmers.reduce(
-    (acc, farmer) => {
-      const existing = acc.find((r) => r.region === farmer.location);
-      if (existing) {
-        existing.sales += farmer.totalSales;
-      } else {
-        acc.push({ region: farmer.location, sales: farmer.totalSales });
-      }
-      return acc;
-    },
-    [] as Array<{ region: string; sales: number }>,
-  ).sort((a, b) => b.sales - a.sales).slice(0, 10);
+  const orderStatusData = useMemo(() => {
+    const groups = orders.flatMap((order) => order.sellerGroups);
+    const pending = groups.filter((group) => group.status === "PENDING").length;
+    const inProgress = groups.filter((group) =>
+      ["CONFIRMED", "PROCESSING", "SHIPPED"].includes(group.status),
+    ).length;
+    const delivered = groups.filter((group) => group.status === "DELIVERED").length;
+    const cancelled = groups.filter((group) =>
+      ["CANCELLED", "REFUNDED"].includes(group.status),
+    ).length;
+    return [
+      { name: "Pending", value: pending, color: "#f59e0b" },
+      { name: "In Progress", value: inProgress, color: "#3b82f6" },
+      { name: "Delivered", value: delivered, color: "#10b981" },
+      { name: "Cancelled", value: cancelled, color: "#ef4444" },
+    ];
+  }, [orders]);
 
-  // Order status distribution
-  const orderStatusData = [
-    { name: "Completed", value: completedOrders, color: "#10b981" },
-    { name: "In Transit", value: inTransitOrders, color: "#3b82f6" },
-    { name: "Pending", value: pendingOrders, color: "#f59e0b" },
-  ];
+  const payoutStatusData = useMemo(() => {
+    const statuses = [
+      { name: "Pending", key: "PENDING", color: "#f59e0b" },
+      { name: "Processing", key: "PROCESSING", color: "#3b82f6" },
+      { name: "Completed", key: "COMPLETED", color: "#10b981" },
+      { name: "Failed", key: "FAILED", color: "#ef4444" },
+    ] as const;
 
-  // Payout status distribution
-  const payoutStatusData = [
-    { name: "Completed", value: completedPayouts, color: "#10b981" },
-    { name: "In Progress", value: inProgressPayouts, color: "#3b82f6" },
-    { name: "Pending", value: pendingPayouts, color: "#f59e0b" },
-  ];
+    return statuses.map((status) => ({
+      name: status.name,
+      color: status.color,
+      value: payouts.filter((payout) => payout.status === status.key).length,
+    }));
+  }, [payouts]);
 
-  // Repeat customer analysis
-  const repeatCustomers = buyers.filter((b) => b.orderCount > 1).length;
-  const repeatRate = ((repeatCustomers / buyers.length) * 100).toFixed(1);
+  const monthlyRevenue = useMemo(() => {
+    const monthFormatter = new Intl.DateTimeFormat("en-NG", { month: "short" });
+    const buckets = new Map<string, { revenue: number; commission: number }>();
+    orders.forEach((order) => {
+      const month = monthFormatter.format(new Date(order.createdAt));
+      const current = buckets.get(month) || { revenue: 0, commission: 0 };
+      current.revenue += order.grandTotal;
+      current.commission += order.sellerGroups.reduce(
+        (sum, group) => sum + group.platformCommissionAmount,
+        0,
+      );
+      buckets.set(month, current);
+    });
 
-  // Active sellers
-  const activeSellers = farmers.filter((f) => f.isActive).length;
-  const activeBuyers = buyers.filter((b) => b.isActive).length;
+    return Array.from(buckets.entries()).map(([month, values]) => ({
+      month,
+      revenue: values.revenue,
+      commission: values.commission,
+    }));
+  }, [orders]);
 
-  const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6"];
+  const topSellers = useMemo(() => {
+    const sellerTotals = new Map<
+      string,
+      { name: string; location: string; sales: number; groups: number }
+    >();
+
+    orders.flatMap((order) => order.sellerGroups).forEach((group) => {
+      const existing = sellerTotals.get(group.sellerId) || {
+        name: group.sellerNameSnapshot,
+        location:
+          sellers.find((seller) => seller.id === group.sellerId)?.state || "N/A",
+        sales: 0,
+        groups: 0,
+      };
+      existing.sales += group.groupTotal;
+      existing.groups += 1;
+      sellerTotals.set(group.sellerId, existing);
+    });
+
+    return Array.from(sellerTotals.values())
+      .sort((a, b) => b.sales - a.sales)
+      .slice(0, 5);
+  }, [orders, sellers]);
+
+  const topBuyers = useMemo(() => {
+    const buyerTotals = new Map<string, { name: string; spend: number; orders: number }>();
+    orders.forEach((order) => {
+      const existing = buyerTotals.get(order.buyerId) || {
+        name: order.buyerNameSnapshot,
+        spend: 0,
+        orders: 0,
+      };
+      existing.spend += order.grandTotal;
+      existing.orders += 1;
+      buyerTotals.set(order.buyerId, existing);
+    });
+
+    return Array.from(buyerTotals.values())
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 5);
+  }, [orders]);
+
+  const sellerRegions = useMemo(() => {
+    const buckets = new Map<string, number>();
+    sellers.forEach((seller) => {
+      const region = seller.state || seller.city || "Unspecified";
+      buckets.set(region, (buckets.get(region) || 0) + 1);
+    });
+    return Array.from(buckets.entries())
+      .map(([region, count]) => ({ region, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [sellers]);
+
+  const repeatCustomers = useMemo(() => {
+    const buyersWithRepeatOrders = topBuyers.filter((buyer) => buyer.orders > 1).length;
+    return buyers.length > 0 ? (buyersWithRepeatOrders / buyers.length) * 100 : 0;
+  }, [buyers.length, topBuyers]);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
-          <p className="text-muted-foreground mt-1">
-            Marketplace insights and performance metrics
-          </p>
-        </div>
+      <div>
+        <p className="mt-1 text-muted-foreground">
+          Marketplace insights from live sellers, buyers, orders, payouts, and settings data
+        </p>
       </div>
 
-      {/* Primary KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border/50 bg-linear-to-br from-primary/5 to-transparent">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Total Revenue
-                </p>
+                <p className="mb-1 text-sm text-muted-foreground">Total Revenue</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {formatCurrency(totalEarnings)}
+                  {formatCurrency(totalRevenue)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Commission completed
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">Combined buyer payments</p>
               </div>
-              <DollarSign className="w-8 h-8 text-primary/50" />
+              <DollarSign className="h-8 w-8 text-primary/50" />
             </div>
           </CardContent>
         </Card>
@@ -223,17 +252,15 @@ export default function AnalyticsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Total Processed
-                </p>
+                <p className="mb-1 text-sm text-muted-foreground">Commission Earned</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {formatCurrency(totalRevenue)}
+                  {formatCurrency(totalCommission)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Includes seller settlements
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {settings ? `${settings.commission.commissionRatePercent}% server-side rate` : "Platform commission"}
                 </p>
               </div>
-              <TrendingUp className="w-8 h-8 text-green-500/50" />
+              <TrendingUp className="h-8 w-8 text-green-500/50" />
             </div>
           </CardContent>
         </Card>
@@ -242,17 +269,13 @@ export default function AnalyticsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Active Sellers
-                </p>
+                <p className="mb-1 text-sm text-muted-foreground">Active Sellers</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {activeSellers}
+                  {sellers.filter((seller) => seller.isActive).length}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Total: {farmers.length} sellers
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">Total: {sellers.length}</p>
               </div>
-              <Users className="w-8 h-8 text-blue-500/50" />
+              <Users className="h-8 w-8 text-blue-500/50" />
             </div>
           </CardContent>
         </Card>
@@ -261,349 +284,103 @@ export default function AnalyticsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Active Buyers
-                </p>
+                <p className="mb-1 text-sm text-muted-foreground">Active Buyers</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {activeBuyers}
+                  {buyers.filter((buyer) => buyer.isActive).length}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Total: {buyers.length} buyers
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">Total: {buyers.length}</p>
               </div>
-              <ShoppingCart className="w-8 h-8 text-purple-500/50" />
+              <ShoppingCart className="h-8 w-8 text-purple-500/50" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Secondary KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <Card className="border-border/50">
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground mb-1">
-              Commission Payments
-            </p>
-            <p className="text-lg font-bold text-foreground">
-              {formatCurrency(commissionEarned)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">Commission retained on completed sales</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground mb-1">Processing Payouts</p>
-            <p className="text-lg font-bold text-foreground">
-              {formatCurrency(processingPayoutAmount)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">Approved and awaiting Paystack completion</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground mb-1">
-              Seller Settlements
-            </p>
-            <p className="text-lg font-bold text-foreground">
-              {formatCurrency(sellerSettlements)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">87.5% of gross</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground mb-1">
-              Avg Order Value
-            </p>
-            <p className="text-lg font-bold text-foreground">
-              {formatCurrency(avgOrderValue)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground mb-1">
-              Completion Rate
-            </p>
-            <p className="text-lg font-bold text-green-600">
-              {((completedOrders / orders.length) * 100).toFixed(0)}%
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground mb-1">
-              Repeat Customers
-            </p>
-            <p className="text-lg font-bold text-blue-600">{repeatRate}%</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground mb-1">
-              Pending Payouts
-            </p>
-            <p className="text-lg font-bold text-yellow-600">
-              {formatShortCurrency(
-                payouts
-                  .filter((p) => p.status === "pending")
-                  .reduce((sum, p) => sum + p.amount, 0),
-              )}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground mb-1">
-              Commission Rate
-            </p>
-            <p className="text-lg font-bold text-foreground">
-              {settings.commissionRate}%
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-xs text-muted-foreground">Seller Settlements</p><p className="text-lg font-bold text-foreground">{formatCurrency(sellerSettlements)}</p></CardContent></Card>
+        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-xs text-muted-foreground">Average Order Value</p><p className="text-lg font-bold text-foreground">{formatCurrency(averageOrderValue)}</p></CardContent></Card>
+        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-xs text-muted-foreground">Pending Payouts</p><p className="text-lg font-bold text-yellow-600">{payouts.filter((payout) => payout.status === "PENDING").length}</p></CardContent></Card>
+        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-xs text-muted-foreground">Repeat Buyers</p><p className="text-lg font-bold text-blue-600">{repeatCustomers.toFixed(1)}%</p></CardContent></Card>
+        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-xs text-muted-foreground">Auto Payout Threshold</p><p className="text-lg font-bold text-foreground">{formatCurrency(settings?.payout.autoPayoutThreshold || 0)}</p></CardContent></Card>
       </div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Revenue Trend */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="border-border/50">
           <CardHeader>
-            <CardTitle>Monthly Revenue Trend</CardTitle>
+            <CardTitle>Revenue Trend</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart
-                data={analytics.monthlyRevenue}
-                margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis
-                  dataKey="month"
-                  stroke="var(--muted-foreground)"
-                  style={{ fontSize: "12px" }}
-                />
-                <YAxis
-                  stroke="var(--muted-foreground)"
-                  style={{ fontSize: "12px" }}
-                  tickFormatter={(value) => `${formatShortCurrency(value)}`}
-                />
+              <LineChart data={monthlyRevenue} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+                <XAxis dataKey="month" stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} />
+                <YAxis stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} tickFormatter={(value) => formatShortCurrency(Number(value))} />
                 <Tooltip content={<CustomTooltip />} />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="var(--primary)"
-                  strokeWidth={2}
-                  dot={{ fill: "var(--primary)", r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
+                <Legend />
+                <Line type="monotone" dataKey="revenue" stroke="var(--primary)" strokeWidth={2} name="GMV" />
+                <Line type="monotone" dataKey="commission" stroke="#10b981" strokeWidth={2} name="Commission" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Order Status Distribution */}
         <Card className="border-border/50">
           <CardHeader>
-            <CardTitle>Order Status Distribution</CardTitle>
+            <CardTitle>Seller Group Status Distribution</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie
-                  data={orderStatusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {orderStatusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                <Pie data={orderStatusData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value">
+                  {orderStatusData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {orderStatusData.map((status) => (
-                <div
-                  key={status.name}
-                  className="text-center p-2 border border-border/50 rounded"
-                >
-                  <p className="text-xs text-muted-foreground">{status.name}</p>
-                  <p className="text-sm font-bold text-foreground">
-                    {status.value}
-                  </p>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Sellers by Revenue */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="border-border/50">
           <CardHeader>
-            <CardTitle>Top Selling Sellers</CardTitle>
+            <CardTitle>Top Sellers By Fulfilled Value</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart
-                data={topSellers}
-                margin={{ top: 20, right: 30, left: 0, bottom: 60 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis
-                  dataKey="name"
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  interval={0}
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis
-                  stroke="var(--muted-foreground)"
-                  tickFormatter={(value) => `${formatShortCurrency(value)}`}
-                />
-                <Tooltip content={<CustomCurrencyTooltip />} />
+              <BarChart data={topSellers} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} interval={0} tick={{ fontSize: 12 }} />
+                <YAxis stroke="var(--muted-foreground)" tickFormatter={(value) => formatShortCurrency(Number(value))} />
+                <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="sales" fill="var(--primary)" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Product Categories */}
         <Card className="border-border/50">
           <CardHeader>
-            <CardTitle>Product Categories by Volume</CardTitle>
+            <CardTitle>Seller Location Coverage</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart
-                data={categoryBreakdown}
-                layout="vertical"
-                margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <BarChart data={sellerRegions} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                 <XAxis type="number" stroke="var(--muted-foreground)" />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={95}
-                  tick={{ fontSize: 12 }}
-                />
+                <YAxis dataKey="region" type="category" width={75} tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Bar dataKey="count" fill="var(--primary)" />
+                <Bar dataKey="count" fill="#8b5cf6" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Row 3 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Regional Sales Breakdown */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>Sales by Region</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart
-                data={regionSales}
-                margin={{ top: 20, right: 30, left: 0, bottom: 60 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis
-                  dataKey="region"
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis
-                  stroke="var(--muted-foreground)"
-                  tickFormatter={(value) => `${formatShortCurrency(value)}`}
-                />
-                <Tooltip content={<CustomCurrencyTooltip />} />
-                <Bar dataKey="sales" fill="#8b5cf6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Payout Status */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>Payout Status Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {payoutStatusData.map((status) => (
-                <div key={status.name}>
-                  <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm font-medium text-foreground">
-                      {status.name}
-                    </p>
-                    <Badge variant="outline" className="text-xs">
-                      {status.value}
-                    </Badge>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{
-                        width: `${(status.value / payouts.length) * 100}%`,
-                        backgroundColor: status.color,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-              <div className="border-t border-border/50 pt-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Total Disbursed
-                    </p>
-                    <p className="text-lg font-bold text-foreground">
-                      {formatCurrency(totalPayouts)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Pending Amount
-                    </p>
-                    <p className="text-lg font-bold text-yellow-600">
-                      {formatCurrency(
-                        payouts
-                          .filter((p) => p.status === "pending")
-                          .reduce((sum, p) => sum + p.amount, 0),
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Data Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Buyers */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="border-border/50">
           <CardHeader>
             <CardTitle>Top Buyers</CardTitle>
@@ -613,25 +390,17 @@ export default function AnalyticsPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-border/50">
                   <tr className="text-muted-foreground">
-                    <th className="text-left py-2 px-2">Buyer Name</th>
-                    <th className="text-right py-2 px-2">Total Purchases</th>
-                    <th className="text-right py-2 px-2">Orders</th>
+                    <th className="px-2 py-2 text-left">Buyer Name</th>
+                    <th className="px-2 py-2 text-right">Spend</th>
+                    <th className="px-2 py-2 text-right">Orders</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {topBuyers.map((buyer, idx) => (
-                    <tr key={idx} className="hover:bg-muted/30">
-                      <td className="py-2 px-2">
-                        <p className="font-medium text-foreground">
-                          {buyer.name}
-                        </p>
-                      </td>
-                      <td className="py-2 px-2 text-right font-semibold text-foreground">
-                        {formatCurrency(buyer.purchases)}
-                      </td>
-                      <td className="py-2 px-2 text-right text-muted-foreground">
-                        {buyer.orders}
-                      </td>
+                  {topBuyers.map((buyer) => (
+                    <tr key={buyer.name} className="hover:bg-muted/30">
+                      <td className="px-2 py-2 font-medium text-foreground">{buyer.name}</td>
+                      <td className="px-2 py-2 text-right font-semibold text-foreground">{formatCurrency(buyer.spend)}</td>
+                      <td className="px-2 py-2 text-right text-muted-foreground">{buyer.orders}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -640,46 +409,24 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Seller Performance Rankings */}
         <Card className="border-border/50">
           <CardHeader>
-            <CardTitle>Seller Performance Ranking</CardTitle>
+            <CardTitle>Payout Status Overview</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {topSellers.map((seller, idx) => (
-                <div
-                  key={idx}
-                  className="p-3 border border-border/50 rounded-lg hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
-                        {idx + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {seller.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {seller.location}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-foreground">
-                        {formatCurrency(seller.sales)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {seller.orders} orders
-                      </p>
-                    </div>
+            <div className="space-y-4">
+              {payoutStatusData.map((status) => (
+                <div key={status.name}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-medium text-foreground">{status.name}</p>
+                    <p className="text-sm text-muted-foreground">{status.value}</p>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-1.5">
+                  <div className="h-2 w-full rounded-full bg-muted">
                     <div
-                      className="h-1.5 rounded-full bg-primary"
+                      className="h-2 rounded-full"
                       style={{
-                        width: `${(seller.sales / topSellers[0].sales) * 100}%`,
+                        width: `${payouts.length > 0 ? (status.value / payouts.length) * 100 : 0}%`,
+                        backgroundColor: status.color,
                       }}
                     />
                   </div>
@@ -689,77 +436,6 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Summary Statistics */}
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle>Summary Statistics</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              {
-                label: "Commission Rate",
-                value: `${settings.commissionRate}%`,
-                sublabel: "of transaction value",
-              },
-              {
-                label: "Payout Frequency",
-                value: settings.payoutFrequency,
-                sublabel: "automatic payout cadence",
-              },
-              {
-                label: "Total Commission",
-                value: formatCurrency(commissionEarned),
-                sublabel: "earned this period",
-              },
-              {
-                label: "Total Payouts",
-                value: formatCurrency(totalPayouts),
-                sublabel: "to sellers",
-              },
-              {
-                label: "Avg Seller Sales",
-                value: formatCurrency(totalRevenue / farmers.length),
-                sublabel: "per seller",
-              },
-              {
-                label: "Avg Buyer Spend",
-                value: formatCurrency(totalRevenue / buyers.length),
-                sublabel: "per buyer",
-              },
-              {
-                label: "Orders This Period",
-                value: orders.length,
-                sublabel: `${completedOrders} completed`,
-              },
-              {
-                label: "Active Marketplace",
-                value: `${activeSellers}/${farmers.length}`,
-                sublabel: "sellers active",
-              },
-            ].map((stat, idx) => (
-              <div
-                key={idx}
-                className="p-4 border border-border/50 rounded-lg bg-muted/30"
-              >
-                <p className="text-xs text-muted-foreground mb-1">
-                  {stat.label}
-                </p>
-                <p className="text-lg font-bold text-foreground">
-                  {stat.value}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {stat.sublabel}
-                </p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
-
-
-

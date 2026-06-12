@@ -1,145 +1,184 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { auditLogs } from '@/lib/mock-data';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Search, Download } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { toast } from 'sonner';
+import { useEffect, useMemo, useState } from "react";
+import { Download, Search } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { useAdminAuditStore } from "@/stores/admin-audit-store";
 
-const actionColors: Record<string, string> = {
-  'Order Created': 'bg-blue-100 text-blue-700',
-  'User Verified': 'bg-green-100 text-green-700',
-  'Payout Processed': 'bg-purple-100 text-purple-700',
-  'Listing Updated': 'bg-orange-100 text-orange-700',
-  'Account Created': 'bg-cyan-100 text-cyan-700',
-};
+function formatDate(value: string) {
+  return new Date(value).toLocaleString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatActionLabel(action: string) {
+  return action.replaceAll(".", " ");
+}
 
 export default function AuditLogsPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
-  const [exportOpen, setExportOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState('2024-05-16');
-  const [dateTo, setDateTo] = useState('2024-05-20');
+  const logs = useAdminAuditStore((state) => state.logs);
+  const pagination = useAdminAuditStore((state) => state.pagination);
+  const isLoading = useAdminAuditStore((state) => state.isLoading);
+  const loaded = useAdminAuditStore((state) => state.loaded);
+  const fetchLogs = useAdminAuditStore((state) => state.fetchLogs);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [exportOpen, setExportOpen] = useState(false);
 
-  const filteredLogs = auditLogs
-    .filter((log) => {
-      const matchesSearch =
-        log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (log.admin?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-        log.target.toLowerCase().includes(searchTerm.toLowerCase());
+  useEffect(() => {
+    void fetchLogs({ page, pageSize: 10 });
+  }, [fetchLogs, page]);
 
-      return matchesSearch;
-    })
-    .sort((a, b) => {
-      const aTime = new Date(a.timestamp).getTime();
-      const bTime = new Date(b.timestamp).getTime();
-      return sortOrder === 'desc' ? bTime - aTime : aTime - bTime;
-    });
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
-  const paginatedLogs = useMemo(
-    () => filteredLogs.slice((page - 1) * pageSize, page * pageSize),
-    [filteredLogs, page],
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setPage(1);
+      void fetchLogs({
+        force: true,
+        page: 1,
+        pageSize: 10,
+        search: searchTerm.trim() || undefined,
+        action: actionFilter.trim() || undefined,
+        from: dateFrom || undefined,
+        to: dateTo || undefined,
+      });
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [actionFilter, dateFrom, dateTo, fetchLogs, searchTerm]);
+
+  const availableActions = useMemo(
+    () => Array.from(new Set(logs.map((log) => log.action))).sort(),
+    [logs],
   );
 
-  const exportLogs = () => {
-    const fromTime = new Date(dateFrom).getTime();
-    const toTime = new Date(`${dateTo} 23:59`).getTime();
-    const logsInRange = auditLogs.filter((log) => {
-      const time = new Date(log.timestamp).getTime();
-      return time >= fromTime && time <= toTime;
-    });
+  const handleExport = () => {
     const rows = [
-      ['Action', 'User', 'Target', 'Details', 'Timestamp'],
-      ...logsInRange.map((log) => [log.action, log.admin, log.target, log.details, log.timestamp]),
+      ["Action", "Admin", "Email", "Target Type", "Target ID", "Metadata", "Timestamp"],
+      ...logs.map((log) => [
+        formatActionLabel(log.action),
+        log.admin?.fullName || "",
+        log.admin?.email || "",
+        log.targetType,
+        log.targetId || "",
+        log.metadata ? JSON.stringify(log.metadata) : "",
+        formatDate(log.createdAt),
+      ]),
     ];
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+    const csv = rows
+      .map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    link.download = `audit-logs-${dateFrom}-to-${dateTo}.csv`;
+    link.download = `admin-audit-page-${page}.csv`;
     link.click();
     URL.revokeObjectURL(url);
     setExportOpen(false);
-    toast.success('Audit logs exported in spreadsheet format');
+    toast.success("Audit logs exported successfully");
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-muted-foreground mt-1">Platform activity and system events</p>
+          <p className="mt-1 text-muted-foreground">
+            Platform activity trail for admin actions and system changes
+          </p>
         </div>
-        <Button variant="outline" className="w-full md:w-auto gap-2" onClick={() => setExportOpen(true)}>
-          <Download className="w-4 h-4" />
+        <Button
+          variant="outline"
+          className="w-full gap-2 md:w-auto"
+          onClick={() => setExportOpen(true)}
+        >
+          <Download className="h-4 w-4" />
           Export
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="border-border/50">
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground mb-1">Total Logs</p>
-            <p className="text-3xl font-bold text-foreground">{auditLogs.length}</p>
+            <p className="mb-1 text-sm text-muted-foreground">Current Page Logs</p>
+            <p className="text-3xl font-bold text-foreground">{logs.length}</p>
           </CardContent>
         </Card>
         <Card className="border-border/50">
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground mb-1">Actions</p>
-            <p className="text-3xl font-bold text-primary">{new Set(auditLogs.map(l => l.action)).size}</p>
+            <p className="mb-1 text-sm text-muted-foreground">Total Logs</p>
+            <p className="text-3xl font-bold text-primary">{pagination.total}</p>
           </CardContent>
         </Card>
         <Card className="border-border/50">
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground mb-1">Admins</p>
-            <p className="text-3xl font-bold text-secondary">{new Set(auditLogs.map(l => (l as any).admin)).size}</p>
+            <p className="mb-1 text-sm text-muted-foreground">Action Types</p>
+            <p className="text-3xl font-bold text-secondary">
+              {availableActions.length}
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
       <Card className="border-border/50">
         <CardContent className="pt-6">
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="relative xl:col-span-2">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search by action, user, or target..."
+                placeholder="Search by action, admin, target type, or target id..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-border/50"
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="pl-10"
               />
             </div>
-
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-foreground mb-2">Sort Order</p>
-                <select
-                  value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-                  className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="desc">Newest First</option>
-                  <option value="asc">Oldest First</option>
-                </select>
-              </div>
+            <select
+              value={actionFilter}
+              onChange={(event) => setActionFilter(event.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+            >
+              <option value="">All actions</option>
+              {availableActions.map((action) => (
+                <option key={action} value={action}>
+                  {formatActionLabel(action)}
+                </option>
+              ))}
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(event) => setDateFrom(event.target.value)}
+              />
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(event) => setDateTo(event.target.value)}
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Logs Table */}
-      <Card className="border-border/50 overflow-hidden">
+      <Card className="overflow-hidden border-border/50">
         <CardHeader className="border-b border-border/30 pb-4">
-          <CardTitle>Activity Logs ({filteredLogs.length})</CardTitle>
+          <CardTitle>Audit Logs</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="overflow-x-auto">
@@ -147,70 +186,100 @@ export default function AuditLogsPage() {
               <thead>
                 <tr className="border-b border-border/30 bg-muted/30">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Action</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Target</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Details</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Admin</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Target Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Target ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Metadata</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Timestamp</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedLogs.map((log) => (
-                  <tr key={log.id} className="border-b border-border/30 hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <Badge
-                        variant="outline"
-                        className={actionColors[log.action] || 'bg-gray-100 text-gray-700'}
-                      >
-                        {log.action}
-                      </Badge>
+                {logs.map((log) => (
+                  <tr
+                    key={log.id}
+                    className="border-b border-border/30 transition-colors hover:bg-muted/30"
+                  >
+                    <td className="px-6 py-4 text-sm font-medium text-foreground">
+                      {formatActionLabel(log.action)}
                     </td>
                     <td className="px-6 py-4">
-                      <p className="font-medium text-foreground text-sm">{log.admin}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {log.admin?.fullName || "Unknown admin"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {log.admin?.email || ""}
+                      </p>
                     </td>
-                    <td className="px-6 py-4 text-sm text-foreground">{log.target}</td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground max-w-xs">{log.details}</td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">{log.timestamp}</td>
+                    <td className="px-6 py-4 text-sm text-foreground">{log.targetType}</td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">{log.targetId || "-"}</td>
+                    <td className="max-w-sm px-6 py-4 text-xs text-muted-foreground">
+                      <div className="line-clamp-3 break-words">
+                        {log.metadata ? JSON.stringify(log.metadata) : "No metadata"}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">
+                      {formatDate(log.createdAt)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {filteredLogs.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No logs found</p>
+          {isLoading && !loaded ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+              <Spinner className="size-4" />
+              <span>Loading audit logs...</span>
             </div>
-          )}
-          {filteredLogs.length > pageSize && (
+          ) : null}
+
+          {!isLoading && logs.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              No audit logs found
+            </div>
+          ) : null}
+
+          {pagination.totalPages > 1 ? (
             <div className="flex items-center justify-between border-t border-border/30 py-4">
-              <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
+              <p className="text-sm text-muted-foreground">
+                Page {pagination.page} of {pagination.totalPages}
+              </p>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((current) => current + 1)}>Next</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1}
+                  onClick={() => setPage((current) => current - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === pagination.totalPages}
+                  onClick={() => setPage((current) => current + 1)}
+                >
+                  Next
+                </Button>
               </div>
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Export Audit Logs</DialogTitle>
+            <DialogTitle>Export Current Audit View</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="mb-2 text-sm font-medium">From</p>
-              <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium">To</p>
-              <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            This exports the logs currently loaded on this page with the active filters.
+          </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setExportOpen(false)}>Cancel</Button>
-            <Button onClick={exportLogs}>Download</Button>
+            <Button variant="outline" onClick={() => setExportOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleExport}>Download CSV</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,54 +1,88 @@
-"use client";
+﻿"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { buyers as initialBuyers, orders } from "@/lib/mock-data";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Search, Filter, MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { SuspendAccountDialog } from "@/components/suspend-account-dialog";
-import { DeleteAccountDialog } from "@/components/delete-account-dialog";
-import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Search, Filter, MoreHorizontal } from "lucide-react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { SuspendAccountDialog } from "@/components/suspend-account-dialog";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  type AdminBuyerDetailRecord,
+  useAdminBuyersStore,
+} from "@/stores/admin-buyers-store";
+
+function formatDate(value: string) {
+  if (!value) return "N/A";
+  return new Date(value).toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value: string) {
+  if (!value) return "N/A";
+  return new Date(value).toLocaleString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
 export default function BuyersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [buyers, setBuyers] = useState(initialBuyers);
+  const buyers = useAdminBuyersStore((state) => state.buyers);
+  const selectedBuyer = useAdminBuyersStore((state) => state.selectedBuyerDetail);
+  const isLoading = useAdminBuyersStore((state) => state.isLoading);
+  const isDetailLoading = useAdminBuyersStore((state) => state.isDetailLoading);
+  const isUpdating = useAdminBuyersStore((state) => state.isUpdating);
+  const loaded = useAdminBuyersStore((state) => state.loaded);
+  const fetchBuyers = useAdminBuyersStore((state) => state.fetchBuyers);
+  const fetchBuyerDetail = useAdminBuyersStore((state) => state.fetchBuyerDetail);
+  const clearSelectedBuyerDetail = useAdminBuyersStore((state) => state.clearSelectedBuyerDetail);
+  const updateBuyer = useAdminBuyersStore((state) => state.updateBuyer);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterActive, setFilterActive] = useState<
     "all" | "active" | "suspended"
   >("all");
-
-  // Dialog states
   const [suspendDialog, setSuspendDialog] = useState<{
     open: boolean;
     buyerId?: string;
     buyerName?: string;
   }>({ open: false });
-  const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean;
-    buyerId?: string;
-    buyerName?: string;
-  }>({ open: false });
-  const [selectedBuyer, setSelectedBuyer] = useState<
-    (typeof buyers)[number] | null
-  >(null);
   const [page, setPage] = useState(1);
   const pageSize = 10;
+
+  useEffect(() => {
+    void fetchBuyers();
+  }, [fetchBuyers]);
 
   useEffect(() => {
     const query = searchParams.get("search");
@@ -56,10 +90,11 @@ export default function BuyersPage() {
   }, [searchParams]);
 
   const filteredBuyers = buyers.filter((buyer) => {
+    const query = searchTerm.toLowerCase();
     const matchesSearch =
-      buyer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      buyer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      buyer.location.toLowerCase().includes(searchTerm.toLowerCase());
+      buyer.fullName.toLowerCase().includes(query) ||
+      buyer.email.toLowerCase().includes(query) ||
+      (buyer.phone || "").toLowerCase().includes(query);
 
     const matchesFilter =
       filterActive === "all" ||
@@ -68,6 +103,7 @@ export default function BuyersPage() {
 
     return matchesSearch && matchesFilter;
   });
+
   const totalPages = Math.max(1, Math.ceil(filteredBuyers.length / pageSize));
   const paginatedBuyers = useMemo(
     () => filteredBuyers.slice((page - 1) * pageSize, page * pageSize),
@@ -76,59 +112,65 @@ export default function BuyersPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, filterActive]);
+  }, [searchTerm, filterActive, buyers.length]);
 
-  const handleSuspendBuyer = () => {
-    if (suspendDialog.buyerId) {
-      setBuyers(
-        buyers.map((b) =>
-          b.id === suspendDialog.buyerId ? { ...b, isActive: false } : b,
-        ),
+  const openBuyerDetails = async (buyerId: string) => {
+    try {
+      await fetchBuyerDetail(buyerId);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load buyer details",
       );
+    }
+  };
+
+  const handleSuspendBuyer = async () => {
+    if (!suspendDialog.buyerId) return;
+
+    try {
+      await updateBuyer(suspendDialog.buyerId, { isActive: false });
       toast.success(
         `${suspendDialog.buyerName} account suspended successfully`,
       );
       setSuspendDialog({ open: false });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to suspend buyer",
+      );
     }
   };
 
-  const handleDeleteBuyer = () => {
-    if (deleteDialog.buyerId) {
-      setBuyers(buyers.filter((b) => b.id !== deleteDialog.buyerId));
-      toast.success(`${deleteDialog.buyerName} account deleted successfully`);
-      setDeleteDialog({ open: false });
+  const handleActivateBuyer = async (buyerId: string, buyerName: string) => {
+    try {
+      await updateBuyer(buyerId, { isActive: true });
+      toast.success(`${buyerName} account reactivated successfully`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to reactivate buyer",
+      );
     }
-  };
-
-  const handleActivateBuyer = (buyerId: string, buyerName: string) => {
-    setBuyers(
-      buyers.map((b) => (b.id === buyerId ? { ...b, isActive: true } : b)),
-    );
-    toast.success(`${buyerName} account reactivated successfully`);
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-muted-foreground mt-1">
+          <p className="mt-1 text-muted-foreground">
             Manage registered buyers on the platform
           </p>
         </div>
       </div>
 
-      {/* Filters */}
       <Card className="border-border/50">
         <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="flex flex-col gap-4 md:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search by name, email, or location..."
+                placeholder="Search by buyer, email, or phone..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-border/50"
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="pl-10"
               />
             </div>
             <div className="flex gap-2">
@@ -137,7 +179,7 @@ export default function BuyersPage() {
                 onClick={() => setFilterActive("all")}
                 className="gap-2"
               >
-                <Filter className="w-4 h-4" />
+                <Filter className="h-4 w-4" />
                 All
               </Button>
               <Button
@@ -157,7 +199,6 @@ export default function BuyersPage() {
         </CardContent>
       </Card>
 
-      {/* Buyers Table */}
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Registered Buyers ({filteredBuyers.length})</CardTitle>
@@ -166,14 +207,14 @@ export default function BuyersPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-border/50">
-                <tr className="text-muted-foreground font-medium">
-                  <th className="text-left py-3 px-4">Name</th>
-                  <th className="text-left py-3 px-4">Location</th>
-                  <th className="text-left py-3 px-4">Contact</th>
-                  <th className="text-right py-3 px-4">Total Purchases</th>
-                  <th className="text-center py-3 px-4">Orders</th>
-                  <th className="text-center py-3 px-4">Status</th>
-                  <th className="text-right py-3 px-4">Actions</th>
+                <tr className="font-medium text-muted-foreground">
+                  <th className="px-4 py-3 text-left">Buyer</th>
+                  <th className="px-4 py-3 text-left">Addresses</th>
+                  <th className="px-4 py-3 text-left">Contact</th>
+                  <th className="px-4 py-3 text-right">Wishlist</th>
+                  <th className="px-4 py-3 text-center">Orders</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
@@ -181,54 +222,56 @@ export default function BuyersPage() {
                   paginatedBuyers.map((buyer) => (
                     <tr
                       key={buyer.id}
-                      className="hover:bg-muted/50 transition-colors"
+                      className="transition-colors hover:bg-muted/50"
                     >
-                      <td className="py-3 px-4">
+                      <td className="px-4 py-3">
                         <div>
                           <p className="font-medium text-foreground">
-                            {buyer.name}
+                            {buyer.fullName}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {buyer.id}
                           </p>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-foreground">
-                        {buyer.location}
+                      <td className="px-4 py-3 text-foreground">
+                        {buyer.addressCount > 0
+                          ? `${buyer.addressCount} saved address${buyer.addressCount === 1 ? "" : "es"}`
+                          : "No saved addresses"}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="px-4 py-3">
                         <div>
-                          <p className="text-foreground text-xs">
-                            {buyer.phone}
+                          <p className="text-xs text-foreground">
+                            {buyer.phone || "No phone"}
                           </p>
-                          <p className="text-muted-foreground text-xs">
+                          <p className="text-xs text-muted-foreground">
                             {buyer.email}
                           </p>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-right font-semibold text-foreground">
-                        ₦{(buyer.totalPurchases / 1000000).toFixed(1)}M
+                      <td className="px-4 py-3 text-right font-semibold text-foreground">
+                        {buyer.wishlistCount}
                       </td>
-                      <td className="py-3 px-4 text-center text-foreground font-medium">
+                      <td className="px-4 py-3 text-center font-medium text-foreground">
                         {buyer.orderCount}
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="px-4 py-3 text-center">
                         <Badge
                           variant={buyer.isActive ? "default" : "secondary"}
                         >
                           {buyer.isActive ? "Active" : "Suspended"}
                         </Badge>
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="px-4 py-3 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="w-4 h-4" />
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => setSelectedBuyer(buyer)}
+                              onClick={() => void openBuyerDetails(buyer.id)}
                             >
                               View Details
                             </DropdownMenuItem>
@@ -244,7 +287,7 @@ export default function BuyersPage() {
                             <DropdownMenuItem
                               onClick={() =>
                                 router.push(
-                                  `/dashboard/orders?search=${encodeURIComponent(buyer.name)}`,
+                                  `/dashboard/orders?search=${encodeURIComponent(buyer.fullName)}`,
                                 )
                               }
                             >
@@ -257,7 +300,7 @@ export default function BuyersPage() {
                                   setSuspendDialog({
                                     open: true,
                                     buyerId: buyer.id,
-                                    buyerName: buyer.name,
+                                    buyerName: buyer.fullName,
                                   })
                                 }
                               >
@@ -267,29 +310,29 @@ export default function BuyersPage() {
                               <DropdownMenuItem
                                 className="text-green-600"
                                 onClick={() =>
-                                  handleActivateBuyer(buyer.id, buyer.name)
+                                  void handleActivateBuyer(
+                                    buyer.id,
+                                    buyer.fullName,
+                                  )
                                 }
                               >
                                 Reactivate
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={() =>
-                                setDeleteDialog({
-                                  open: true,
-                                  buyerId: buyer.id,
-                                  buyerName: buyer.name,
-                                })
-                              }
-                            >
-                              Delete
-                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
                     </tr>
                   ))
+                ) : isLoading && !loaded ? (
+                  <tr>
+                    <td colSpan={7} className="py-10">
+                      <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                        <Spinner className="size-4" />
+                        <span>Loading buyers...</span>
+                      </div>
+                    </td>
+                  </tr>
                 ) : (
                   <tr>
                     <td
@@ -303,7 +346,7 @@ export default function BuyersPage() {
               </tbody>
             </table>
           </div>
-          {filteredBuyers.length > pageSize && (
+          {filteredBuyers.length > pageSize ? (
             <div className="flex items-center justify-between border-t border-border/30 pt-4">
               <p className="text-sm text-muted-foreground">
                 Page {page} of {totalPages}
@@ -327,67 +370,120 @@ export default function BuyersPage() {
                 </Button>
               </div>
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
       <Dialog
         open={!!selectedBuyer}
-        onOpenChange={(open) => !open && setSelectedBuyer(null)}
+        onOpenChange={(open) => !open && clearSelectedBuyerDetail()}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedBuyer?.name}</DialogTitle>
+            <DialogTitle>{selectedBuyer?.fullName || "Buyer Details"}</DialogTitle>
           </DialogHeader>
-          {selectedBuyer && (
+          {isDetailLoading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+              <Spinner className="size-4" />
+              <span>Loading buyer details...</span>
+            </div>
+          ) : selectedBuyer ? (
             <div className="grid gap-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-md border border-border/50 p-3">
-                  <p className="text-muted-foreground">Total Purchases</p>
-                  <p className="font-semibold">
-                    NGN {selectedBuyer.totalPurchases.toLocaleString()}
-                  </p>
-                </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-md border border-border/50 p-3">
                   <p className="text-muted-foreground">Orders</p>
-                  <p className="font-semibold">
-                    {
-                      orders.filter(
-                        (order) => order.buyerId === selectedBuyer.id,
-                      ).length
-                    }
-                  </p>
+                  <p className="font-semibold">{selectedBuyer.orderCount}</p>
+                </div>
+                <div className="rounded-md border border-border/50 p-3">
+                  <p className="text-muted-foreground">Wishlist Items</p>
+                  <p className="font-semibold">{selectedBuyer.wishlistCount}</p>
                 </div>
               </div>
               <div className="rounded-md border border-border/50 p-3">
                 <p className="text-muted-foreground">Joined</p>
-                <p className="font-medium">{selectedBuyer.joinDate}</p>
+                <p className="font-medium">{formatDate(selectedBuyer.createdAt)}</p>
               </div>
               <div className="rounded-md border border-border/50 p-3">
                 <p className="text-muted-foreground">Contact</p>
-                <p className="font-medium">{selectedBuyer.phone}</p>
+                <p className="font-medium">{selectedBuyer.phone || "No phone"}</p>
                 <p>{selectedBuyer.email}</p>
               </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-border/50 p-3">
+                  <p className="text-muted-foreground">Saved Addresses</p>
+                  <p className="font-semibold">{selectedBuyer.addressCount}</p>
+                </div>
+                <div className="rounded-md border border-border/50 p-3">
+                  <p className="text-muted-foreground">Cart Items</p>
+                  <p className="font-semibold">{selectedBuyer.cartItemCount}</p>
+                </div>
+              </div>
+              <div className="rounded-md border border-border/50 p-3">
+                <p className="mb-3 text-muted-foreground">Addresses</p>
+                <div className="space-y-3">
+                  {selectedBuyer.addresses.length > 0 ? (
+                    selectedBuyer.addresses.map((address) => (
+                      <div key={address.id} className="rounded-md border border-border/40 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-foreground">
+                            {address.displayName || "Saved address"}
+                          </p>
+                          {address.isDefault ? <Badge variant="default">Default</Badge> : null}
+                          {address.isManualAddress || address.isAdminAssisted ? (
+                            <Badge variant="secondary">Manual</Badge>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-foreground">{address.fullAddress}</p>
+                        {address.landmark ? (
+                          <p className="text-muted-foreground">Landmark: {address.landmark}</p>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground">
+                          Added {formatDateTime(address.createdAt)}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground">No saved addresses</p>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-md border border-border/50 p-3">
+                <p className="mb-3 text-muted-foreground">Recent Orders</p>
+                <div className="space-y-3">
+                  {selectedBuyer.recentOrders.length > 0 ? (
+                    selectedBuyer.recentOrders.map((order) => (
+                      <div key={order.id} className="flex items-center justify-between gap-4 rounded-md border border-border/40 p-3">
+                        <div>
+                          <p className="font-medium text-foreground">Order #{order.id}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDateTime(order.createdAt)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-foreground">{formatCurrency(order.grandTotal)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {order.status} / {order.paymentStatus}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground">No recent orders</p>
+                  )}
+                </div>
+              </div>
             </div>
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
 
-      {/* Dialogs */}
       <SuspendAccountDialog
         open={suspendDialog.open}
         onOpenChange={(open) => setSuspendDialog({ open })}
         accountName={suspendDialog.buyerName || ""}
         accountType="buyer"
-        onConfirm={handleSuspendBuyer}
-      />
-
-      <DeleteAccountDialog
-        open={deleteDialog.open}
-        onOpenChange={(open) => setDeleteDialog({ open })}
-        accountName={deleteDialog.buyerName || ""}
-        accountType="buyer"
-        onConfirm={handleDeleteBuyer}
+        onConfirm={() => void handleSuspendBuyer()}
+        isLoading={isUpdating}
       />
     </div>
   );

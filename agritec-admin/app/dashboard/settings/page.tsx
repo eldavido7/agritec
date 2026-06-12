@@ -1,229 +1,530 @@
 "use client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { platformShippingSettings, settings } from "@/lib/mock-data";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useState } from "react";
-import { Plus, Trash2, Loader2 } from "lucide-react";
-import { DeleteDialog } from "@/components/delete-dialog";
+
+import { useEffect, useMemo, useState } from "react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-interface Admin {
-  id: string;
-  username: string;
-  email: string;
-}
-const mockAdmins: Admin[] = [
-  { id: "1", username: "admin@agritec.com", email: "admin@agritec.com" },
-  { id: "2", username: "support@agritec.com", email: "support@agritec.com" },
+import { DeleteDialog } from "@/components/delete-dialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { useAdminAdminsStore } from "@/stores/admin-admins-store";
+import { useAdminSettingsStore } from "@/stores/admin-settings-store";
+
+const weeklyPayoutDayOptions = [
+  { value: "", label: "Disabled" },
+  { value: "0", label: "Sunday" },
+  { value: "1", label: "Monday" },
+  { value: "2", label: "Tuesday" },
+  { value: "3", label: "Wednesday" },
+  { value: "4", label: "Thursday" },
+  { value: "5", label: "Friday" },
+  { value: "6", label: "Saturday" },
 ];
+
 export default function SettingsPage() {
-  const [commissionRate, setCommissionRate] = useState(settings.commissionRate);
-  const [shippingSettings, setShippingSettings] = useState(platformShippingSettings);
-  const [admins, setAdmins] = useState<Admin[]>(mockAdmins);
-  const [newAdminUsername, setNewAdminUsername] = useState("");
+  const settings = useAdminSettingsStore((state) => state.settings);
+  const isLoadingSettings = useAdminSettingsStore((state) => state.isLoading);
+  const isUpdatingSettings = useAdminSettingsStore((state) => state.isUpdating);
+  const fetchSettings = useAdminSettingsStore((state) => state.fetchSettings);
+  const updateSettings = useAdminSettingsStore((state) => state.updateSettings);
+
+  const admins = useAdminAdminsStore((state) => state.admins);
+  const isLoadingAdmins = useAdminAdminsStore((state) => state.isLoading);
+  const isCreatingAdmin = useAdminAdminsStore((state) => state.isCreating);
+  const isUpdatingAdmin = useAdminAdminsStore((state) => state.isUpdating);
+  const fetchAdmins = useAdminAdminsStore((state) => state.fetchAdmins);
+  const createAdmin = useAdminAdminsStore((state) => state.createAdmin);
+  const deactivateAdmin = useAdminAdminsStore((state) => state.deactivateAdmin);
+
+  const [marketplaceName, setMarketplaceName] = useState("");
+  const [supportEmail, setSupportEmail] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("NGN");
+  const [countryCode, setCountryCode] = useState("NG");
+  const [commissionRatePercent, setCommissionRatePercent] = useState("");
+  const [abujaRate, setAbujaRate] = useState("");
+  const [outsideAbujaRate, setOutsideAbujaRate] = useState("");
+  const [weightUnitSizeKg, setWeightUnitSizeKg] = useState("");
+  const [volumetricDivisor, setVolumetricDivisor] = useState("");
+  const [autoPayoutThreshold, setAutoPayoutThreshold] = useState("");
+  const [weeklyPayoutDay, setWeeklyPayoutDay] = useState("");
+
+  const [newAdminFullName, setNewAdminFullName] = useState("");
+  const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
-  const [isSaved, setIsSaved] = useState(false);
-  const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
-  const [isDeletingAdmin, setIsDeletingAdmin] = useState(false);
+  const [newAdminPhone, setNewAdminPhone] = useState("");
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     adminId?: string;
     adminName?: string;
   }>({ open: false });
-  const handleSaveConfig = () => {
-    setIsSavingConfig(true);
-    setTimeout(() => {
-      setIsSavingConfig(false);
-      setIsSaved(true);
+
+  useEffect(() => {
+    void fetchSettings();
+    void fetchAdmins();
+  }, [fetchAdmins, fetchSettings]);
+
+  useEffect(() => {
+    if (!settings) return;
+    setMarketplaceName(settings.platform.marketplaceName);
+    setSupportEmail(settings.platform.supportEmail || "");
+    setCurrencyCode(settings.platform.currencyCode);
+    setCountryCode(settings.platform.countryCode);
+    setCommissionRatePercent(String(settings.commission.commissionRatePercent));
+    setAbujaRate(String(settings.shipping.abujaRatePerShippingUnit));
+    setOutsideAbujaRate(String(settings.shipping.outsideAbujaRatePerShippingUnit));
+    setWeightUnitSizeKg(String(settings.shipping.weightUnitSizeKg));
+    setVolumetricDivisor(String(settings.shipping.volumetricDivisor));
+    setAutoPayoutThreshold(String(settings.payout.autoPayoutThreshold));
+    setWeeklyPayoutDay(
+      settings.payout.weeklyPayoutDay == null
+        ? ""
+        : String(settings.payout.weeklyPayoutDay),
+    );
+  }, [settings]);
+
+  const isBootstrapping = isLoadingSettings && !settings;
+  const activeAdminCount = useMemo(
+    () => admins.filter((admin) => admin.isActive).length,
+    [admins],
+  );
+
+  const handleSaveSettings = async () => {
+    const commission = Number(commissionRatePercent);
+    const abuja = Number(abujaRate);
+    const outside = Number(outsideAbujaRate);
+    const weightUnit = Number(weightUnitSizeKg);
+    const divisor = Number(volumetricDivisor);
+    const payoutThreshold = Number(autoPayoutThreshold);
+
+    if (!marketplaceName.trim()) {
+      toast.error("Marketplace name is required.");
+      return;
+    }
+    if (supportEmail.trim() && !/\S+@\S+\.\S+/.test(supportEmail.trim())) {
+      toast.error("Enter a valid support email.");
+      return;
+    }
+    if ([commission, abuja, outside, weightUnit, divisor, payoutThreshold].some((value) => Number.isNaN(value))) {
+      toast.error("All numeric settings must be valid numbers.");
+      return;
+    }
+    if (commission < 0 || commission > 100) {
+      toast.error("Commission rate must be between 0 and 100.");
+      return;
+    }
+    if (weightUnit <= 0 || divisor <= 0) {
+      toast.error("Weight unit size and volumetric divisor must be greater than zero.");
+      return;
+    }
+
+    try {
+      await updateSettings({
+        platform: {
+          marketplaceName: marketplaceName.trim(),
+          supportEmail: supportEmail.trim() ? supportEmail.trim() : null,
+          currencyCode: currencyCode.trim().toUpperCase(),
+          countryCode: countryCode.trim().toUpperCase(),
+        },
+        shipping: {
+          abujaRatePerShippingUnit: abuja,
+          outsideAbujaRatePerShippingUnit: outside,
+          weightUnitSizeKg: weightUnit,
+          volumetricDivisor: divisor,
+        },
+        commission: {
+          commissionRatePercent: commission,
+        },
+        payout: {
+          autoPayoutThreshold: payoutThreshold,
+          weeklyPayoutDay:
+            weeklyPayoutDay === "" ? null : Number(weeklyPayoutDay),
+        },
+      });
       toast.success("Platform settings updated successfully");
-      setTimeout(() => setIsSaved(false), 2000);
-    }, 800);
-  };
-  const handleAddAdmin = () => {
-    if (newAdminUsername.trim() && newAdminPassword.trim()) {
-      setIsCreatingAdmin(true);
-      const newAdmin: Admin = {
-        id: Date.now().toString(),
-        username: newAdminUsername,
-        email: newAdminUsername,
-      };
-      setTimeout(() => {
-        setAdmins([...admins, newAdmin]);
-        setNewAdminUsername("");
-        setNewAdminPassword("");
-        setIsCreatingAdmin(false);
-        toast.success("New admin created successfully");
-      }, 800);
-    } else {
-      toast.warning("Enter a valid username and password to create an admin");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update settings",
+      );
     }
   };
-  const handleDeleteAdmin = () => {
-    if (deleteDialog.adminId) {
-      setIsDeletingAdmin(true);
-      setTimeout(() => {
-        setAdmins(admins.filter((a) => a.id !== deleteDialog.adminId));
-        setIsDeletingAdmin(false);
-        setDeleteDialog({ open: false });
-        toast.success("Admin deleted successfully");
-      }, 800);
+
+  const handleCreateAdmin = async () => {
+    if (!newAdminFullName.trim()) {
+      toast.error("Admin full name is required.");
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(newAdminEmail.trim())) {
+      toast.error("Enter a valid admin email.");
+      return;
+    }
+    if (newAdminPassword.trim().length < 6) {
+      toast.error("Admin password must be at least 6 characters.");
+      return;
+    }
+
+    try {
+      await createAdmin({
+        fullName: newAdminFullName.trim(),
+        email: newAdminEmail.trim(),
+        password: newAdminPassword,
+        phone: newAdminPhone.trim() ? newAdminPhone.trim() : null,
+      });
+      setNewAdminFullName("");
+      setNewAdminEmail("");
+      setNewAdminPassword("");
+      setNewAdminPhone("");
+      toast.success("Admin account created successfully");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create admin",
+      );
     }
   };
+
+  const handleDeactivateAdmin = async () => {
+    if (!deleteDialog.adminId) return;
+
+    try {
+      await deactivateAdmin(deleteDialog.adminId);
+      setDeleteDialog({ open: false });
+      toast.success("Admin account deactivated successfully");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to deactivate admin",
+      );
+    }
+  };
+
+  if (isBootstrapping) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center gap-2 text-muted-foreground">
+        <Spinner className="size-4" />
+        <span>Loading settings...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">Configure platform settings</p>
+        <p className="mt-1 text-muted-foreground">
+          Configure platform, logistics, payout, and admin access settings
+        </p>
       </div>
+
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Platform Configuration</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Marketplace Name
+              </label>
+              <Input
+                value={marketplaceName}
+                onChange={(event) => setMarketplaceName(event.target.value)}
+                disabled={isUpdatingSettings}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Support Email
+              </label>
+              <Input
+                type="email"
+                value={supportEmail}
+                onChange={(event) => setSupportEmail(event.target.value)}
+                disabled={isUpdatingSettings}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Currency Code
+              </label>
+              <Input
+                value={currencyCode}
+                onChange={(event) => setCurrencyCode(event.target.value)}
+                disabled={isUpdatingSettings}
+                maxLength={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Country Code
+              </label>
+              <Input
+                value={countryCode}
+                onChange={(event) => setCountryCode(event.target.value)}
+                disabled={isUpdatingSettings}
+                maxLength={2}
+              />
+            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
                 Marketplace Commission Rate (%)
               </label>
               <Input
                 type="number"
-                step="0.1"
-                value={commissionRate}
-                onChange={(e) => setCommissionRate(parseFloat(e.target.value))}
-                className="border-border/50"
+                step="0.01"
+                value={commissionRatePercent}
+                onChange={(event) =>
+                  setCommissionRatePercent(event.target.value)
+                }
+                disabled={isUpdatingSettings}
               />
               <p className="text-xs text-muted-foreground">
-                Percentage retained by the platform from completed marketplace sales before seller settlement. This same rate drives analytics, seller wallet credits, and payout reporting.
+                Applied to seller group subtotals server-side before seller wallet credits.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Auto Payout Threshold (₦)
+              </label>
+              <Input
+                type="number"
+                value={autoPayoutThreshold}
+                onChange={(event) =>
+                  setAutoPayoutThreshold(event.target.value)
+                }
+                disabled={isUpdatingSettings}
+              />
+              <p className="text-xs text-muted-foreground">
+                Sellers must reach this available balance before automatic weekly payout runs.
               </p>
             </div>
           </div>
-          <Button onClick={handleSaveConfig} className="w-full md:w-auto gap-2" disabled={isSavingConfig}>
-            {isSavingConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {isSavingConfig ? "Saving..." : isSaved ? "Saved!" : "Save Changes"}
-          </Button>
         </CardContent>
       </Card>
+
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Shipping Settings</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="text-sm text-muted-foreground">
-            Delivery is calculated by the platform from product logistics metadata. Sellers do not create shipping options.
+            Delivery is calculated by the platform from product logistics metadata. Sellers do not manage shipping options.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Abuja/FCT rate per shipping unit</label>
-              <Input type="number" value={shippingSettings.abujaRatePerShippingUnit} onChange={(e) => setShippingSettings({ ...shippingSettings, abujaRatePerShippingUnit: Number(e.target.value) })} />
-              <p className="text-xs text-muted-foreground">Applied when buyer city/state is Abuja or FCT.</p>
+              <label className="text-sm font-medium text-foreground">
+                Abuja/FCT Rate Per Shipping Unit
+              </label>
+              <Input
+                type="number"
+                value={abujaRate}
+                onChange={(event) => setAbujaRate(event.target.value)}
+                disabled={isUpdatingSettings}
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Outside Abuja rate per shipping unit</label>
-              <Input type="number" value={shippingSettings.outsideAbujaRatePerShippingUnit} onChange={(e) => setShippingSettings({ ...shippingSettings, outsideAbujaRatePerShippingUnit: Number(e.target.value) })} />
-              <p className="text-xs text-muted-foreground">Applied for all delivery addresses outside Abuja/FCT.</p>
+              <label className="text-sm font-medium text-foreground">
+                Outside Abuja Rate Per Shipping Unit
+              </label>
+              <Input
+                type="number"
+                value={outsideAbujaRate}
+                onChange={(event) => setOutsideAbujaRate(event.target.value)}
+                disabled={isUpdatingSettings}
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Weight unit size (kg)</label>
-              <Input type="number" value={shippingSettings.weightUnitSizeKg} onChange={(e) => setShippingSettings({ ...shippingSettings, weightUnitSizeKg: Number(e.target.value) })} />
-              <p className="text-xs text-muted-foreground">Shipping units are calculated from total chargeable weight divided by this value.</p>
+              <label className="text-sm font-medium text-foreground">
+                Weight Unit Size (kg)
+              </label>
+              <Input
+                type="number"
+                step="0.1"
+                value={weightUnitSizeKg}
+                onChange={(event) => setWeightUnitSizeKg(event.target.value)}
+                disabled={isUpdatingSettings}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Weekly Auto Payout Day
+              </label>
+              <select
+                value={weeklyPayoutDay}
+                onChange={(event) => setWeeklyPayoutDay(event.target.value)}
+                disabled={isUpdatingSettings}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+              >
+                {weeklyPayoutDayOptions.map((option) => (
+                  <option key={option.value || "disabled"} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
-          <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Advanced Logistics Settings</h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                Volumetric divisor is used internally to calculate space-based shipping weight from product dimensions. It normally should not be changed.
-              </p>
-            </div>
+
+          <div className="rounded-lg border border-border/50 bg-muted/30 p-4">
             <div className="space-y-2 max-w-sm">
-              <label className="text-sm font-medium text-foreground">Volumetric divisor</label>
-              <Input type="number" value={shippingSettings.volumetricDivisor} onChange={(e) => setShippingSettings({ ...shippingSettings, volumetricDivisor: Number(e.target.value) })} />
+              <label className="text-sm font-medium text-foreground">
+                Advanced Logistics: Volumetric Divisor
+              </label>
+              <Input
+                type="number"
+                value={volumetricDivisor}
+                onChange={(event) => setVolumetricDivisor(event.target.value)}
+                disabled={isUpdatingSettings}
+              />
               <p className="text-xs text-muted-foreground">
-                Formula: volumetric weight = length x width x height / divisor. Chargeable weight is the greater of actual and volumetric weight.
+                Used internally for volumetric weight: length x width x height / divisor. Normally this should not be changed.
               </p>
             </div>
           </div>
-          <Button onClick={handleSaveConfig} className="w-full md:w-auto gap-2" disabled={isSavingConfig}>
-            {isSavingConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {isSavingConfig ? "Saving..." : isSaved ? "Saved!" : "Save Shipping Settings"}
+
+          <Button
+            onClick={() => void handleSaveSettings()}
+            className="w-full gap-2 md:w-auto"
+            disabled={isUpdatingSettings}
+          >
+            {isUpdatingSettings ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
+            {isUpdatingSettings ? "Saving..." : "Save Settings"}
           </Button>
         </CardContent>
       </Card>
+
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Admin Management</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <h3 className="font-medium text-foreground mb-4">Existing Admins</h3>
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {admins.map((admin) => (
-                <div key={admin.id} className="flex items-center justify-between p-3 border border-border/50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-foreground text-sm">{admin.username}</p>
-                    <p className="text-xs text-muted-foreground">{admin.email}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setDeleteDialog({
-                        open: true,
-                        adminId: admin.id,
-                        adminName: admin.username,
-                      })
-                    }
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="border-t border-border/50 pt-6">
-            <h3 className="font-medium text-foreground mb-4">Create New Admin</h3>
-            <div className="space-y-4">
+            <h3 className="mb-4 font-medium text-foreground">
+              Existing Admins
+            </h3>
+            {isLoadingAdmins && admins.length === 0 ? (
+              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                <Spinner className="size-4" />
+                <span>Loading admins...</span>
+              </div>
+            ) : (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Username</label>
+                {admins.map((admin) => (
+                  <div
+                    key={admin.id}
+                    className="flex items-center justify-between gap-4 rounded-lg border border-border/50 p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground">
+                        {admin.fullName}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {admin.email}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {admin.isActive ? "Active" : "Inactive"}
+                        {admin.lastActiveAt
+                          ? ` · Last active ${new Date(
+                              admin.lastActiveAt,
+                            ).toLocaleDateString("en-NG")}`
+                          : ""}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!admin.isActive || isUpdatingAdmin || activeAdminCount <= 1}
+                      onClick={() =>
+                        setDeleteDialog({
+                          open: true,
+                          adminId: admin.id,
+                          adminName: admin.fullName,
+                        })
+                      }
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border/50 pt-6">
+            <h3 className="mb-4 font-medium text-foreground">
+              Create New Admin
+            </h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Full Name
+                </label>
+                <Input
+                  value={newAdminFullName}
+                  onChange={(event) =>
+                    setNewAdminFullName(event.target.value)
+                  }
+                  disabled={isCreatingAdmin}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Email
+                </label>
                 <Input
                   type="email"
-                  placeholder="admin@example.com"
-                  value={newAdminUsername}
-                  onChange={(e) => setNewAdminUsername(e.target.value)}
-                  className="border-border/50"
+                  value={newAdminEmail}
+                  onChange={(event) => setNewAdminEmail(event.target.value)}
+                  disabled={isCreatingAdmin}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Password</label>
+                <label className="text-sm font-medium text-foreground">
+                  Phone
+                </label>
                 <Input
-                  type="password"
-                  placeholder="Enter password"
-                  value={newAdminPassword}
-                  onChange={(e) => setNewAdminPassword(e.target.value)}
-                  className="border-border/50"
+                  value={newAdminPhone}
+                  onChange={(event) => setNewAdminPhone(event.target.value)}
+                  disabled={isCreatingAdmin}
                 />
               </div>
-              <Button
-                onClick={handleAddAdmin}
-                className="w-full md:w-auto gap-2"
-                disabled={!newAdminUsername.trim() || !newAdminPassword.trim() || isCreatingAdmin}
-              >
-                {isCreatingAdmin ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                {isCreatingAdmin ? "Creating..." : "Create Admin"}
-              </Button>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Password
+                </label>
+                <Input
+                  type="password"
+                  value={newAdminPassword}
+                  onChange={(event) =>
+                    setNewAdminPassword(event.target.value)
+                  }
+                  disabled={isCreatingAdmin}
+                />
+              </div>
             </div>
+
+            <Button
+              onClick={() => void handleCreateAdmin()}
+              className="mt-4 w-full gap-2 md:w-auto"
+              disabled={isCreatingAdmin}
+            >
+              {isCreatingAdmin ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {isCreatingAdmin ? "Creating..." : "Create Admin"}
+            </Button>
           </div>
         </CardContent>
       </Card>
+
       <DeleteDialog
         open={deleteDialog.open}
-        onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}
-        title="Delete Admin Account"
-        description={`Are you sure you want to delete the admin account for ${deleteDialog.adminName}? This action cannot be undone.`}
-        onConfirm={handleDeleteAdmin}
-        isLoading={isDeletingAdmin}
+        onOpenChange={(open) => setDeleteDialog((current) => ({ ...current, open }))}
+        title="Deactivate Admin Account"
+        description={`Are you sure you want to deactivate ${deleteDialog.adminName}? This admin will no longer be able to sign in.`}
+        onConfirm={handleDeactivateAdmin}
+        isLoading={isUpdatingAdmin}
       />
     </div>
   );
