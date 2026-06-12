@@ -32,7 +32,7 @@ type AdminAdminsState = {
   loaded: boolean;
   fetchAdmins: (options?: { force?: boolean }) => Promise<void>;
   createAdmin: (payload: CreateAdminPayload) => Promise<AdminUserRecord>;
-  deactivateAdmin: (adminId: string) => Promise<void>;
+  deleteAdmin: (adminId: string) => Promise<void>;
   updateAdmin: (
     adminId: string,
     payload: Partial<{
@@ -175,13 +175,13 @@ export const useAdminAdminsStore = create<AdminAdminsState>((set, get) => ({
     }
   },
 
-  deactivateAdmin: async (adminId) => {
+  deleteAdmin: async (adminId) => {
     const token = useAdminAuthStore.getState().token;
     if (!token) {
       throw new Error("Admin session not found");
     }
 
-    console.log("[Admin Admins] Deactivate start", { adminId });
+    console.log("[Admin Admins] Delete start", { adminId });
     set({ isUpdating: true, error: null });
 
     try {
@@ -194,22 +194,20 @@ export const useAdminAdminsStore = create<AdminAdminsState>((set, get) => ({
       );
 
       set((state) => ({
-        admins: state.admins.map((admin) =>
-          admin.id === adminId ? { ...admin, isActive: false } : admin,
-        ),
+        admins: state.admins.filter((admin) => admin.id !== adminId),
         isUpdating: false,
         error: null,
         loaded: true,
       }));
-      console.log("[Admin Admins] Deactivate success", { adminId });
+      console.log("[Admin Admins] Delete success", { adminId });
     } catch (error) {
-      console.error("[Admin Admins] Deactivate failed", {
+      console.error("[Admin Admins] Delete failed", {
         adminId,
         error: describeError(error),
       });
       set({
         isUpdating: false,
-        error: error instanceof Error ? error.message : "Unable to deactivate admin",
+        error: error instanceof Error ? error.message : "Unable to delete admin",
       });
       throw error;
     }

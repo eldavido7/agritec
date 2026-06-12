@@ -85,7 +85,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     const { id } = await params;
     if (actor.id === id) {
-      return NextResponse.json({ success: false, message: "You cannot deactivate your own admin account." }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Logged in admin cannot delete themselves." }, { status: 400 });
     }
 
     const adminCount = await prisma.user.count({ where: { role: UserRole.ADMIN, isActive: true } });
@@ -99,23 +99,31 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id },
-        data: { isActive: false },
-      });
-
       await createAuditLog(tx, {
         adminId: actor.id,
-        action: "admin.deactivate",
+        action: "admin.delete",
         targetType: "user",
         targetId: id,
         metadata: JSON.parse(JSON.stringify({ email: adminUser.email })) as Prisma.InputJsonValue,
       });
+
+      await tx.user.delete({
+        where: { id },
+      });
     });
 
-    return NextResponse.json({ success: true, message: "Admin deactivated successfully" });
-  } catch (error) {
+    return NextResponse.json({ success: true, message: "Admin deleted successfully" });
+  } catch (error: any) {
     console.error("[ADMIN_ADMIN_DELETE_ERROR]", error);
-    return NextResponse.json({ success: false, message: "Failed to deactivate admin" }, { status: 500 });
+    if (error?.code === "P2003") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "This admin has historical records and cannot be deleted. Disable the account instead.",
+        },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({ success: false, message: "Failed to delete admin" }, { status: 500 });
   }
 }

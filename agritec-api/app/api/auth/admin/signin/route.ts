@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { UserRole } from "@prisma/client";
 import {
+  findAuthUserByEmail,
   serializeAuthUser,
   signAuthToken,
   verifyUserCredentials,
@@ -14,6 +15,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, message: "Email and password are required" },
         { status: 400 }
+      );
+    }
+
+    const existingUser = await findAuthUserByEmail(email);
+    if (existingUser?.role === UserRole.ADMIN && existingUser.isActive === false) {
+      return NextResponse.json(
+        { success: false, message: "Your admin account is disabled." },
+        { status: 403 },
       );
     }
 

@@ -105,11 +105,6 @@ export default function MessagesPage() {
   }, [selectedConversationId, fetchMessages]);
 
   useEffect(() => {
-    if (!selectedConversationId && filteredConversations.length > 0) {
-      selectConversation(filteredConversations[0].id);
-    }
-  }, [filteredConversations, selectedConversationId, selectConversation]);
-  useEffect(() => {
     const handleFocus = () => {
       setIsWindowActive(true);
       void fetchConversations({ force: true });
@@ -412,7 +407,6 @@ export default function MessagesPage() {
     </div>
   );
 }
-
 
 
 

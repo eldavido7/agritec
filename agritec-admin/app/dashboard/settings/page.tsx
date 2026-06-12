@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useAdminAdminsStore } from "@/stores/admin-admins-store";
+import { useAdminAuthStore } from "@/stores/admin-auth-store";
 import { useAdminSettingsStore } from "@/stores/admin-settings-store";
 
 const weeklyPayoutDayOptions = [
@@ -35,7 +36,9 @@ export default function SettingsPage() {
   const isUpdatingAdmin = useAdminAdminsStore((state) => state.isUpdating);
   const fetchAdmins = useAdminAdminsStore((state) => state.fetchAdmins);
   const createAdmin = useAdminAdminsStore((state) => state.createAdmin);
-  const deactivateAdmin = useAdminAdminsStore((state) => state.deactivateAdmin);
+  const deleteAdmin = useAdminAdminsStore((state) => state.deleteAdmin);
+  const updateAdmin = useAdminAdminsStore((state) => state.updateAdmin);
+  const currentAdmin = useAdminAuthStore((state) => state.user);
 
   const [marketplaceName, setMarketplaceName] = useState("");
   const [supportEmail, setSupportEmail] = useState("");
@@ -59,6 +62,12 @@ export default function SettingsPage() {
     open: boolean;
     adminId?: string;
     adminName?: string;
+  }>({ open: false });
+  const [disableDialog, setDisableDialog] = useState<{
+    open: boolean;
+    adminId?: string;
+    adminName?: string;
+    nextIsActive?: boolean;
   }>({ open: false });
 
   useEffect(() => {
@@ -194,16 +203,38 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDeactivateAdmin = async () => {
+  const handleDeleteAdmin = async () => {
     if (!deleteDialog.adminId) return;
 
     try {
-      await deactivateAdmin(deleteDialog.adminId);
+      await deleteAdmin(deleteDialog.adminId);
       setDeleteDialog({ open: false });
-      toast.success("Admin account deactivated successfully");
+      toast.success("Admin account deleted successfully");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to deactivate admin",
+        error instanceof Error ? error.message : "Failed to delete admin",
+      );
+    }
+  };
+
+  const handleToggleAdminStatus = async () => {
+    if (!disableDialog.adminId || disableDialog.nextIsActive == null) return;
+
+    try {
+      await updateAdmin(disableDialog.adminId, {
+        isActive: disableDialog.nextIsActive,
+      });
+      setDisableDialog({ open: false });
+      toast.success(
+        disableDialog.nextIsActive
+          ? "Admin account enabled successfully"
+          : "Admin account disabled successfully",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to update admin account status",
       );
     }
   };
@@ -454,7 +485,7 @@ export default function SettingsPage() {
                         {admin.email}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {admin.isActive ? "Active" : "Inactive"}
+                        {admin.isActive ? "Active" : "Disabled"}
                         {admin.lastActiveAt
                           ? ` · Last active ${new Date(
                               admin.lastActiveAt,
@@ -462,21 +493,54 @@ export default function SettingsPage() {
                           : ""}
                       </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={!admin.isActive || isUpdatingAdmin || activeAdminCount <= 1}
-                      onClick={() =>
-                        setDeleteDialog({
-                          open: true,
-                          adminId: admin.id,
-                          adminName: admin.fullName,
-                        })
-                      }
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isUpdatingAdmin}
+                        onClick={() => {
+                          if (currentAdmin?.id === admin.id) {
+                            toast.error(
+                              admin.isActive
+                                ? "Logged in user cannot disable themselves."
+                                : "Logged in user cannot enable or disable themselves here.",
+                            );
+                            return;
+                          }
+                          if (admin.isActive && activeAdminCount <= 1) {
+                            toast.error("At least one active admin account must remain.");
+                            return;
+                          }
+                          setDisableDialog({
+                            open: true,
+                            adminId: admin.id,
+                            adminName: admin.fullName,
+                            nextIsActive: !admin.isActive,
+                          });
+                        }}
+                      >
+                        {admin.isActive ? "Disable" : "Enable"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isUpdatingAdmin}
+                        onClick={() => {
+                          if (currentAdmin?.id === admin.id) {
+                            toast.error("Logged in user cannot delete themselves.");
+                            return;
+                          }
+                          setDeleteDialog({
+                            open: true,
+                            adminId: admin.id,
+                            adminName: admin.fullName,
+                          });
+                        }}
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -555,9 +619,21 @@ export default function SettingsPage() {
       <DeleteDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog((current) => ({ ...current, open }))}
-        title="Deactivate Admin Account"
-        description={`Are you sure you want to deactivate ${deleteDialog.adminName}? This admin will no longer be able to sign in.`}
-        onConfirm={handleDeactivateAdmin}
+        title="Delete Admin Account"
+        description={`Are you sure you want to permanently delete ${deleteDialog.adminName}?`}
+        onConfirm={handleDeleteAdmin}
+        isLoading={isUpdatingAdmin}
+      />
+      <DeleteDialog
+        open={disableDialog.open}
+        onOpenChange={(open) => setDisableDialog((current) => ({ ...current, open }))}
+        title={disableDialog.nextIsActive ? "Enable Admin Account" : "Disable Admin Account"}
+        description={
+          disableDialog.nextIsActive
+            ? `Are you sure you want to enable ${disableDialog.adminName}?`
+            : `Are you sure you want to disable ${disableDialog.adminName}? This admin will not be able to sign in.`
+        }
+        onConfirm={handleToggleAdminStatus}
         isLoading={isUpdatingAdmin}
       />
     </div>

@@ -18,6 +18,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   ChatChannelType _filter = ChatChannelType.seller;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final chatState = ref.read(chatProvider);
+      if (chatState.activeDraft == null &&
+          chatState.selectedConversationId != null) {
+        ref.read(chatProvider.notifier).clearSelectedConversation();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -39,7 +51,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final selected =
         filtered.any((c) => c.id == chatState.selectedConversationId)
         ? filtered.firstWhere((c) => c.id == chatState.selectedConversationId)
-        : (filtered.isNotEmpty ? filtered.first : null);
+        : null;
     final dateFormat = DateFormat('d MMM, y - h:mm a');
     final hasDraftSellerChat =
         _filter == ChatChannelType.seller && chatState.activeDraft != null;
@@ -206,11 +218,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       ),
                       const Divider(height: 1),
                       Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(12),
-                          itemCount: selected?.messages.length ?? 0,
-                          itemBuilder: (context, index) {
-                            final message = selected!.messages[index];
+                        child: selected == null
+                            ? Center(
+                                child: Text(
+                                  ref.tr('chat.conversation'),
+                                  style: const TextStyle(
+                                    color: Color(0xFF66716C),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(12),
+                                itemCount: selected.messages.length,
+                                itemBuilder: (context, index) {
+                                  final message = selected.messages[index];
                             return Align(
                               alignment: message.isMine
                                   ? Alignment.centerRight
@@ -255,8 +277,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 ),
                               ),
                             );
-                          },
-                        ),
+                                },
+                              ),
                       ),
                       SafeArea(
                         top: false,

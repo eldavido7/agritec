@@ -227,7 +227,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final userId = ref.read(currentBuyerUserIdProvider);
     if (userId != 'buyer-demo-1') {
       return ChatState(
-        selectedConversationId: 'conv-support',
+        selectedConversationId: null,
         activeDraft: null,
         conversations: [
           ChatConversation(
@@ -255,7 +255,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     return ChatState(
-      selectedConversationId: 'conv-support',
+      selectedConversationId: null,
       activeDraft: null,
       conversations: [
         ChatConversation(
@@ -328,6 +328,14 @@ class ChatNotifier extends Notifier<ChatState> {
   void selectConversation(String conversationId) {
     state = state.copyWith(
       selectedConversationId: conversationId,
+      clearActiveDraft: true,
+    );
+    _persist();
+  }
+
+  void clearSelectedConversation() {
+    state = state.copyWith(
+      clearSelectedConversationId: true,
       clearActiveDraft: true,
     );
     _persist();
