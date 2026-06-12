@@ -21,6 +21,9 @@ export type SellerOrderGroupItemRecord = {
 export type SellerParentOrderSnapshot = {
   id: string;
   buyerId?: string | null;
+  buyerNameSnapshot?: string | null;
+  buyerEmailSnapshot?: string | null;
+  buyerPhoneSnapshot?: string | null;
   status?: string;
   paymentReference?: string | null;
   productSubtotal: number;
@@ -54,13 +57,20 @@ export type SellerOrderGroupRecord = {
   id: string;
   sellerId: string;
   sellerName?: string | null;
+  farmNameSnapshot?: string | null;
   parentOrderId: string;
   status: string;
   productSubtotal: number;
   shippingFee: number;
   discountTotal: number;
   groupTotal: number;
+  deliveryRegion?: string | null;
+  shippingUnits?: number | null;
+  locationRate?: number | null;
   totalChargeableWeightKg?: number | null;
+  commissionRateBpsSnapshot?: number | null;
+  platformCommissionAmount?: number | null;
+  sellerEarningsAmount?: number | null;
   createdAt?: Date;
   updatedAt?: Date;
   items: SellerOrderGroupItemRecord[];
@@ -91,13 +101,32 @@ const mapOrderGroup = (group: any): SellerOrderGroupRecord => ({
   id: String(group.id),
   sellerId: String(group.sellerId),
   sellerName: group.seller?.farmName || group.seller?.user?.fullName || null,
+  farmNameSnapshot: group.farmNameSnapshot ? String(group.farmNameSnapshot) : null,
   parentOrderId: String(group.parentOrderId),
   status: String(group.status || "PENDING"),
   productSubtotal: toNumber(group.productSubtotal),
   shippingFee: toNumber(group.shippingFee),
   discountTotal: toNumber(group.discountTotal),
   groupTotal: toNumber(group.groupTotal),
-  totalChargeableWeightKg: group.totalChargeableWeightKg == null ? null : Number(group.totalChargeableWeightKg),
+  deliveryRegion: group.deliveryRegion ? String(group.deliveryRegion) : null,
+  shippingUnits: group.shippingUnits == null ? null : toNumber(group.shippingUnits),
+  locationRate: group.locationRate == null ? null : toNumber(group.locationRate),
+  totalChargeableWeightKg:
+    group.totalChargeableWeightKg == null
+      ? null
+      : Number(group.totalChargeableWeightKg),
+  commissionRateBpsSnapshot:
+    group.commissionRateBpsSnapshot == null
+      ? null
+      : toNumber(group.commissionRateBpsSnapshot),
+  platformCommissionAmount:
+    group.platformCommissionAmount == null
+      ? null
+      : toNumber(group.platformCommissionAmount),
+  sellerEarningsAmount:
+    group.sellerEarningsAmount == null
+      ? null
+      : toNumber(group.sellerEarningsAmount),
   createdAt: group.createdAt ? new Date(group.createdAt) : undefined,
   updatedAt: group.updatedAt ? new Date(group.updatedAt) : undefined,
   items: Array.isArray(group.items)
@@ -111,13 +140,25 @@ const mapOrderGroup = (group: any): SellerOrderGroupRecord => ({
         unitPriceSnapshot: toNumber(item.unitPriceSnapshot),
         quantity: toNumber(item.quantity),
         lineTotal: toNumber(item.lineTotal),
-        discountAmountSnapshot: item.discountAmountSnapshot == null ? null : toNumber(item.discountAmountSnapshot),
+        discountAmountSnapshot:
+          item.discountAmountSnapshot == null
+            ? null
+            : toNumber(item.discountAmountSnapshot),
         salesUnitSnapshot: item.salesUnitSnapshot ? String(item.salesUnitSnapshot) : null,
       }))
     : [],
   parentOrder: {
     id: String(group.parentOrder?.id || group.parentOrderId),
     buyerId: group.parentOrder?.buyerId ? String(group.parentOrder.buyerId) : null,
+    buyerNameSnapshot: group.parentOrder?.buyerNameSnapshot
+      ? String(group.parentOrder.buyerNameSnapshot)
+      : null,
+    buyerEmailSnapshot: group.parentOrder?.buyerEmailSnapshot
+      ? String(group.parentOrder.buyerEmailSnapshot)
+      : null,
+    buyerPhoneSnapshot: group.parentOrder?.buyerPhoneSnapshot
+      ? String(group.parentOrder.buyerPhoneSnapshot)
+      : null,
     status: group.parentOrder?.status ? String(group.parentOrder.status) : undefined,
     paymentReference: group.parentOrder?.paymentReference ? String(group.parentOrder.paymentReference) : null,
     productSubtotal: toNumber(group.parentOrder?.productSubtotal),
@@ -133,8 +174,14 @@ const mapOrderGroup = (group: any): SellerOrderGroupRecord => ({
           city: group.parentOrder.addressSnapshot.city ?? null,
           state: group.parentOrder.addressSnapshot.state ?? null,
           landmark: group.parentOrder.addressSnapshot.landmark ?? null,
-          latitude: group.parentOrder.addressSnapshot.latitude == null ? null : Number(group.parentOrder.addressSnapshot.latitude),
-          longitude: group.parentOrder.addressSnapshot.longitude == null ? null : Number(group.parentOrder.addressSnapshot.longitude),
+          latitude:
+            group.parentOrder.addressSnapshot.latitude == null
+              ? null
+              : Number(group.parentOrder.addressSnapshot.latitude),
+          longitude:
+            group.parentOrder.addressSnapshot.longitude == null
+              ? null
+              : Number(group.parentOrder.addressSnapshot.longitude),
           isManualAddress: group.parentOrder.addressSnapshot.isManualAddress ?? null,
           isAdminAssisted: group.parentOrder.addressSnapshot.isAdminAssisted ?? null,
         }

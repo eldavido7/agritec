@@ -54,8 +54,12 @@ function ResetPasswordContent() {
       setCompleted(true);
     } catch (resetError) {
       console.error("[Seller Reset Password Page] Reset failed", resetError);
-      toast.error(error || "Unable to reset password");
-      setFormError(error || "Unable to reset password");
+      const message =
+        resetError instanceof Error
+          ? resetError.message
+          : "Unable to reset password";
+      toast.error(message);
+      setFormError(message);
     }
   };
 

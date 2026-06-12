@@ -42,8 +42,12 @@ export default function ForgotPasswordPage() {
       setSubmitted(true);
     } catch (requestError) {
       console.error("[Seller Forgot Password Page] Request failed", requestError);
-      toast.error(error || "Unable to send reset email");
-      setFormError(error || "Unable to send reset email");
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to send reset email";
+      toast.error(message);
+      setFormError(message);
     }
   };
 

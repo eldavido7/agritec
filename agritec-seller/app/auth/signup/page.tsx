@@ -93,9 +93,13 @@ export default function SignUpPage() {
       router.push("/dashboard");
     } catch (signupError) {
       console.error("[Seller Sign-up Page] Sign-up failed", signupError);
-      toast.error(error || "Unable to create seller account.");
+      const message =
+        signupError instanceof Error
+          ? signupError.message
+          : "Unable to create seller account.";
+      toast.error(message);
       setErrors({
-        form: error || "Unable to create seller account.",
+        form: message,
       });
     }
   };

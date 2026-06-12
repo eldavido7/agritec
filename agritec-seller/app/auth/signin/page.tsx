@@ -84,9 +84,13 @@ export default function SignInPage() {
       router.push(nextPath || "/dashboard");
     } catch (signInError) {
       console.error("[Seller Sign-in Page] Sign-in failed", signInError);
-      toast.error(error || "No seller matches those credentials.");
+      const message =
+        signInError instanceof Error
+          ? signInError.message
+          : "No seller matches those credentials.";
+      toast.error(message);
       setErrors({
-        form: error || "No seller matches those credentials.",
+        form: message,
       });
     }
   };
