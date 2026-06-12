@@ -1,10 +1,10 @@
+import 'package:agritec_mobile/features/auth/data/auth_service.dart';
 import 'package:agritec_mobile/features/startup/application/startup_state.dart';
 import 'package:agritec_mobile/core/state/session_refresh.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _onboardingKey = 'buyer_has_onboarded';
-const _sessionKey = 'buyer_mock_session';
 const _guestPromptLastShownKey = 'buyer_guest_prompt_last_shown';
 const _guestPromptInterval = Duration(hours: 12);
 
@@ -17,9 +17,11 @@ class StartupController extends AsyncNotifier<StartupState> {
   @override
   Future<StartupState> build() async {
     final prefs = await SharedPreferences.getInstance();
+    final token = await ref.read(authServiceProvider).readToken();
+    final persistedSession = prefs.getBool(buyerSessionFlagKey) ?? false;
     return StartupState(
       hasOnboarded: prefs.getBool(_onboardingKey) ?? false,
-      isAuthenticated: prefs.getBool(_sessionKey) ?? false,
+      isAuthenticated: persistedSession && token != null && token.trim().isNotEmpty,
     );
   }
 
@@ -38,7 +40,7 @@ class StartupController extends AsyncNotifier<StartupState> {
 
   Future<void> signIn() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_sessionKey, true);
+    await prefs.setBool(buyerSessionFlagKey, true);
     final current = state.asData?.value;
     if (current == null) return;
     state = AsyncData(
@@ -49,7 +51,7 @@ class StartupController extends AsyncNotifier<StartupState> {
 
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_sessionKey, false);
+    await prefs.setBool(buyerSessionFlagKey, false);
     final current = state.asData?.value;
     if (current == null) return;
     state = AsyncData(

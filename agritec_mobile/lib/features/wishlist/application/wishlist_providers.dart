@@ -1,5 +1,6 @@
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
+import 'package:agritec_mobile/features/auth/data/auth_service.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/domain/home_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,13 +11,19 @@ class WishlistNotifier extends Notifier<Set<int>> {
   @override
   Set<int> build() {
     ref.watch(currentBuyerUserIdProvider);
-    _hydrate();
+    ref.watch(buyerAuthTokenProvider);
+    _prime();
     return <int>{};
   }
 
   String _cacheKey() {
     final userId = ref.read(currentBuyerUserIdProvider) ?? 'guest';
     return '$_cacheKeyPrefix-$userId';
+  }
+
+  Future<void> _prime() async {
+    await _hydrate();
+    await refresh();
   }
 
   Future<void> _hydrate() async {
@@ -33,15 +40,70 @@ class WishlistNotifier extends Notifier<Set<int>> {
     await cache.saveJson(_cacheKey(), {'productIds': state.toList()});
   }
 
-  void toggle(int productId) {
+  Future<void> refresh() async {
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.isEmpty) {
+      return;
+    }
+
+    try {
+      final response = await ref.read(mobileApiClientProvider).get(
+        '/api/wishlist',
+        token: token,
+      );
+      final items = response['wishlistItems'];
+      if (items is! List<dynamic>) return;
+      final productIds = <int>{};
+      for (final item in items) {
+        if (item is! Map<String, dynamic>) continue;
+        final productId = int.tryParse('${item['productId'] ?? ''}');
+        productId == null ? null : productIds.add(productId);
+      }
+      state = productIds;
+      await _persist();
+    } catch (_) {}
+  }
+
+  Future<void> toggle(int productId, {String? variantId}) async {
+    final token = ref.read(buyerAuthTokenProvider);
+    final existed = state.contains(productId);
     final next = {...state};
-    if (next.contains(productId)) {
+    if (existed) {
       next.remove(productId);
     } else {
       next.add(productId);
     }
     state = next;
-    _persist();
+    await _persist();
+
+    if (token == null || token.isEmpty) {
+      return;
+    }
+
+    try {
+      if (existed) {
+        await ref.read(mobileApiClientProvider).delete(
+          '/api/wishlist/$productId',
+          token: token,
+          queryParameters: variantId == null ? null : {'variantId': variantId},
+        );
+      } else {
+        await ref.read(mobileApiClientProvider).post(
+          '/api/wishlist/$productId',
+          token: token,
+          data: variantId == null ? {} : {'variantId': variantId},
+        );
+      }
+    } catch (_) {
+      final rollback = {...state};
+      if (existed) {
+        rollback.add(productId);
+      } else {
+        rollback.remove(productId);
+      }
+      state = rollback;
+      await _persist();
+    }
   }
 
   bool contains(int productId) => state.contains(productId);

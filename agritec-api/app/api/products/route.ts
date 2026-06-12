@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
 
     const where = {
       isDeleted: false,
+      seller: { user: { isActive: true } },
       ...(sellerId ? { sellerId } : {}),
       ...(categorySlug ? { categorySlug } : {}),
       ...(search
@@ -37,11 +38,18 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               farmName: true,
+              description: true,
               locationLabel: true,
+              fullAddress: true,
               city: true,
               state: true,
               latitude: true,
               longitude: true,
+              user: {
+                select: {
+                  fullName: true,
+                },
+              },
             },
           },
           variants: true,

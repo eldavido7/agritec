@@ -1,5 +1,5 @@
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
-import 'package:agritec_mobile/features/home/data/home_mock_data.dart';
+import 'package:agritec_mobile/features/auth/data/auth_service.dart';
 import 'package:agritec_mobile/features/home/data/home_repository.dart';
 import 'package:agritec_mobile/features/home/domain/home_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,7 +30,8 @@ class HomeDataState {
 
 final homeRepositoryProvider = FutureProvider<HomeRepository>((ref) async {
   final cache = await ref.watch(localCacheServiceProvider.future);
-  return HomeRepository(cache);
+  final api = ref.read(mobileApiClientProvider);
+  return HomeRepository(cache, api);
 });
 
 class HomeDataNotifier extends Notifier<HomeDataState> {
@@ -38,9 +39,9 @@ class HomeDataNotifier extends Notifier<HomeDataState> {
   HomeDataState build() {
     _hydrate();
     return const HomeDataState(
-      categories: homeCategories,
-      sellers: homeSellers,
-      products: homeFeaturedProducts,
+      categories: <HomeCategory>[],
+      sellers: <HomeSeller>[],
+      products: <HomeProduct>[],
     );
   }
 
@@ -78,7 +79,8 @@ final homeSellersProvider = Provider<List<HomeSeller>>((ref) {
 });
 
 final homeSellerByIdProvider = Provider.family<HomeSeller, String>((ref, id) {
-  return homeSellers.firstWhere(
+  final sellers = ref.watch(homeSellersProvider);
+  return sellers.firstWhere(
     (seller) => seller.id == id,
     orElse: () => const HomeSeller(
       id: 'unknown',

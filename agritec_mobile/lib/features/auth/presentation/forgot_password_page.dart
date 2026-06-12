@@ -1,22 +1,26 @@
+import 'package:agritec_mobile/core/api/mobile_api.dart';
 import 'package:agritec_mobile/core/constants/app_assets.dart';
+import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class ForgotPasswordPage extends StatefulWidget {
+class ForgotPasswordPage extends ConsumerStatefulWidget {
   const ForgotPasswordPage({super.key});
 
   static const routeName = 'forgot-password';
   static const routePath = '/forgot-password';
 
   @override
-  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
+  ConsumerState<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
 }
 
-class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
+class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   bool _submitting = false;
   bool _sent = false;
+  String? _successMessage;
 
   @override
   void dispose() {
@@ -26,13 +30,36 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _submitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 650));
-    if (!mounted) return;
     setState(() {
-      _submitting = false;
-      _sent = true;
+      _submitting = true;
+      _sent = false;
+      _successMessage = null;
     });
+
+    try {
+      await ref
+          .read(localAuthProvider.notifier)
+          .forgotPassword(email: _emailController.text.trim());
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _sent = true;
+        _successMessage =
+            'If that email exists in our system, a password reset link has been sent.';
+      });
+    } on MobileApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to send reset email right now. Try again.')),
+      );
+    }
   }
 
   @override
@@ -107,9 +134,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                               color: const Color(0xFFE7F7F1),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Text(
-                              'Reset instructions sent (mock). Check your inbox.',
-                              style: TextStyle(
+                            child: Text(
+                              _successMessage ??
+                                  'If that email exists in our system, a password reset link has been sent.',
+                              style: const TextStyle(
                                 color: Color(0xFF145A46),
                                 fontWeight: FontWeight.w600,
                               ),

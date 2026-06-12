@@ -101,7 +101,7 @@ class HomeProduct {
   final String? discountLabel;
   final LogisticsMetadata logistics;
 
-  String get imageUrl => images.first;
+  String get imageUrl => images.isEmpty ? '' : images.first;
   String get salesUnitLabel => logistics.salesUnit.label;
 
   Map<String, dynamic> toJson() => {

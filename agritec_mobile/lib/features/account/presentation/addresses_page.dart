@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:agritec_mobile/core/maps/google_places_service.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
@@ -514,7 +514,9 @@ class AddressesPage extends ConsumerWidget {
                                 if (labelController.text.trim().isEmpty ||
                                     fullAddressController.text.trim().isEmpty ||
                                     lat == null ||
-                                    lng == null) {
+                                    lng == null ||
+                                    selectedCity == null ||
+                                    selectedState == null) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
@@ -579,6 +581,7 @@ class AddressesPage extends ConsumerWidget {
     mapController?.dispose();
   }
 }
+
 
 
 

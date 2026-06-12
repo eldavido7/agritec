@@ -1,5 +1,6 @@
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
+import 'package:agritec_mobile/features/auth/data/auth_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum BuyerNotificationType { order, message, promo, system }
@@ -59,20 +60,57 @@ class BuyerNotification {
 
   factory BuyerNotification.fromJson(Map<String, dynamic> json) {
     return BuyerNotification(
-      id: json['id'] as String,
+      id: '${json['id']}',
       type: BuyerNotificationType.values.firstWhere(
         (type) => type.name == json['type'],
         orElse: () => BuyerNotificationType.system,
       ),
-      title: json['title'] as String,
-      body: json['body'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      title: '${json['title'] ?? ''}',
+      body: '${json['body'] ?? ''}',
+      createdAt: DateTime.parse('${json['createdAt']}'),
       read: json['read'] as bool? ?? false,
       buyerUserId: (json['buyerUserId'] as String?) ?? 'buyer-demo-1',
       relatedOrderId: json['relatedOrderId'] as String?,
       relatedSellerId: json['relatedSellerId'] as String?,
       relatedConversationId: json['relatedConversationId'] as String?,
     );
+  }
+
+  factory BuyerNotification.fromApiJson(Map<String, dynamic> json, String buyerUserId) {
+    final metadata = json['metadata'] is Map
+        ? Map<String, dynamic>.from(json['metadata'] as Map)
+        : const <String, dynamic>{};
+    final targetType = '${json['targetType'] ?? ''}';
+    final targetId = json['targetId']?.toString();
+    return BuyerNotification(
+      id: '${json['id']}',
+      type: _typeFromApi('${json['type'] ?? ''}'),
+      title: '${json['title'] ?? ''}',
+      body: '${json['body'] ?? ''}',
+      createdAt: DateTime.tryParse('${json['createdAt'] ?? ''}') ?? DateTime.now(),
+      read: json['isRead'] as bool? ?? false,
+      buyerUserId: buyerUserId,
+      relatedOrderId: targetType == 'parentOrder'
+          ? targetId
+          : metadata['parentOrderId']?.toString(),
+      relatedSellerId: metadata['sellerId']?.toString(),
+      relatedConversationId: targetType == 'conversation'
+          ? targetId
+          : metadata['conversationId']?.toString(),
+    );
+  }
+}
+
+BuyerNotificationType _typeFromApi(String value) {
+  switch (value.toUpperCase()) {
+    case 'ORDER':
+      return BuyerNotificationType.order;
+    case 'MESSAGE':
+      return BuyerNotificationType.message;
+    case 'PROMO':
+      return BuyerNotificationType.promo;
+    default:
+      return BuyerNotificationType.system;
   }
 }
 
@@ -82,8 +120,9 @@ class NotificationsNotifier extends Notifier<List<BuyerNotification>> {
   @override
   List<BuyerNotification> build() {
     ref.watch(currentBuyerUserIdProvider);
-    _hydrate();
-    return _seedNotificationsForCurrentUser();
+    ref.watch(buyerAuthTokenProvider);
+    _prime();
+    return const [];
   }
 
   String _cacheKey() {
@@ -91,10 +130,9 @@ class NotificationsNotifier extends Notifier<List<BuyerNotification>> {
     return '$_cacheKeyPrefix-$userId';
   }
 
-  List<BuyerNotification> _seedNotificationsForCurrentUser() {
-    final userId = ref.read(currentBuyerUserIdProvider);
-    if (userId == 'buyer-demo-1') return _mockNotifications;
-    return const [];
+  Future<void> _prime() async {
+    await _hydrate();
+    await refresh();
   }
 
   Future<void> _hydrate() async {
@@ -112,27 +150,73 @@ class NotificationsNotifier extends Notifier<List<BuyerNotification>> {
   Future<void> _persist() async {
     final cache = await ref.read(localCacheServiceProvider.future);
     await cache.saveJson(_cacheKey(), {
-      'notifications': state
-          .map((notification) => notification.toJson())
-          .toList(),
+      'notifications': state.map((notification) => notification.toJson()).toList(),
     });
   }
 
-  void markRead(String id) {
-    state = [
-      for (final notification in state)
-        notification.id == id
-            ? notification.copyWith(read: true)
-            : notification,
-    ];
-    _persist();
+  Future<void> refresh() async {
+    final token = ref.read(buyerAuthTokenProvider);
+    final userId = ref.read(currentBuyerUserIdProvider);
+    if (token == null || token.isEmpty || userId == null) {
+      return;
+    }
+
+    try {
+      final response = await ref.read(mobileApiClientProvider).get(
+        '/api/notifications',
+        token: token,
+        queryParameters: const {'page': 1, 'pageSize': 50},
+      );
+      final items = response['notifications'];
+      if (items is! List<dynamic>) return;
+      state = [
+        for (final item in items)
+          if (item is Map<String, dynamic>)
+            BuyerNotification.fromApiJson(item, userId),
+      ];
+      await _persist();
+    } catch (_) {}
   }
 
-  void markAllRead() {
+  Future<void> markRead(String id) async {
+    final previous = state;
+    state = [
+      for (final notification in state)
+        notification.id == id ? notification.copyWith(read: true) : notification,
+    ];
+    await _persist();
+
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.isEmpty) return;
+    try {
+      await ref.read(mobileApiClientProvider).patch(
+        '/api/notifications/$id/read',
+        token: token,
+      );
+    } catch (_) {
+      state = previous;
+      await _persist();
+    }
+  }
+
+  Future<void> markAllRead() async {
+    final previous = state;
     state = [
       for (final notification in state) notification.copyWith(read: true),
     ];
-    _persist();
+    await _persist();
+
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.isEmpty) return;
+    try {
+      await ref.read(mobileApiClientProvider).patch(
+        '/api/notifications/read-all',
+        token: token,
+      );
+    } catch (_) {
+      state = previous;
+      await _persist();
+    }
   }
 }
 
@@ -147,38 +231,3 @@ final unreadNotificationsCountProvider = Provider<int>((ref) {
       .where((notification) => !notification.read)
       .length;
 });
-
-final _mockNotifications = <BuyerNotification>[
-  BuyerNotification(
-    id: 'buyer-notif-1',
-    type: BuyerNotificationType.order,
-    title: 'Order update',
-    body: 'Your Kingsley Family Farm order is ready for dispatch.',
-    createdAt: DateTime(2026, 5, 31, 10, 30),
-    read: false,
-    buyerUserId: 'buyer-demo-1',
-    relatedOrderId: 'buyer-order-3001',
-    relatedSellerId: 'seller-kingsley',
-  ),
-  BuyerNotification(
-    id: 'buyer-notif-2',
-    type: BuyerNotificationType.message,
-    title: 'New seller message',
-    body: 'A seller replied to your product question.',
-    createdAt: DateTime(2026, 5, 31, 9, 45),
-    read: false,
-    buyerUserId: 'buyer-demo-1',
-    relatedSellerId: 'seller-amina',
-    relatedConversationId: 'conv-seller-amina',
-  ),
-  BuyerNotification(
-    id: 'buyer-notif-3',
-    type: BuyerNotificationType.promo,
-    title: 'Discount available',
-    body: 'Use RICE15 at checkout for eligible rice products.',
-    createdAt: DateTime(2026, 5, 30, 16, 20),
-    read: true,
-    buyerUserId: 'buyer-demo-1',
-    relatedSellerId: 'seller-kingsley',
-  ),
-];

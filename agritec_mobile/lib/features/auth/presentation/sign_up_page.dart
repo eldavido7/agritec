@@ -1,3 +1,4 @@
+import 'package:agritec_mobile/core/api/mobile_api.dart';
 import 'package:agritec_mobile/core/constants/app_assets.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
@@ -41,33 +42,35 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    final user = await ref
-        .read(localAuthProvider.notifier)
-        .register(
-          fullName: _nameController.text.trim(),
-          email: _emailController.text.trim(),
-          phone: _phoneController.text.trim(),
-          password: _passwordController.text,
-        );
-    if (user == null) {
-      if (mounted && context.mounted) {
-        setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email already exists. Sign in instead.')),
-        );
-      }
-      return;
+    try {
+      await ref.read(localAuthProvider.notifier).register(
+        fullName: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        password: _passwordController.text,
+      );
+      await ref.read(startupControllerProvider.notifier).signIn();
+      if (!mounted || !context.mounted) return;
+      setState(() => _submitting = false);
+      await _showSuccessDialog(
+        title: 'Account Created',
+        message: 'Your account has been created successfully. Continue to start shopping.',
+      );
+      if (!mounted || !context.mounted) return;
+      context.go(MainShellPage.routePath);
+    } on MobileApiException catch (error) {
+      if (!mounted || !context.mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted || !context.mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to create your account right now. Try again.')),
+      );
     }
-    await ref.read(startupControllerProvider.notifier).signIn();
-    if (!mounted || !context.mounted) return;
-    setState(() => _submitting = false);
-    await _showSuccessDialog(
-      title: 'Account Created',
-      message: 'Your account has been created successfully. Continue to start shopping.',
-    );
-    if (!mounted || !context.mounted) return;
-    context.go(MainShellPage.routePath);
   }
 
   Future<void> _showSuccessDialog({
@@ -267,14 +270,15 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                                   controller: _phoneController,
                                   keyboardType: TextInputType.phone,
                                   decoration: _fieldDecoration(
-                                    hintText: '+234 800 000 0000',
+                                    hintText: '+234 800 000 0000 (optional)',
                                     leading: CupertinoIcons.phone,
                                   ),
                                   validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Phone is required';
+                                    final trimmed = value?.trim() ?? '';
+                                    if (trimmed.isEmpty) {
+                                      return null;
                                     }
-                                    if (value.trim().length < 10) {
+                                    if (trimmed.length < 10) {
                                       return 'Enter a valid phone number';
                                     }
                                     return null;
@@ -466,7 +470,7 @@ class _AuthHero extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF1A5C38)),
       child: Stack(
         clipBehavior: Clip.none,
-        alignment: Alignment.center, // Keeps everything centralized
+        alignment: Alignment.center,
         children: [
           Positioned(
             right: -40,
@@ -499,13 +503,11 @@ class _AuthHero extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                 width: 140,
+                  width: 140,
                   height: 80,
                   decoration: BoxDecoration(
                     color: const Color(0xFFF3FAF6),
-                    borderRadius: BorderRadius.circular(
-                      20,
-                    ), // Reverted to original radius
+                    borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.12),
@@ -514,12 +516,10 @@ class _AuthHero extends StatelessWidget {
                       ),
                     ],
                   ),
-                  padding: EdgeInsets.zero, // Keep padding at zero
-                  clipBehavior: Clip
-                      .hardEdge, // Prevents the scaled image from breaking the rounded corners
+                  padding: EdgeInsets.zero,
+                  clipBehavior: Clip.hardEdge,
                   child: Transform.scale(
-                    scale:
-                        1.60, // Adjust this number (e.g., 1.2, 1.5) to make the logo exactly as big as you want
+                    scale: 1.60,
                     child: Image.asset(AppAssets.logo, fit: BoxFit.contain),
                   ),
                 ),
@@ -664,3 +664,4 @@ class _AuthTabs extends StatelessWidget {
     );
   }
 }
+

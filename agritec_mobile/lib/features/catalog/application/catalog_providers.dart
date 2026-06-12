@@ -40,9 +40,12 @@ final catalogSortProvider =
       CatalogSortNotifier.new,
     );
 
-final catalogCategoriesProvider = Provider<List<PlatformCategory>>(
-  (ref) => platformCategories,
-);
+final catalogCategoriesProvider = Provider<List<PlatformCategory>>((ref) {
+  final homeCategories = ref.watch(homeCategoriesProvider);
+  return homeCategories
+      .map((category) => PlatformCategory(slug: category.slug, label: category.name))
+      .toList();
+});
 
 final filteredCatalogProductsProvider = Provider<List<HomeProduct>>((ref) {
   final products = ref.watch(homeFeaturedProductsProvider);

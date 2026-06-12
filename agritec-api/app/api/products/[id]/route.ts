@@ -13,6 +13,7 @@ export async function GET(
       where: {
         id,
         isDeleted: false,
+        seller: { user: { isActive: true } },
       },
       include: {
         category: true,
@@ -27,6 +28,11 @@ export async function GET(
             state: true,
             latitude: true,
             longitude: true,
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
           },
         },
         variants: true,

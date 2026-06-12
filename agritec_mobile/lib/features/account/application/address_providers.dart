@@ -1,5 +1,6 @@
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
+import 'package:agritec_mobile/features/auth/data/auth_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class BuyerAddress {
@@ -89,19 +90,29 @@ class BuyerAddress {
   };
 
   factory BuyerAddress.fromJson(Map<String, dynamic> json) {
+    final displayName = (json['displayName'] as String?)?.trim();
+    final addressLine = (json['addressLine'] as String?)?.trim();
+    final fullAddress = '${json['fullAddress'] ?? ''}'.trim();
     return BuyerAddress(
-      id: json['id'] as String,
-      label: json['label'] as String,
-      displayName:
-          (json['displayName'] as String?) ?? (json['fullAddress'] as String),
-      fullAddress: json['fullAddress'] as String,
-      addressLine: json['addressLine'] as String?,
+      id: '${json['id']}',
+      label: displayName?.isNotEmpty == true
+          ? displayName!
+          : addressLine?.isNotEmpty == true
+              ? addressLine!
+              : fullAddress,
+      displayName: displayName?.isNotEmpty == true
+          ? displayName!
+          : addressLine?.isNotEmpty == true
+              ? addressLine!
+              : fullAddress,
+      fullAddress: fullAddress,
+      addressLine: addressLine,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
       city: json['city'] as String?,
       state: json['state'] as String?,
       landmark: json['landmark'] as String?,
-      createdByRole: json['createdByRole'] as String? ?? 'buyer',
+      createdByRole: '${json['createdByRole'] ?? 'buyer'}'.toLowerCase(),
       isManualAddress: json['isManualAddress'] as bool? ?? false,
       isAdminAssisted: json['isAdminAssisted'] as bool? ?? false,
       isDefault: json['isDefault'] as bool? ?? false,
@@ -115,59 +126,19 @@ class AddressBookNotifier extends Notifier<List<BuyerAddress>> {
   @override
   List<BuyerAddress> build() {
     ref.watch(currentBuyerUserIdProvider);
-    _hydrate();
-    final userId = ref.read(currentBuyerUserIdProvider);
-    if (userId == 'buyer-demo-1') {
-      return const [
-        BuyerAddress(
-          id: 'addr-demo-1',
-          label: 'Home',
-          displayName: 'Ikate Elegushi, Lekki',
-          fullAddress: '22 Freedom Way, Lekki Phase 1, Lagos',
-          addressLine: '22 Freedom Way',
-          latitude: 6.4429,
-          longitude: 3.4851,
-          city: 'Lagos',
-          state: 'Lagos',
-          landmark: 'Near The Lennox Mall',
-          isDefault: true,
-        ),
-        BuyerAddress(
-          id: 'addr-demo-2',
-          label: 'Old Office',
-          displayName: 'Ikeja Computer Village',
-          fullAddress: '2 Otigba Street, Ikeja, Lagos',
-          addressLine: '2 Otigba Street',
-          city: 'Lagos',
-          state: 'Lagos',
-          landmark: 'Near Slot Store',
-          createdByRole: 'admin',
-          isManualAddress: true,
-          isAdminAssisted: true,
-          isDefault: false,
-        ),
-      ];
-    }
-    return const [
-      BuyerAddress(
-        id: 'addr-1',
-        label: 'Home',
-        displayName: 'Circle Mall Area, Lekki',
-        fullAddress: '4 Admiralty Way, Lekki Phase 1, Lagos',
-        addressLine: '4 Admiralty Way',
-        latitude: 6.4365,
-        longitude: 3.4698,
-        city: 'Lagos',
-        state: 'Lagos',
-        landmark: 'Near Circle Mall',
-        isDefault: true,
-      ),
-    ];
+    ref.watch(buyerAuthTokenProvider);
+    _prime();
+    return const [];
   }
 
   String _cacheKey() {
     final userId = ref.read(currentBuyerUserIdProvider) ?? 'guest';
     return '$_cacheKeyPrefix-$userId';
+  }
+
+  Future<void> _prime() async {
+    await _hydrate();
+    await refresh();
   }
 
   Future<void> _hydrate() async {
@@ -193,47 +164,182 @@ class AddressBookNotifier extends Notifier<List<BuyerAddress>> {
     });
   }
 
-  void setDefault(String addressId) {
+  Future<void> refresh() async {
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.isEmpty) {
+      return;
+    }
+
+    try {
+      final response = await ref.read(mobileApiClientProvider).get(
+        '/api/buyer/addresses',
+        token: token,
+      );
+      final items = response['addresses'];
+      if (items is! List<dynamic>) return;
+      state = [
+        for (final item in items)
+          if (item is Map<String, dynamic>) BuyerAddress.fromJson(item),
+      ];
+      await _persist();
+    } catch (_) {}
+  }
+
+  Future<void> setDefault(String addressId) async {
+    final previous = state;
     state = [
       for (final address in state)
         address.copyWith(isDefault: address.id == addressId),
     ];
-    _persist();
+    await _persist();
+
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.isEmpty) return;
+    try {
+      final response = await ref.read(mobileApiClientProvider).patch(
+        '/api/buyer/addresses/$addressId',
+        token: token,
+        data: {'isDefault': true},
+      );
+      final json = response['address'];
+      if (json is Map<String, dynamic>) {
+        final updated = BuyerAddress.fromJson(json);
+        state = [
+          for (final address in state)
+            address.id == updated.id
+                ? updated
+                : address.copyWith(isDefault: false),
+        ];
+        await _persist();
+      }
+    } catch (_) {
+      state = previous;
+      await _persist();
+    }
   }
 
-  void addAddress(BuyerAddress address) {
-    final hasDefault = state.any((item) => item.isDefault);
-    final normalized = hasDefault ? address : address.copyWith(isDefault: true);
-    state = [normalized, ...state];
-    _persist();
+  Future<void> addAddress(BuyerAddress address) async {
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.isEmpty) {
+      final hasDefault = state.any((item) => item.isDefault);
+      state = [hasDefault ? address : address.copyWith(isDefault: true), ...state];
+      await _persist();
+      return;
+    }
+
+    try {
+      final response = await ref.read(mobileApiClientProvider).post(
+        '/api/buyer/addresses',
+        token: token,
+        data: {
+          'displayName': address.label,
+          'addressLine': address.addressLine ?? address.fullAddress.split(',').first.trim(),
+          'fullAddress': address.fullAddress,
+          'city': address.city,
+          'state': address.state,
+          'landmark': address.landmark,
+          'latitude': address.latitude,
+          'longitude': address.longitude,
+          'isDefault': address.isDefault,
+          'isManualAddress': address.isManualAddress,
+          'isAdminAssisted': address.isAdminAssisted,
+        },
+      );
+      final json = response['address'];
+      if (json is Map<String, dynamic>) {
+        final created = BuyerAddress.fromJson(json);
+        final next = [
+          if (created.isDefault)
+            ...state.map((item) => item.copyWith(isDefault: false)),
+          created,
+          if (!created.isDefault) ...state,
+        ];
+        state = next;
+        await _persist();
+      }
+    } catch (_) {}
   }
 
-  void updateAddress(BuyerAddress updated) {
+  Future<void> updateAddress(BuyerAddress updated) async {
+    final previous = state;
     state = [
       for (final address in state)
         if (address.id == updated.id) updated else address,
     ];
-    _persist();
+    if (updated.isDefault) {
+      state = [
+        for (final address in state)
+          address.id == updated.id
+              ? address.copyWith(isDefault: true)
+              : address.copyWith(isDefault: false),
+      ];
+    }
+    await _persist();
+
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.isEmpty) return;
+    try {
+      final response = await ref.read(mobileApiClientProvider).patch(
+        '/api/buyer/addresses/${updated.id}',
+        token: token,
+        data: {
+          'displayName': updated.label,
+          'addressLine': updated.addressLine ?? updated.fullAddress.split(',').first.trim(),
+          'fullAddress': updated.fullAddress,
+          'city': updated.city,
+          'state': updated.state,
+          'landmark': updated.landmark,
+          'latitude': updated.latitude,
+          'longitude': updated.longitude,
+          'isDefault': updated.isDefault,
+        },
+      );
+      final json = response['address'];
+      if (json is Map<String, dynamic>) {
+        final serverUpdated = BuyerAddress.fromJson(json);
+        state = [
+          for (final address in state)
+            address.id == serverUpdated.id
+                ? serverUpdated
+                : serverUpdated.isDefault
+                    ? address.copyWith(isDefault: false)
+                    : address,
+        ];
+        await _persist();
+      }
+    } catch (_) {
+      state = previous;
+      await _persist();
+    }
   }
 
-  void deleteAddress(String addressId) {
+  Future<void> deleteAddress(String addressId) async {
+    final previous = state;
     final removedDefault = state.any((a) => a.id == addressId && a.isDefault);
     final next = state.where((a) => a.id != addressId).toList();
     if (next.isEmpty) {
       state = next;
-      _persist();
-      return;
-    }
-    if (removedDefault) {
+    } else if (removedDefault) {
       state = [
         next.first.copyWith(isDefault: true),
         ...next.skip(1).map((a) => a.copyWith(isDefault: false)),
       ];
-      _persist();
-      return;
+    } else {
+      state = next;
     }
-    state = next;
-    _persist();
+    await _persist();
+
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.isEmpty) return;
+    try {
+      await ref.read(mobileApiClientProvider).delete(
+        '/api/buyer/addresses/$addressId',
+        token: token,
+      );
+    } catch (_) {
+      state = previous;
+      await _persist();
+    }
   }
 }
 
@@ -249,4 +355,3 @@ final defaultAddressProvider = Provider<BuyerAddress?>((ref) {
   }
   return null;
 });
-

@@ -4,6 +4,15 @@ export function decimalToNumber(value: Prisma.Decimal | null | undefined) {
   return value == null ? null : Number(value);
 }
 
+export function serializePublicSeller(seller: any) {
+  return {
+    ...seller,
+    ownerName: seller.user?.fullName ?? null,
+    latitude: decimalToNumber(seller.latitude),
+    longitude: decimalToNumber(seller.longitude),
+  };
+}
+
 export function serializeProduct(product: any) {
   return {
     ...product,
@@ -11,13 +20,7 @@ export function serializeProduct(product: any) {
     unitLengthCm: decimalToNumber(product.unitLengthCm),
     unitWidthCm: decimalToNumber(product.unitWidthCm),
     unitHeightCm: decimalToNumber(product.unitHeightCm),
-    seller: product.seller
-      ? {
-          ...product.seller,
-          latitude: decimalToNumber(product.seller.latitude),
-          longitude: decimalToNumber(product.seller.longitude),
-        }
-      : undefined,
+    seller: product.seller ? serializePublicSeller(product.seller) : undefined,
     variants: Array.isArray(product.variants)
       ? product.variants.map((variant: any) => ({
           ...variant,

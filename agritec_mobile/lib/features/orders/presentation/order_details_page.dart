@@ -1,4 +1,4 @@
-﻿import 'dart:ui' as ui;
+import 'dart:ui' as ui;
 
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
@@ -15,7 +15,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-class OrderDetailsPage extends ConsumerWidget {
+class OrderDetailsPage extends ConsumerStatefulWidget {
   const OrderDetailsPage({super.key, required this.orderId});
 
   static const routeName = 'order-details';
@@ -23,7 +23,14 @@ class OrderDetailsPage extends ConsumerWidget {
   final String orderId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrderDetailsPage> createState() => _OrderDetailsPageState();
+}
+
+class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
+  bool _requestedRemote = false;
+
+  @override
+  Widget build(BuildContext context) {
     void handleBack() {
       final nav = Navigator.of(context);
       if (nav.canPop()) {
@@ -41,10 +48,17 @@ class OrderDetailsPage extends ConsumerWidget {
         onBack: handleBack,
       );
     }
-    final order = ref.watch(orderByIdProvider(orderId));
+
+    final order = ref.watch(orderByIdProvider(widget.orderId));
+    if (order == null && !_requestedRemote) {
+      _requestedRemote = true;
+      Future.microtask(() => ref.read(ordersProvider.notifier).fetchOrderById(widget.orderId));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     if (order == null) {
       return Scaffold(body: Center(child: Text(ref.tr('orderDetails.notFound'))));
     }
+
     final hasBuyerCoords = order.buyerAddress.latitude != null && order.buyerAddress.longitude != null;
     final buyerPoint = hasBuyerCoords ? LatLng(order.buyerAddress.latitude!, order.buyerAddress.longitude!) : null;
     final money = NumberFormat.currency(locale: 'en_NG', symbol: 'NGN ', decimalDigits: 0);
@@ -219,16 +233,6 @@ class _SellerGroupCard extends ConsumerWidget {
             _infoLine(ref.tr('orderDetails.deliveryRegion'), group.shippingQuote.deliveryRegion),
             _infoLine(ref.tr('orderDetails.shippingFee'), currency.format(group.shippingFee)),
             _infoLine(ref.tr('orderDetails.actualWeight'), '${group.shippingQuote.totalActualWeightKg.toStringAsFixed(1)} kg'),
-            if (group.shippingQuote.usedVolumetricWeight && group.shippingQuote.totalVolumetricWeightKg != null)
-              _infoLine(ref.tr('orderDetails.volumetricWeight'), '${group.shippingQuote.totalVolumetricWeightKg!.toStringAsFixed(1)} kg'),
-            if (!group.shippingQuote.usedVolumetricWeight)
-              Padding(
-                padding: const EdgeInsets.only(top: 2, bottom: 4),
-                child: Text(
-                  ref.tr('orderDetails.actualWeightOnly'),
-                  style: TextStyle(color: Color(0xFF65706B), fontSize: 12),
-                ),
-              ),
             _infoLine(ref.tr('orderDetails.chargeableWeight'), '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg'),
             _infoLine(ref.tr('orderDetails.weightUnitSize'), '${group.shippingQuote.weightUnitSizeKg.toStringAsFixed(1)} kg'),
             _infoLine(ref.tr('orderDetails.minimumFee'), currency.format(group.shippingQuote.minimumFee)),
@@ -468,4 +472,3 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
-

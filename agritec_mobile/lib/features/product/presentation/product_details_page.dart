@@ -1,4 +1,4 @@
-﻿import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
+import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
@@ -43,7 +43,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
       productId: product.id,
       variantId: selectedVariant?.id,
     )));
-    final cart = ref.watch(cartProvider);
+    final cart = ref.watch(cartProvider).quantities;
     final authenticated = isBuyerAuthenticated(ref);
     final relatedProducts = products
         .where(
@@ -188,7 +188,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${seller.farmName} â€¢ ${product.category}',
+                        '${seller.farmName} • ${product.category}',
                         style: const TextStyle(color: Color(0xFF5C6862)),
                       ),
                       const SizedBox(height: 10),
@@ -277,7 +277,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       ),
                     ),
                     title: Text(seller.farmName),
-                    subtitle: Text('${seller.name} â€¢ ${seller.location}'),
+                    subtitle: Text('${seller.name} • ${seller.location}'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

@@ -1,20 +1,17 @@
-﻿import 'dart:async';
+import 'dart:async';
 
-import 'package:agritec_mobile/core/logistics/logistics_models.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
-import 'package:agritec_mobile/core/localization/localized_text.dart';
-import 'package:agritec_mobile/core/logistics/shipping_calculator.dart';
 import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
+import 'package:agritec_mobile/features/checkout/application/checkout_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
-import 'package:agritec_mobile/features/orders/application/order_providers.dart';
 import 'package:agritec_mobile/features/orders/presentation/order_details_page.dart';
-import 'package:agritec_mobile/features/product/application/product_details_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CheckoutPage extends ConsumerStatefulWidget {
   const CheckoutPage({super.key});
@@ -30,10 +27,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   String _discountCodeInput = '';
   String? _appliedDiscountCode;
   String? _discountMessage;
-  bool _isValidatingDiscount = false;
-  bool _isPaying = false;
   String? _selectedAddressId;
-  Map<String, int> _discountsBySeller = const {};
+  String? _lastQuoteKey;
 
   void _handleBack() {
     final nav = Navigator.of(context);
@@ -55,6 +50,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       );
     }
 
+    final cartState = ref.watch(cartProvider);
     final groups = ref.watch(cartGroupsProvider);
     if (groups.isEmpty) {
       return Scaffold(body: Center(child: Text(ref.tr('checkout.empty'))));
@@ -72,18 +68,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     }
     address ??= defaultAddress;
 
-    final shippingQuotes = <String, ShippingQuote>{};
-    for (final group in groups) {
-      shippingQuotes[group.sellerId] = calculatePlatformShippingQuote(
-        items: group.items,
-        buyerAddress: address,
-      );
-    }
+    final checkoutState = ref.watch(checkoutProvider);
+    final quote = checkoutState.quote;
+    _queueQuoteRefreshIfNeeded(address, groups, checkoutState);
 
-    final productSubtotal = groups.fold(0, (sum, group) => sum + group.sellerTotal);
-    final totalShippingFee = shippingQuotes.values.fold(0, (sum, quote) => sum + quote.shippingFee);
-    final discountTotal = _discountsBySeller.values.fold(0, (sum, value) => sum + value);
-    final grandTotal = productSubtotal + totalShippingFee - discountTotal;
     final money = NumberFormat.currency(locale: 'en_NG', symbol: 'NGN ', decimalDigits: 0);
 
     return PopScope(
@@ -128,7 +116,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
-                          trFormat(ref, 'checkout.selectedAddress', {'address': address.fullAddress}),
+                          address.fullAddress,
                           softWrap: true,
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
@@ -151,22 +139,19 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                             ),
                           ),
                       ],
-                      onChanged: (value) => setState(() => _selectedAddressId = value),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedAddressId = value;
+                          _lastQuoteKey = null;
+                        });
+                        ref.read(checkoutProvider.notifier).clearQuote();
+                      },
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 10),
-            for (final group in groups) ...[
-              _SellerCheckoutCard(
-                group: group,
-                shippingQuote: shippingQuotes[group.sellerId]!,
-                discountAmount: _discountsBySeller[group.sellerId] ?? 0,
-                currency: money,
-              ),
-              const SizedBox(height: 10),
-            ],
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
@@ -181,47 +166,73 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 ),
                 onChanged: (value) => setState(() {
                   _discountCodeInput = value;
-                  _discountsBySeller = const {};
-                  _appliedDiscountCode = null;
                   _discountMessage = null;
                 }),
               ),
             ),
             const SizedBox(height: 8),
             OutlinedButton(
-              onPressed: _isValidatingDiscount ? null : () => _applyDiscount(groups),
-              child: Text(_isValidatingDiscount ? ref.tr('checkout.validating') : ref.tr('checkout.applyCoupon')),
+              onPressed: checkoutState.isLoadingQuote || address == null
+                  ? null
+                  : () => _applyDiscount(address!.id),
+              child: Text(
+                checkoutState.isLoadingQuote
+                    ? ref.tr('checkout.validating')
+                    : ref.tr('checkout.applyCoupon'),
+              ),
             ),
             if (_discountMessage != null) ...[
               const SizedBox(height: 6),
               Text(
                 _discountMessage!,
                 style: TextStyle(
-                  color: discountTotal > 0 ? const Color(0xFF0D8A66) : const Color(0xFFB15F00),
+                  color: (quote?.discountTotal ?? 0) > 0
+                      ? const Color(0xFF0D8A66)
+                      : const Color(0xFFB15F00),
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ],
             const SizedBox(height: 10),
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    _line(ref.tr('checkout.overallProductSubtotal'), money.format(productSubtotal)),
-                    _line(ref.tr('checkout.totalShippingFee'), money.format(totalShippingFee)),
-                    _line(
-                      '${ref.tr('checkout.discountTotal')}${_appliedDiscountCode != null ? ' ($_appliedDiscountCode)' : ''}',
-                      '- ${money.format(discountTotal)}',
-                    ),
-                    const Divider(),
-                    _line(ref.tr('checkout.finalTotalPayable'), money.format(grandTotal), bold: true),
-                  ],
+            if (checkoutState.error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  checkoutState.error!,
+                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
                 ),
               ),
-            ),
+            if (checkoutState.isLoadingQuote && quote == null)
+              const Center(child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: CircularProgressIndicator(),
+              ))
+            else if (quote != null) ...[
+              for (final group in quote.sellerGroups) ...[
+                _SellerCheckoutCard(group: group, currency: money),
+                const SizedBox(height: 10),
+              ],
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      _line(ref.tr('checkout.overallProductSubtotal'), money.format(quote.productSubtotal)),
+                      _line(ref.tr('checkout.totalShippingFee'), money.format(quote.totalShippingFee)),
+                      _line(
+                        '${ref.tr('checkout.discountTotal')}${_appliedDiscountCode != null ? ' ($_appliedDiscountCode)' : ''}',
+                        '- ${money.format(quote.discountTotal)}',
+                      ),
+                      const Divider(),
+                      _line(ref.tr('checkout.finalTotalPayable'), money.format(quote.grandTotal), bold: true),
+                    ],
+                  ),
+                ),
+              ),
+            ] else
+              const SizedBox.shrink(),
             const SizedBox(height: 16),
             SizedBox(
               height: 52,
@@ -231,137 +242,185 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                onPressed: _isPaying || address == null
+                onPressed: checkoutState.isInitializing || checkoutState.isVerifying || address == null || quote == null
                     ? null
-                    : () async {
-                        setState(() => _isPaying = true);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(ref.tr('checkout.waitingPayment'))),
-                        );
-                        await Future<void>.delayed(const Duration(seconds: 2));
-                        if (!mounted) return;
-                        final order = ref.read(ordersProvider.notifier).createOrder(
-                              groups: groups,
-                              buyerAddress: address!,
-                              shippingQuotes: shippingQuotes,
-                              discountsBySeller: _discountsBySeller,
-                              discountCode: _appliedDiscountCode,
-                            );
-                        ref.read(cartProvider.notifier).clear();
-                        setState(() => _isPaying = false);
-                        if (!context.mounted) return;
-                        await showDialog<void>(
-                          context: context,
-                          builder: (context) => Dialog(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const CircleAvatar(
-                                    radius: 24,
-                                    backgroundColor: Color(0xFFE4F4EC),
-                                    child: Icon(Icons.check_circle_rounded, size: 30, color: Color(0xFF136A43)),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    'Payment Successful',
-                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    ref.tr('checkout.paymentSuccessBody'),
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(color: Color(0xFF65706B)),
-                                  ),
-                                  const SizedBox(height: 14),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () => Navigator.of(context).pop(),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF136A43),
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                      ),
-                                      child: Text(ref.tr('checkout.viewOrder')),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                        if (!context.mounted) return;
-                        context.pushNamed(OrderDetailsPage.routeName, pathParameters: {'orderId': order.id});
-                      },
-                child: Text(_isPaying ? ref.tr('checkout.confirmingPayment') : ref.tr('checkout.confirmPayOnce')),
+                    : () => _startPayment(address!.id),
+                child: Text(
+                  checkoutState.isInitializing
+                      ? ref.tr('checkout.confirmingPayment')
+                      : ref.tr('checkout.confirmPayOnce'),
+                ),
               ),
             ),
+            if (checkoutState.paymentSession != null) ...[
+              const SizedBox(height: 10),
+              OutlinedButton(
+                onPressed: checkoutState.isVerifying
+                    ? null
+                    : () => _verifyPayment(checkoutState.paymentSession!.reference),
+                child: Text(
+                  checkoutState.isVerifying ? 'Verifying payment...' : 'I have completed payment',
+                ),
+              ),
+            ],
+            if (cartState.isLoading)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _applyDiscount(List<SellerCartGroup> groups) async {
-    final code = _discountCodeInput.trim().toUpperCase();
-    if (code.isEmpty) {
-      setState(() {
-        _discountsBySeller = const {};
-        _appliedDiscountCode = null;
-        _discountMessage = ref.tr('checkout.enterDiscountFirst');
-      });
+  void _queueQuoteRefreshIfNeeded(
+    BuyerAddress? address,
+    List<SellerCartGroup> groups,
+    CheckoutState checkoutState,
+  ) {
+    if (address == null) return;
+    if (checkoutState.isLoadingQuote || checkoutState.isInitializing || checkoutState.isVerifying) {
       return;
     }
-    setState(() {
-      _isValidatingDiscount = true;
-      _discountMessage = null;
+    final nextKey = '${address.id}|${_appliedDiscountCode ?? ''}|${groups.map((item) => item.sellerId).join(',')}';
+    if (_lastQuoteKey == nextKey) return;
+    _lastQuoteKey = nextKey;
+    scheduleMicrotask(() async {
+      try {
+        await ref.read(checkoutProvider.notifier).refreshQuote(
+              addressId: address.id,
+              discountCode: _appliedDiscountCode,
+            );
+      } catch (_) {}
     });
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
+  }
 
-    final nextDiscounts = <String, int>{};
-    var matched = false;
-
-    for (final group in groups) {
-      var groupDiscount = 0;
-      for (final line in group.items) {
-        final discount = ref.read(
-          productDiscountProvider((
-            sellerId: group.sellerId,
-            productId: line.product.id,
-            variantId: line.variantId,
-          )),
-        );
-        if (discount == null) continue;
-        if (discount.code.toUpperCase() != code) continue;
-        matched = true;
-        final lineSubtotal = line.product.price * line.quantity;
-        if (discount.type == 'percentage') {
-          groupDiscount += ((lineSubtotal * discount.value) / 100).round();
-        } else {
-          groupDiscount += discount.value * line.quantity;
-        }
-      }
-      if (groupDiscount > 0) {
-        nextDiscounts[group.sellerId] = groupDiscount;
-      }
+  Future<void> _applyDiscount(String addressId) async {
+    final code = _discountCodeInput.trim();
+    if (code.isEmpty) {
+      setState(() {
+        _appliedDiscountCode = null;
+        _discountMessage = ref.tr('checkout.enterDiscountFirst');
+        _lastQuoteKey = null;
+      });
+      ref.read(checkoutProvider.notifier).clearQuote();
+      return;
     }
 
-    setState(() {
-      _isValidatingDiscount = false;
-      if (!matched) {
-        _discountsBySeller = const {};
-        _appliedDiscountCode = null;
-        _discountMessage = ref.tr('checkout.invalidCode');
+    try {
+      final quote = await ref.read(checkoutProvider.notifier).refreshQuote(
+            addressId: addressId,
+            discountCode: code,
+          );
+      if (!mounted) return;
+      setState(() {
+        _appliedDiscountCode = code.toUpperCase();
+        _discountMessage = quote.discountTotal > 0
+            ? ref.tr('checkout.discountApplied')
+            : ref.tr('checkout.invalidCode');
+        _lastQuoteKey = '$addressId|${_appliedDiscountCode ?? ''}|${quote.sellerGroups.map((item) => item.sellerId).join(',')}';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _discountMessage = '$error';
+      });
+    }
+  }
+
+  Future<void> _startPayment(String addressId) async {
+    try {
+      final session = await ref.read(checkoutProvider.notifier).initializePayment(
+            addressId: addressId,
+            discountCode: _appliedDiscountCode,
+          );
+      if (!mounted) return;
+      final launched = await launchUrl(
+        Uri.parse(session.authorizationUrl),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!mounted) return;
+      if (!launched) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to open Paystack checkout right now.')),
+        );
         return;
       }
-      _discountsBySeller = nextDiscounts;
-      _appliedDiscountCode = code;
-      _discountMessage = ref.tr('checkout.discountApplied');
-    });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ref.tr('checkout.waitingPayment'))),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error')),
+      );
+    }
+  }
+
+  Future<void> _verifyPayment(String reference) async {
+    try {
+      final result = await ref.read(checkoutProvider.notifier).verifyPayment(reference: reference);
+      if (!mounted) return;
+      if (!result.verified || result.order == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.message)),
+        );
+        return;
+      }
+      await ref.read(cartProvider.notifier).clear();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Color(0xFFE4F4EC),
+                  child: Icon(Icons.check_circle_rounded, size: 30, color: Color(0xFF136A43)),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Payment Successful',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  ref.tr('checkout.paymentSuccessBody'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Color(0xFF65706B)),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF136A43),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(ref.tr('checkout.viewOrder')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (!mounted) return;
+      context.pushNamed(OrderDetailsPage.routeName, pathParameters: {'orderId': result.order!.id});
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error')),
+      );
+    }
   }
 
   Widget _line(String label, String value, {bool bold = false}) {
@@ -397,19 +456,14 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 class _SellerCheckoutCard extends ConsumerWidget {
   const _SellerCheckoutCard({
     required this.group,
-    required this.shippingQuote,
-    required this.discountAmount,
     required this.currency,
   });
 
-  final SellerCartGroup group;
-  final ShippingQuote shippingQuote;
-  final int discountAmount;
+  final CheckoutSellerGroupQuote group;
   final NumberFormat currency;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final groupTotal = group.sellerTotal + shippingQuote.shippingFee - discountAmount;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -439,38 +493,23 @@ class _SellerCheckoutCard extends ConsumerWidget {
                 ),
               ),
             const Divider(),
-            _breakdownLine(ref.tr('checkout.subtotal'), currency.format(group.sellerTotal)),
-            _breakdownLine(ref.tr('checkout.shippingFee'), currency.format(shippingQuote.shippingFee)),
-            _breakdownLine(ref.tr('checkout.deliveryRegion'), shippingQuote.deliveryRegion),
-            if (shippingQuote.usedVolumetricWeight && shippingQuote.totalVolumetricWeightKg != null)
-              _breakdownLine(ref.tr('checkout.chargeableWeight'), '${shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg'),
-            if (!shippingQuote.usedVolumetricWeight)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  ref.tr('checkout.actualWeightOnly'),
-                  style: const TextStyle(color: Color(0xFF65706B), fontSize: 12),
-                ),
-              ),
+            _breakdownLine(ref.tr('checkout.subtotal'), currency.format(group.productSubtotal)),
+            _breakdownLine(ref.tr('checkout.shippingFee'), currency.format(group.shippingFee)),
+            _breakdownLine(ref.tr('checkout.deliveryRegion'), group.shippingQuote.deliveryRegion),
+            _breakdownLine(
+              ref.tr('checkout.chargeableWeight'),
+              '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg',
+            ),
             _breakdownLine(
               ref.tr('checkout.weightUnitSize'),
-              '${shippingQuote.weightUnitSizeKg.toStringAsFixed(1)} kg',
+              '${group.shippingQuote.weightUnitSizeKg.toStringAsFixed(1)} kg',
             ),
-            _breakdownLine(
-              ref.tr('checkout.minimumFee'),
-              currency.format(shippingQuote.minimumFee),
-            ),
-            _breakdownLine(
-              ref.tr('checkout.additionalUnitFee'),
-              currency.format(shippingQuote.additionalUnitFee),
-            ),
-            _breakdownLine(
-              ref.tr('checkout.shippingUnits'),
-              '${shippingQuote.shippingUnits}',
-            ),
-            _breakdownLine(ref.tr('checkout.discount'), '- ${currency.format(discountAmount)}'),
+            _breakdownLine(ref.tr('checkout.minimumFee'), currency.format(group.shippingQuote.minimumFee)),
+            _breakdownLine(ref.tr('checkout.additionalUnitFee'), currency.format(group.shippingQuote.additionalUnitFee)),
+            _breakdownLine(ref.tr('checkout.shippingUnits'), '${group.shippingQuote.shippingUnits}'),
+            _breakdownLine(ref.tr('checkout.discount'), '- ${currency.format(group.discountTotal)}'),
             const Divider(),
-            _breakdownLine(ref.tr('checkout.groupTotal'), currency.format(groupTotal), bold: true),
+            _breakdownLine(ref.tr('checkout.groupTotal'), currency.format(group.groupTotal), bold: true),
           ],
         ),
       ),
@@ -490,5 +529,3 @@ class _SellerCheckoutCard extends ConsumerWidget {
     );
   }
 }
-
-

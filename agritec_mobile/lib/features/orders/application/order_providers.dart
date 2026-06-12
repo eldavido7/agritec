@@ -1,10 +1,11 @@
-import 'dart:math';
-
 import 'package:agritec_mobile/core/logistics/logistics_models.dart';
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
 import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
+import 'package:agritec_mobile/features/auth/data/auth_service.dart';
 import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
+import 'package:agritec_mobile/features/home/application/home_providers.dart';
+import 'package:agritec_mobile/features/home/domain/home_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class SellerOrderGroup {
@@ -59,38 +60,6 @@ class SellerOrderGroup {
         'timeline': timeline,
         'currentTimelineStep': currentTimelineStep,
       };
-
-  factory SellerOrderGroup.fromJson(Map<String, dynamic> json) {
-    return SellerOrderGroup(
-      id: json['id'] as String,
-      sellerId: json['sellerId'] as String,
-      sellerName: json['sellerName'] as String,
-      farmName: json['farmName'] as String,
-      sellerLatitude: (json['sellerLatitude'] as num).toDouble(),
-      sellerLongitude: (json['sellerLongitude'] as num).toDouble(),
-      status: (json['status'] as String?) ?? _statusFromStep((json['currentTimelineStep'] as num?)?.toInt() ?? 0),
-      items: (json['items'] as List<dynamic>)
-          .map((item) => CartLineItem.fromJson(item as Map<String, dynamic>))
-          .toList(),
-      shippingQuote: json['shippingQuote'] is Map<String, dynamic>
-          ? ShippingQuote.fromJson(json['shippingQuote'] as Map<String, dynamic>)
-          : _legacyShippingQuote(json['shippingOption'] as Map<String, dynamic>?),
-      productSubtotal: (json['productSubtotal'] as num?)?.toInt() ??
-          (json['subtotal'] as num?)?.toInt() ??
-          0,
-      shippingFee: (json['shippingFee'] as num?)?.toInt() ??
-          ((json['shippingQuote'] as Map<String, dynamic>?)?['shippingFee'] as num?)?.toInt() ??
-          0,
-      discountTotal: (json['discountTotal'] as num?)?.toInt() ??
-          (json['discountAmount'] as num?)?.toInt() ??
-          0,
-      groupTotal: (json['groupTotal'] as num?)?.toInt() ??
-          (json['total'] as num?)?.toInt() ??
-          0,
-      timeline: (json['timeline'] as List<dynamic>?)?.map((e) => e as String).toList() ?? _defaultTimeline,
-      currentTimelineStep: (json['currentTimelineStep'] as num?)?.toInt() ?? 0,
-    );
-  }
 }
 
 class MarketplaceOrder {
@@ -105,6 +74,8 @@ class MarketplaceOrder {
     required this.discountTotal,
     required this.grandTotal,
     required this.sellerGroups,
+    required this.parentStatus,
+    required this.paymentStatus,
   });
 
   final String id;
@@ -117,10 +88,15 @@ class MarketplaceOrder {
   final int discountTotal;
   final int grandTotal;
   final List<SellerOrderGroup> sellerGroups;
+  final String parentStatus;
+  final String paymentStatus;
 
   int get itemCount => sellerGroups.fold(0, (sum, group) => sum + group.items.fold(0, (inner, item) => inner + item.quantity));
 
   String get statusSummary {
+    if (paymentStatus.toUpperCase() != 'PAID') {
+      return 'Pending payment';
+    }
     final statuses = sellerGroups.map((group) => group.status).toSet().toList();
     if (statuses.length == 1) return statuses.first;
     if (statuses.contains('delivered')) return 'Partially delivered';
@@ -139,78 +115,332 @@ class MarketplaceOrder {
         'discountTotal': discountTotal,
         'grandTotal': grandTotal,
         'sellerGroups': sellerGroups.map((group) => group.toJson()).toList(),
+        'parentStatus': parentStatus,
+        'paymentStatus': paymentStatus,
       };
+}
 
-  factory MarketplaceOrder.fromJson(Map<String, dynamic> json) {
-    final sellerGroupsJson = json['sellerGroups'];
-    if (sellerGroupsJson is List<dynamic>) {
-      return MarketplaceOrder(
-        id: json['id'] as String,
-        buyerUserId: (json['buyerUserId'] as String?) ?? 'buyer-demo-1',
-        paymentReference: (json['paymentReference'] as String?) ?? 'PAY-${json['id']}',
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        buyerAddress: BuyerAddress.fromJson(json['buyerAddress'] as Map<String, dynamic>),
-        productSubtotal: (json['productSubtotal'] as num).toInt(),
-        totalShippingFee: (json['totalShippingFee'] as num).toInt(),
-        discountTotal: (json['discountTotal'] as num).toInt(),
-        grandTotal: (json['grandTotal'] as num).toInt(),
-        sellerGroups: sellerGroupsJson
-            .map((item) => SellerOrderGroup.fromJson(item as Map<String, dynamic>))
-            .toList(),
-      );
+class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
+  static const _cacheKeyPrefix = 'cache_orders_v3';
+  String? _sessionStamp;
+  bool _didPrime = false;
+  bool _isPriming = false;
+
+  @override
+  List<MarketplaceOrder> build() {
+    final userId = ref.watch(currentBuyerUserIdProvider);
+    final token = ref.watch(buyerAuthTokenProvider);
+    final stamp = '${userId ?? 'guest'}:${token ?? 'none'}';
+    if (_sessionStamp != stamp) {
+      _sessionStamp = stamp;
+      _didPrime = false;
+      _isPriming = false;
+    }
+    _prime();
+    return const [];
+  }
+
+  String _cacheKey() {
+    final userId = ref.read(currentBuyerUserIdProvider) ?? 'guest';
+    return '$_cacheKeyPrefix-$userId';
+  }
+
+  Future<void> _prime() async {
+    if (_didPrime || _isPriming) return;
+    _didPrime = true;
+    _isPriming = true;
+    try {
+      final cache = await ref.read(localCacheServiceProvider.future);
+      final raw = cache.readJson(_cacheKey());
+      if (raw case {'orders': List<dynamic> items}) {
+        final parsed = items
+            .whereType<Map<String, dynamic>>()
+            .map(_marketplaceOrderFromJson)
+            .toList();
+        if (parsed.isNotEmpty) {
+          state = parsed;
+        }
+      }
+
+      final token = ref.read(buyerAuthTokenProvider);
+      final userId = ref.read(currentBuyerUserIdProvider);
+      if (token == null || token.trim().isEmpty || userId == null) {
+        return;
+      }
+
+      await refresh();
+    } finally {
+      _isPriming = false;
+    }
+  }
+
+  Future<void> refresh() async {
+    final token = ref.read(buyerAuthTokenProvider);
+    final userId = ref.read(currentBuyerUserIdProvider);
+    if (token == null || token.trim().isEmpty || userId == null) {
+      state = const [];
+      return;
     }
 
-    final legacyGroup = SellerOrderGroup(
-      id: '${json['id']}-group-1',
-      sellerId: json['sellerId'] as String,
-      sellerName: json['sellerName'] as String,
-      farmName: json['farmName'] as String,
-      sellerLatitude: (json['sellerLatitude'] as num).toDouble(),
-      sellerLongitude: (json['sellerLongitude'] as num).toDouble(),
-      status: _statusFromStep((json['currentTimelineStep'] as num?)?.toInt() ?? 0),
-      items: (json['items'] as List<dynamic>)
-          .map((item) => CartLineItem.fromJson(item as Map<String, dynamic>))
-          .toList(),
-      shippingQuote: json['shippingQuote'] is Map<String, dynamic>
-          ? ShippingQuote.fromJson(json['shippingQuote'] as Map<String, dynamic>)
-          : _legacyShippingQuote(json['shippingOption'] as Map<String, dynamic>?),
-      productSubtotal: (json['subtotal'] as num?)?.toInt() ?? 0,
-      shippingFee: ((json['shippingQuote'] as Map<String, dynamic>?)?['shippingFee'] as num?)?.toInt() ?? 0,
-      discountTotal: (json['discountAmount'] as num?)?.toInt() ?? 0,
-      groupTotal: (json['total'] as num?)?.toInt() ?? 0,
-      timeline: (json['timeline'] as List<dynamic>?)?.map((e) => e as String).toList() ?? _defaultTimeline,
-      currentTimelineStep: (json['currentTimelineStep'] as num?)?.toInt() ?? 0,
-    );
+    final api = ref.read(mobileApiClientProvider);
+    final payload = await api.get('/api/orders', token: token);
+    final rawOrders = payload['orders'];
+    final fallbackProducts = ref.read(homeFeaturedProductsProvider);
+    if (rawOrders is! List<dynamic>) {
+      state = const [];
+      return;
+    }
 
-    return MarketplaceOrder(
-      id: json['id'] as String,
-      buyerUserId: (json['buyerUserId'] as String?) ?? 'buyer-demo-1',
-      paymentReference: 'PAY-${json['id']}',
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      buyerAddress: BuyerAddress.fromJson(json['buyerAddress'] as Map<String, dynamic>),
-      productSubtotal: (json['subtotal'] as num?)?.toInt() ?? 0,
-      totalShippingFee: legacyGroup.shippingFee,
-      discountTotal: legacyGroup.discountTotal,
-      grandTotal: (json['total'] as num?)?.toInt() ?? 0,
-      sellerGroups: [legacyGroup],
+    state = rawOrders
+        .whereType<Map<String, dynamic>>()
+        .map((json) => orderFromApiJson(json, fallbackProducts: fallbackProducts))
+        .toList();
+    await _persist();
+  }
+
+  Future<MarketplaceOrder?> fetchOrderById(String orderId) async {
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.trim().isEmpty) return null;
+    final api = ref.read(mobileApiClientProvider);
+    final payload = await api.get('/api/orders/$orderId', token: token);
+    final orderJson = payload['order'];
+    if (orderJson is! Map<String, dynamic>) return null;
+    final order = orderFromApiJson(
+      orderJson,
+      fallbackProducts: ref.read(homeFeaturedProductsProvider),
     );
+    upsert(order);
+    return order;
+  }
+
+  void upsert(MarketplaceOrder order) {
+    final next = [...state];
+    final index = next.indexWhere((item) => item.id == order.id);
+    if (index >= 0) {
+      next[index] = order;
+    } else {
+      next.insert(0, order);
+    }
+    state = next;
+    _persist();
+  }
+
+  void upsertFromApiJson(Map<String, dynamic> json) {
+    final order = orderFromApiJson(
+      json,
+      fallbackProducts: ref.read(homeFeaturedProductsProvider),
+    );
+    upsert(order);
+  }
+
+  Future<void> _persist() async {
+    final cache = await ref.read(localCacheServiceProvider.future);
+    await cache.saveJson(_cacheKey(), {
+      'orders': state.map((order) => order.toJson()).toList(),
+    });
   }
 }
 
-ShippingQuote _legacyShippingQuote(Map<String, dynamic>? json) {
-  final price = (json?['price'] as num?)?.toInt() ?? 0;
-  return ShippingQuote(
-    deliveryRegion: 'Legacy shipping',
-    totalActualWeightKg: 0,
-    totalVolumetricWeightKg: null,
-    usedVolumetricWeight: false,
-    totalChargeableWeightKg: 0,
-    weightUnitSizeKg: 10,
-    shippingUnits: price > 0 ? 1 : 0,
-    minimumFee: price,
-    additionalUnitFee: price,
-    shippingFee: price,
+MarketplaceOrder _marketplaceOrderFromJson(Map<String, dynamic> json) {
+  return MarketplaceOrder(
+    id: json['id'] as String,
+    buyerUserId: (json['buyerUserId'] as String?) ?? 'guest',
+    paymentReference: (json['paymentReference'] as String?) ?? '',
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    buyerAddress: BuyerAddress.fromJson(json['buyerAddress'] as Map<String, dynamic>),
+    productSubtotal: (json['productSubtotal'] as num).toInt(),
+    totalShippingFee: (json['totalShippingFee'] as num).toInt(),
+    discountTotal: (json['discountTotal'] as num).toInt(),
+    grandTotal: (json['grandTotal'] as num).toInt(),
+    parentStatus: (json['parentStatus'] as String?) ?? 'PENDING_PAYMENT',
+    paymentStatus: (json['paymentStatus'] as String?) ?? 'PENDING',
+    sellerGroups: (json['sellerGroups'] as List<dynamic>)
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (group) => SellerOrderGroup(
+            id: group['id'] as String,
+            sellerId: group['sellerId'] as String,
+            sellerName: group['sellerName'] as String,
+            farmName: group['farmName'] as String,
+            sellerLatitude: (group['sellerLatitude'] as num?)?.toDouble() ?? 0,
+            sellerLongitude: (group['sellerLongitude'] as num?)?.toDouble() ?? 0,
+            status: group['status'] as String,
+            items: (group['items'] as List<dynamic>)
+                .whereType<Map<String, dynamic>>()
+                .map(CartLineItem.fromJson)
+                .toList(),
+            shippingQuote: ShippingQuote.fromJson(group['shippingQuote'] as Map<String, dynamic>),
+            productSubtotal: (group['productSubtotal'] as num).toInt(),
+            shippingFee: (group['shippingFee'] as num).toInt(),
+            discountTotal: (group['discountTotal'] as num).toInt(),
+            groupTotal: (group['groupTotal'] as num).toInt(),
+            timeline: (group['timeline'] as List<dynamic>).map((item) => '$item').toList(),
+            currentTimelineStep: (group['currentTimelineStep'] as num).toInt(),
+          ),
+        )
+        .toList(),
   );
+}
+
+MarketplaceOrder orderFromApiJson(
+  Map<String, dynamic> json, {
+  required List<HomeProduct> fallbackProducts,
+}) {
+  final addressJson = json['addressSnapshot'] as Map<String, dynamic>?;
+  final paymentJson = json['payment'] as Map<String, dynamic>?;
+  final buyerId = (json['buyerId'] as String?) ?? (json['buyerUserId'] as String?) ?? 'guest';
+  final sellerGroupsJson = (json['sellerGroups'] as List<dynamic>? ?? const <dynamic>[])
+      .whereType<Map<String, dynamic>>()
+      .toList();
+
+  return MarketplaceOrder(
+    id: json['id'] as String,
+    buyerUserId: buyerId,
+    paymentReference: (paymentJson?['reference'] as String?) ?? '',
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    buyerAddress: BuyerAddress(
+      id: 'order-${json['id']}-address',
+      label: 'Delivery',
+      displayName: (addressJson?['displayName'] as String?) ??
+          (addressJson?['addressLine'] as String?) ??
+          '',
+      fullAddress: (addressJson?['fullAddress'] as String?) ?? '',
+      addressLine: (addressJson?['addressLine'] as String?) ?? '',
+      latitude: (addressJson?['latitude'] as num?)?.toDouble(),
+      longitude: (addressJson?['longitude'] as num?)?.toDouble(),
+      city: (addressJson?['city'] as String?) ?? '',
+      state: (addressJson?['state'] as String?) ?? '',
+      landmark: addressJson?['landmark'] as String?,
+      isDefault: false,
+      createdByRole: _creatorRoleFromAddress(addressJson),
+      isManualAddress: addressJson?['isManualAddress'] as bool? ?? false,
+      isAdminAssisted: addressJson?['isAdminAssisted'] as bool? ?? false,
+    ),
+    productSubtotal: (json['productSubtotal'] as num?)?.toInt() ?? 0,
+    totalShippingFee: (json['totalShippingFee'] as num?)?.toInt() ?? 0,
+    discountTotal: (json['discountTotal'] as num?)?.toInt() ?? 0,
+    grandTotal: (json['grandTotal'] as num?)?.toInt() ?? 0,
+    parentStatus: (json['status'] as String?) ?? 'PENDING_PAYMENT',
+    paymentStatus: (json['paymentStatus'] as String?) ?? 'PENDING',
+    sellerGroups: sellerGroupsJson.map((groupJson) {
+      final sellerId = groupJson['sellerId'] as String? ?? 'unknown';
+      final coordinates = _sellerCoordinates[sellerId] ?? (0.0, 0.0);
+      final rawStatus = (groupJson['status'] as String?) ?? 'PENDING';
+      final status = _groupStatusLabel(rawStatus);
+      final timelineStep = _timelineStepForStatus(rawStatus);
+      final rawItems = (groupJson['items'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      final items = rawItems.map((itemJson) {
+        final productId = int.tryParse('${itemJson['productId'] ?? ''}') ?? -1;
+        final fallback = fallbackProducts.where((item) => item.id == productId).firstOrNull;
+        final image = (itemJson['productImageUrlSnapshot'] as String?)?.trim();
+        final product = HomeProduct(
+          id: productId,
+          sellerId: sellerId,
+          name: (itemJson['variantTitleSnapshot'] as String?)?.trim().isNotEmpty == true
+              ? '${itemJson['productTitleSnapshot']} - ${itemJson['variantTitleSnapshot']}'
+              : (itemJson['productTitleSnapshot'] as String?) ?? fallback?.name ?? 'Product',
+          categorySlug: fallback?.categorySlug ?? 'other',
+          category: fallback?.category ?? 'Other',
+          categoryNote: fallback?.categoryNote,
+          price: (itemJson['unitPrice'] as num?)?.toInt() ?? fallback?.price ?? 0,
+          inventory: (itemJson['quantity'] as num?)?.toInt() ?? 0,
+          images: image != null && image.isNotEmpty
+              ? [image]
+              : (fallback?.images ?? const ['']),
+          hasDiscount: false,
+          discountLabel: null,
+          logistics: LogisticsMetadata(
+            salesUnit: salesUnitFromJson(itemJson['salesUnitSnapshot']),
+            unitWeightKg: (itemJson['unitWeightKgSnapshot'] as num?)?.toDouble() ??
+                fallback?.logistics.unitWeightKg ??
+                1,
+            unitLengthCm: (itemJson['unitLengthCmSnapshot'] as num?)?.toDouble(),
+            unitWidthCm: (itemJson['unitWidthCmSnapshot'] as num?)?.toDouble(),
+            unitHeightCm: (itemJson['unitHeightCmSnapshot'] as num?)?.toDouble(),
+            packageType: packageTypeFromJson(itemJson['packageTypeSnapshot']),
+          ),
+        );
+        return CartLineItem(
+          lineKey: cartLineKey(product.id, variantId: itemJson['variantId'] as String?),
+          product: product,
+          quantity: (itemJson['quantity'] as num?)?.toInt() ?? 0,
+          sellerName: (itemJson['sellerNameSnapshot'] as String?) ?? (groupJson['sellerNameSnapshot'] as String?) ?? 'Seller',
+          farmName: (itemJson['farmNameSnapshot'] as String?) ?? (groupJson['farmNameSnapshot'] as String?) ?? 'Farm',
+          variantId: itemJson['variantId'] as String?,
+          variantName: itemJson['variantTitleSnapshot'] as String?,
+        );
+      }).toList();
+
+      return SellerOrderGroup(
+        id: groupJson['id'] as String,
+        sellerId: sellerId,
+        sellerName: (groupJson['sellerNameSnapshot'] as String?) ?? 'Seller',
+        farmName: (groupJson['farmNameSnapshot'] as String?) ?? 'Farm',
+        sellerLatitude: coordinates.$1,
+        sellerLongitude: coordinates.$2,
+        status: status,
+        items: items,
+        shippingQuote: ShippingQuote(
+          deliveryRegion: (groupJson['deliveryRegion'] as String?) ?? 'Unknown region',
+          totalActualWeightKg: (groupJson['totalChargeableWeightKg'] as num?)?.toDouble() ?? 0,
+          totalVolumetricWeightKg: null,
+          usedVolumetricWeight: false,
+          totalChargeableWeightKg: (groupJson['totalChargeableWeightKg'] as num?)?.toDouble() ?? 0,
+          weightUnitSizeKg: (groupJson['weightUnitSizeKg'] as num?)?.toDouble() ?? 10,
+          shippingUnits: (groupJson['shippingUnits'] as num?)?.toInt() ?? 1,
+          minimumFee: (groupJson['minimumFee'] as num?)?.toInt() ?? 0,
+          additionalUnitFee: (groupJson['additionalUnitFee'] as num?)?.toInt() ?? 0,
+          shippingFee: (groupJson['shippingFee'] as num?)?.toInt() ?? 0,
+        ),
+        productSubtotal: (groupJson['productSubtotal'] as num?)?.toInt() ?? 0,
+        shippingFee: (groupJson['shippingFee'] as num?)?.toInt() ?? 0,
+        discountTotal: (groupJson['discountTotal'] as num?)?.toInt() ?? 0,
+        groupTotal: (groupJson['groupTotal'] as num?)?.toInt() ?? 0,
+        timeline: _defaultTimeline,
+        currentTimelineStep: timelineStep,
+      );
+    }).toList(),
+  );
+}
+
+String _creatorRoleFromAddress(Map<String, dynamic>? addressJson) {
+  final raw = (addressJson?['createdByRole'] as String?)?.toLowerCase();
+  if (raw == 'admin') return 'admin';
+  return 'buyer';
+}
+
+String _groupStatusLabel(String rawStatus) {
+  switch (rawStatus.toUpperCase()) {
+    case 'DELIVERED':
+      return 'delivered';
+    case 'SHIPPED':
+      return 'shipped';
+    case 'CANCELLED':
+      return 'cancelled';
+    case 'REFUNDED':
+      return 'refunded';
+    default:
+      return 'processing';
+  }
+}
+
+int _timelineStepForStatus(String rawStatus) {
+  switch (rawStatus.toUpperCase()) {
+    case 'PENDING':
+      return 0;
+    case 'CONFIRMED':
+      return 1;
+    case 'PROCESSING':
+      return 2;
+    case 'SHIPPED':
+      return 3;
+    case 'DELIVERED':
+      return 4;
+    default:
+      return 0;
+  }
 }
 
 const _defaultTimeline = <String>[
@@ -220,262 +450,6 @@ const _defaultTimeline = <String>[
   'Out for delivery',
   'Delivered',
 ];
-
-String _statusFromStep(int step) {
-  if (step >= 4) return 'delivered';
-  if (step >= 3) return 'shipped';
-  return 'processing';
-}
-
-class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
-  static const _cacheKeyPrefix = 'cache_orders_v2';
-  bool _didHydrate = false;
-
-  @override
-  List<MarketplaceOrder> build() {
-    ref.watch(currentBuyerUserIdProvider);
-    _hydrate();
-    return _seedOrdersForCurrentUser();
-  }
-
-  String _cacheKey() {
-    final userId = ref.read(currentBuyerUserIdProvider) ?? 'guest';
-    return '$_cacheKeyPrefix-$userId';
-  }
-
-  String _legacyCacheKey() {
-    final userId = ref.read(currentBuyerUserIdProvider) ?? 'guest';
-    return 'cache_orders_v1-$userId';
-  }
-
-  List<MarketplaceOrder> _seedOrdersForCurrentUser() {
-    final userId = ref.read(currentBuyerUserIdProvider);
-    if (userId != 'buyer-demo-1') {
-      return const [];
-    }
-    return [
-      MarketplaceOrder(
-        id: 'buyer-order-3001',
-        buyerUserId: 'buyer-demo-1',
-        paymentReference: 'PSK-20260601-3001',
-        createdAt: DateTime(2026, 6, 1, 10, 12),
-        buyerAddress: const BuyerAddress(
-          id: 'addr-demo-1',
-          label: 'Home',
-          displayName: 'Ikate Elegushi, Lekki',
-          fullAddress: '22 Freedom Way, Lekki Phase 1, Lagos',
-          addressLine: '22 Freedom Way',
-          latitude: 6.4429,
-          longitude: 3.4851,
-          city: 'Lagos',
-          state: 'Lagos',
-          landmark: 'Near The Lennox Mall',
-          isDefault: true,
-        ),
-        productSubtotal: 36700,
-        totalShippingFee: 40000,
-        discountTotal: 500,
-        grandTotal: 76200,
-        sellerGroups: const [
-          SellerOrderGroup(
-            id: 'buyer-order-3001-group-1',
-            sellerId: 'seller-kingsley',
-            sellerName: 'Kingsley Joseph',
-            farmName: 'Kingsley Family Farm',
-            sellerLatitude: 6.4474,
-            sellerLongitude: 3.4722,
-            status: 'delivered',
-            items: [],
-            shippingQuote: ShippingQuote(
-              deliveryRegion: 'Outside Abuja',
-              totalActualWeightKg: 28.5,
-              totalVolumetricWeightKg: null,
-              usedVolumetricWeight: false,
-              totalChargeableWeightKg: 28.5,
-              weightUnitSizeKg: 10,
-              shippingUnits: 3,
-              minimumFee: 5000,
-              additionalUnitFee: 5000,
-              shippingFee: 30000,
-            ),
-            productSubtotal: 28500,
-            shippingFee: 30000,
-            discountTotal: 0,
-            groupTotal: 58500,
-            timeline: _defaultTimeline,
-            currentTimelineStep: 4,
-          ),
-          SellerOrderGroup(
-            id: 'buyer-order-3001-group-2',
-            sellerId: 'seller-amina',
-            sellerName: 'Amina Bello',
-            farmName: 'Bello Fresh Produce',
-            sellerLatitude: 12.0022,
-            sellerLongitude: 8.5920,
-            status: 'shipped',
-            items: [],
-            shippingQuote: ShippingQuote(
-              deliveryRegion: 'Outside Abuja',
-              totalActualWeightKg: 8.2,
-              totalVolumetricWeightKg: 6.4,
-              usedVolumetricWeight: true,
-              totalChargeableWeightKg: 8.2,
-              weightUnitSizeKg: 10,
-              shippingUnits: 1,
-              minimumFee: 5000,
-              additionalUnitFee: 5000,
-              shippingFee: 10000,
-            ),
-            productSubtotal: 8200,
-            shippingFee: 10000,
-            discountTotal: 500,
-            groupTotal: 17700,
-            timeline: _defaultTimeline,
-            currentTimelineStep: 3,
-          ),
-        ],
-      ),
-      MarketplaceOrder(
-        id: 'buyer-order-3002',
-        buyerUserId: 'buyer-demo-1',
-        paymentReference: 'PSK-20260601-3002',
-        createdAt: DateTime(2026, 6, 1, 14, 45),
-        buyerAddress: const BuyerAddress(
-          id: 'addr-demo-2',
-          label: 'Old Office',
-          displayName: 'Ikeja Computer Village',
-          fullAddress: '2 Otigba Street, Ikeja, Lagos',
-          addressLine: '2 Otigba Street',
-          city: 'Lagos',
-          state: 'Lagos',
-          createdByRole: 'admin',
-          isManualAddress: true,
-          isAdminAssisted: true,
-        ),
-        productSubtotal: 16500,
-        totalShippingFee: 10000,
-        discountTotal: 0,
-        grandTotal: 26500,
-        sellerGroups: const [
-          SellerOrderGroup(
-            id: 'buyer-order-3002-group-1',
-            sellerId: 'seller-amina',
-            sellerName: 'Amina Bello',
-            farmName: 'Bello Fresh Produce',
-            sellerLatitude: 12.0022,
-            sellerLongitude: 8.5920,
-            status: 'processing',
-            items: [],
-            shippingQuote: ShippingQuote(
-              deliveryRegion: 'Outside Abuja',
-              totalActualWeightKg: 15,
-              totalVolumetricWeightKg: 11.6,
-              usedVolumetricWeight: true,
-              totalChargeableWeightKg: 15,
-              weightUnitSizeKg: 10,
-              shippingUnits: 1,
-              minimumFee: 5000,
-              additionalUnitFee: 5000,
-              shippingFee: 10000,
-            ),
-            productSubtotal: 16500,
-            shippingFee: 10000,
-            discountTotal: 0,
-            groupTotal: 26500,
-            timeline: _defaultTimeline,
-            currentTimelineStep: 1,
-          ),
-        ],
-      ),
-    ];
-  }
-
-  Future<void> _hydrate() async {
-    if (_didHydrate) return;
-    _didHydrate = true;
-    final cache = await ref.read(localCacheServiceProvider.future);
-    final raw = cache.readJson(_cacheKey()) ?? cache.readJson(_legacyCacheKey());
-    if (raw == null) return;
-    final items = raw['orders'];
-    if (items is! List<dynamic>) return;
-    final parsed = <MarketplaceOrder>[];
-    for (final item in items) {
-      if (item is! Map<String, dynamic>) continue;
-      parsed.add(MarketplaceOrder.fromJson(item));
-    }
-    if (parsed.isNotEmpty) {
-      state = parsed;
-    }
-  }
-
-  Future<void> _persist() async {
-    final cache = await ref.read(localCacheServiceProvider.future);
-    await cache.saveJson(_cacheKey(), {
-      'orders': state.map((order) => order.toJson()).toList(),
-    });
-  }
-
-  MarketplaceOrder createOrder({
-    required List<SellerCartGroup> groups,
-    required BuyerAddress buyerAddress,
-    required Map<String, ShippingQuote> shippingQuotes,
-    required Map<String, int> discountsBySeller,
-    String? discountCode,
-  }) {
-    final random = Random();
-    final orderId = 'ORD${DateTime.now().millisecondsSinceEpoch}${random.nextInt(999)}';
-    final paymentReference = 'PSK-${DateTime.now().millisecondsSinceEpoch}${random.nextInt(99)}';
-    final sellerGroups = <SellerOrderGroup>[];
-
-    for (var index = 0; index < groups.length; index++) {
-      final group = groups[index];
-      final shippingQuote = shippingQuotes[group.sellerId]!;
-      final groupDiscount = discountsBySeller[group.sellerId] ?? 0;
-      final productSubtotal = group.sellerTotal;
-      final shippingFee = shippingQuote.shippingFee;
-      sellerGroups.add(
-        SellerOrderGroup(
-          id: '$orderId-group-${index + 1}',
-          sellerId: group.sellerId,
-          sellerName: group.sellerName,
-          farmName: group.farmName,
-          sellerLatitude: _sellerCoordinates[group.sellerId]?.$1 ?? 6.4474,
-          sellerLongitude: _sellerCoordinates[group.sellerId]?.$2 ?? 3.4722,
-          status: 'processing',
-          items: group.items,
-          shippingQuote: shippingQuote,
-          productSubtotal: productSubtotal,
-          shippingFee: shippingFee,
-          discountTotal: groupDiscount,
-          groupTotal: productSubtotal + shippingFee - groupDiscount,
-          timeline: _defaultTimeline,
-          currentTimelineStep: 0,
-        ),
-      );
-    }
-
-    final productSubtotal = sellerGroups.fold(0, (sum, group) => sum + group.productSubtotal);
-    final totalShippingFee = sellerGroups.fold(0, (sum, group) => sum + group.shippingFee);
-    final discountTotal = sellerGroups.fold(0, (sum, group) => sum + group.discountTotal);
-    final grandTotal = sellerGroups.fold(0, (sum, group) => sum + group.groupTotal);
-
-    final order = MarketplaceOrder(
-      id: orderId,
-      buyerUserId: ref.read(currentBuyerUserIdProvider) ?? 'guest',
-      paymentReference: paymentReference,
-      createdAt: DateTime.now(),
-      buyerAddress: buyerAddress.copyWith(),
-      productSubtotal: productSubtotal,
-      totalShippingFee: totalShippingFee,
-      discountTotal: discountTotal,
-      grandTotal: grandTotal,
-      sellerGroups: sellerGroups,
-    );
-    state = [order, ...state];
-    _persist();
-    return order;
-  }
-}
 
 const _sellerCoordinates = <String, (double, double)>{
   'seller-kingsley': (6.4474, 3.4722),
@@ -493,4 +467,5 @@ final orderByIdProvider = Provider.family<MarketplaceOrder?, String>((ref, order
   }
   return null;
 });
+
 

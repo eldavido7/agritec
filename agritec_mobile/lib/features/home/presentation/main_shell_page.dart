@@ -1,4 +1,4 @@
-﻿import 'package:agritec_mobile/core/connectivity/connectivity_provider.dart';
+import 'package:agritec_mobile/core/connectivity/connectivity_provider.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/core/state/session_refresh.dart';
 import 'package:agritec_mobile/features/account/presentation/profile_page.dart';
@@ -11,6 +11,7 @@ import 'package:agritec_mobile/features/catalog/presentation/catalog_listing_pag
 import 'package:agritec_mobile/features/chat/presentation/chat_page.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/home_page.dart';
+import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -77,6 +78,10 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
     final cartCount = ref.watch(cartItemCountProvider);
     final tab = ref.watch(shellTabProvider);
     final isOnline = ref.watch(connectivityStatusProvider);
+    ref.listen<String?>(currentBuyerUserIdProvider, (previous, next) {
+      if (previous == next) return;
+      refreshBuyerScopedStateFromWidget(ref);
+    });
     ref.listen<AsyncValue<bool>>(connectivityStatusProvider, (previous, next) {
       final wasOnline = previous?.asData?.value ?? false;
       final nowOnline = next.asData?.value ?? false;
@@ -220,6 +225,3 @@ class _CartIconWithBadge extends StatelessWidget {
     );
   }
 }
-
-
-
