@@ -152,9 +152,20 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
     context.goNamed(MainShellPage.routeName);
   }
 
+  void _continueToOrder() {
+    final order = _result?.order;
+    if (order == null) return;
+    context.goNamed(
+      OrderDetailsPage.routeName,
+      pathParameters: {'orderId': order.id},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = _result?.status.toUpperCase() ?? widget.status?.toUpperCase();
+    final isPaid = status == 'PAID';
+    final isFailed = status == 'FAILED' || status == 'CANCELLED';
 
     return Scaffold(
       appBar: AppBar(
@@ -228,7 +239,7 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Color(0xFF65706B)),
                       ),
-                    ] else if (status == 'PAID') ...[
+                    ] else if (isPaid) ...[
                       const Icon(
                         Icons.check_circle_rounded,
                         size: 56,
@@ -248,7 +259,7 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Color(0xFF65706B)),
                       ),
-                    ] else if (status == 'FAILED' || status == 'CANCELLED') ...[
+                    ] else if (isFailed) ...[
                       const Icon(
                         Icons.cancel_rounded,
                         size: 56,
@@ -292,7 +303,22 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
                       ),
                     ],
                     const SizedBox(height: 18),
-                    if (!_isChecking) ...[
+                    if (!_isChecking && isPaid && _result?.order != null)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _continueToOrder,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF136A43),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: Text(ref.tr('checkout.viewOrder')),
+                        ),
+                      ),
+                    if (!_isChecking && !isPaid) ...[
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -307,9 +333,7 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
                           child: Text(ref.tr('paymentCallback.checkAgain')),
                         ),
                       ),
-                      if (status == 'FAILED' ||
-                          status == 'CANCELLED' ||
-                          status == 'PENDING_TIMEOUT') ...[
+                      if (isFailed || status == 'PENDING_TIMEOUT') ...[
                         const SizedBox(height: 10),
                         SizedBox(
                           width: double.infinity,
@@ -330,3 +354,4 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
     );
   }
 }
+

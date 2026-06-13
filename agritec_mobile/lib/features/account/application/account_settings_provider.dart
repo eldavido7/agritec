@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 
 class AccountSettings {
@@ -42,9 +42,9 @@ class AccountSettingsNotifier extends Notifier<AccountSettings> {
   AccountSettings build() {
     final user = ref.watch(currentBuyerUserProvider);
     return AccountSettings(
-      fullName: user?.fullName ?? 'Guest Buyer',
-      email: user?.email ?? 'guest@agritec.app',
-      phone: user?.phone ?? '+234 000 000 0000',
+      fullName: user?.fullName ?? '',
+      email: user?.email ?? '',
+      phone: user?.phone ?? '',
       orderNotifications: true,
       promoNotifications: true,
       chatNotifications: true,

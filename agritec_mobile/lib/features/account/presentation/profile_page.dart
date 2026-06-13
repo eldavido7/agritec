@@ -5,9 +5,9 @@ import 'package:agritec_mobile/features/account/application/account_settings_pro
 import 'package:agritec_mobile/features/account/presentation/addresses_page.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
+import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/notifications/application/notification_providers.dart';
 import 'package:agritec_mobile/features/notifications/presentation/notifications_page.dart';
-import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/orders/presentation/orders_page.dart';
 import 'package:agritec_mobile/features/startup/application/startup_controller.dart';
 import 'package:agritec_mobile/features/startup/presentation/splash_page.dart';
@@ -35,6 +35,27 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _nameController = TextEditingController(text: settings.fullName);
     _emailController = TextEditingController(text: settings.email);
     _phoneController = TextEditingController(text: settings.phone);
+
+    ref.listenManual<AccountSettings>(accountSettingsProvider, (previous, next) {
+      if (_nameController.text != next.fullName) {
+        _nameController.value = TextEditingValue(
+          text: next.fullName,
+          selection: TextSelection.collapsed(offset: next.fullName.length),
+        );
+      }
+      if (_emailController.text != next.email) {
+        _emailController.value = TextEditingValue(
+          text: next.email,
+          selection: TextSelection.collapsed(offset: next.email.length),
+        );
+      }
+      if (_phoneController.text != next.phone) {
+        _phoneController.value = TextEditingValue(
+          text: next.phone,
+          selection: TextSelection.collapsed(offset: next.phone.length),
+        );
+      }
+    });
   }
 
   @override
@@ -133,9 +154,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
-                          ref
-                              .read(accountSettingsProvider.notifier)
-                              .updateProfile(
+                          ref.read(accountSettingsProvider.notifier).updateProfile(
                                 fullName: _nameController.text.trim(),
                                 email: _emailController.text.trim(),
                                 phone: _phoneController.text.trim(),
@@ -284,5 +303,3 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 }
-
-
