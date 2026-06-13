@@ -26,6 +26,15 @@ class NotificationsPage extends ConsumerStatefulWidget {
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   int _page = 1;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !isBuyerAuthenticated(ref)) return;
+      ref.read(notificationsProvider.notifier).refresh();
+    });
+  }
+
   void _handleBack() {
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
@@ -137,11 +146,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: ListTile(
-                              onTap: () {
+                              onTap: () async {
                                 ref
                                     .read(notificationsProvider.notifier)
                                     .markRead(notification.id);
-                                _openTarget(notification);
+                                await _openTarget(notification);
                               },
                               leading: CircleAvatar(
                                 backgroundColor: notification.read
@@ -214,7 +223,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     );
   }
 
-  void _openTarget(BuyerNotification notification) {
+  Future<void> _openTarget(BuyerNotification notification) async {
     if (notification.type == BuyerNotificationType.order &&
         notification.relatedOrderId != null) {
       final found =
@@ -235,9 +244,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     }
     if (notification.type == BuyerNotificationType.message) {
       if (notification.relatedConversationId != null) {
-        ref
+        await ref
             .read(chatProvider.notifier)
             .selectConversation(notification.relatedConversationId!);
+        if (!mounted) return;
         ref.read(shellTabProvider.notifier).setTab(2);
         Navigator.of(context).popUntil((route) => route.isFirst);
         return;
@@ -246,13 +256,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         final seller = ref.read(
           homeSellerByIdProvider(notification.relatedSellerId!),
         );
-        ref
+        await ref
             .read(chatProvider.notifier)
             .startSellerChat(
               sellerId: seller.id,
               farmName: seller.farmName,
               sellerName: seller.name,
             );
+        if (!mounted) return;
         ref.read(shellTabProvider.notifier).setTab(2);
         Navigator.of(context).popUntil((route) => route.isFirst);
         return;
@@ -269,6 +280,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     };
   }
 }
+
+
+
+
 
 
 

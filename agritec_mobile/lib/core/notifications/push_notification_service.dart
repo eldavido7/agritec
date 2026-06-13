@@ -227,7 +227,7 @@ class PushNotificationService {
     final type = (payload['type'] ?? '').toString().toUpperCase();
     final targetType = (payload['targetType'] ?? '').toString();
     final targetId = (payload['targetId'] ?? '').toString();
-    final conversationId = (payload['conversationId'] ?? '').toString();
+    final conversationId = ((payload['conversationId'] ?? '').toString().trim().isNotEmpty ? (payload['conversationId'] ?? '').toString() : (targetType == 'conversation' ? targetId : '')).trim();
     final sellerId = (payload['sellerId'] ?? '').toString();
     final parentOrderId = (payload['parentOrderId'] ?? '').toString();
 
@@ -236,10 +236,10 @@ class PushNotificationService {
     if (type == 'MESSAGE' || targetType == 'conversation') {
       ref.read(shellTabProvider.notifier).setTab(2);
       if (conversationId.isNotEmpty) {
-        ref.read(chatProvider.notifier).selectConversation(conversationId);
+        await ref.read(chatProvider.notifier).selectConversation(conversationId);
       } else if (sellerId.isNotEmpty) {
         final seller = ref.read(homeSellerByIdProvider(sellerId));
-        ref.read(chatProvider.notifier).startSellerChat(
+        await ref.read(chatProvider.notifier).startSellerChat(
           sellerId: seller.id,
           farmName: seller.farmName,
           sellerName: seller.name,
@@ -278,5 +278,7 @@ String get _platformName {
       return 'ANDROID';
   }
 }
+
+
 
 

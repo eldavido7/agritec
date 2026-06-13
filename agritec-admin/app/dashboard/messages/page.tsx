@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { MessageCircle, Search, Send, Plus, RefreshCw, AlertCircle } from "lucide-react";
+import {
+  MessageCircle,
+  Search,
+  Send,
+  Plus,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,19 +36,29 @@ export default function MessagesPage() {
   const fetchBuyers = useAdminBuyersStore((state) => state.fetchBuyers);
   const fetchSellers = useAdminSellersStore((state) => state.fetchSellers);
   const conversations = useAdminMessagesStore((state) => state.conversations);
-  const messagesByConversationId = useAdminMessagesStore((state) => state.messagesByConversationId);
+  const messagesByConversationId = useAdminMessagesStore(
+    (state) => state.messagesByConversationId,
+  );
   const isLoading = useAdminMessagesStore((state) => state.isLoading);
-  const isMessagesLoading = useAdminMessagesStore((state) => state.isMessagesLoading);
+  const isMessagesLoading = useAdminMessagesStore(
+    (state) => state.isMessagesLoading,
+  );
   const isSending = useAdminMessagesStore((state) => state.isSending);
   const isCreating = useAdminMessagesStore((state) => state.isCreating);
-  const fetchConversations = useAdminMessagesStore((state) => state.fetchConversations);
+  const fetchConversations = useAdminMessagesStore(
+    (state) => state.fetchConversations,
+  );
   const fetchMessages = useAdminMessagesStore((state) => state.fetchMessages);
   const sendMessage = useAdminMessagesStore((state) => state.sendMessage);
-  const createConversation = useAdminMessagesStore((state) => state.createConversation);
+  const createConversation = useAdminMessagesStore(
+    (state) => state.createConversation,
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [participantSearch, setParticipantSearch] = useState("");
   const [newChatMode, setNewChatMode] = useState(false);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    string | null
+  >(null);
   const [messageInput, setMessageInput] = useState("");
   const [conversationPage, setConversationPage] = useState(1);
   const conversationsPerPage = 10;
@@ -129,7 +146,8 @@ export default function MessagesPage() {
     if (participantType && participantId && conversations.length > 0) {
       const matchedParticipant = participants.find(
         (participant) =>
-          participant.id === participantId && participant.type === participantType,
+          participant.id === participantId &&
+          participant.type === participantType,
       );
       const conversation = conversations.find((entry) =>
         entry.participants.some(
@@ -145,7 +163,7 @@ export default function MessagesPage() {
         setNewChatMode(false);
       }
     }
-  }, [conversations, participants, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -179,7 +197,9 @@ export default function MessagesPage() {
   }, [searchTerm, newChatMode]);
 
   const currentConversation = selectedConversationId
-    ? conversations.find((conversation) => conversation.id === selectedConversationId) || null
+    ? conversations.find(
+        (conversation) => conversation.id === selectedConversationId,
+      ) || null
     : null;
   const currentMessages = selectedConversationId
     ? messagesByConversationId[selectedConversationId] || []
@@ -201,7 +221,10 @@ export default function MessagesPage() {
     }
   };
 
-  const handleCreateConversation = async (participantId: string, participantType: "buyer" | "seller") => {
+  const handleCreateConversation = async (
+    participantId: string,
+    participantType: "buyer" | "seller",
+  ) => {
     try {
       const conversation = await createConversation({
         participantId,
@@ -213,7 +236,9 @@ export default function MessagesPage() {
       await fetchMessages(conversation.id, { force: true });
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to create conversation",
+        error instanceof Error
+          ? error.message
+          : "Failed to create conversation",
       );
     }
   };
@@ -269,7 +294,9 @@ export default function MessagesPage() {
                   <Input
                     placeholder="Search buyers or sellers..."
                     value={participantSearch}
-                    onChange={(event) => setParticipantSearch(event.target.value)}
+                    onChange={(event) =>
+                      setParticipantSearch(event.target.value)
+                    }
                     className="pl-10"
                   />
                 </div>
@@ -280,7 +307,10 @@ export default function MessagesPage() {
                         key={`${participant.type}-${participant.id}`}
                         type="button"
                         onClick={() =>
-                          void handleCreateConversation(participant.id, participant.type)
+                          void handleCreateConversation(
+                            participant.id,
+                            participant.type,
+                          )
                         }
                         className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
                       >
@@ -326,11 +356,16 @@ export default function MessagesPage() {
                   const participant = conversation.participants.find(
                     (entry) => !entry.isCurrentUser,
                   );
-                  const title = participant?.fullName || conversation.subject || "Conversation";
+                  const title =
+                    participant?.fullName ||
+                    conversation.subject ||
+                    "Conversation";
                   return (
                     <button
                       key={conversation.id}
-                      onClick={() => void handleOpenConversation(conversation.id)}
+                      onClick={() =>
+                        void handleOpenConversation(conversation.id)
+                      }
                       className={`min-h-24 w-full rounded-md p-3 text-left transition-colors ${
                         selectedConversationId === conversation.id
                           ? "bg-primary text-primary-foreground"
@@ -351,10 +386,14 @@ export default function MessagesPage() {
                             ) : null}
                           </div>
                           <p className="mt-1 line-clamp-2 text-xs opacity-80">
-                            {conversation.latestMessage?.body || "No messages yet"}
+                            {conversation.latestMessage?.body ||
+                              "No messages yet"}
                           </p>
                           <p className="mt-2 text-xs opacity-70">
-                            {formatTimestamp(conversation.lastMessageAt || conversation.updatedAt)}
+                            {formatTimestamp(
+                              conversation.lastMessageAt ||
+                                conversation.updatedAt,
+                            )}
                           </p>
                         </div>
                       </div>
@@ -382,7 +421,9 @@ export default function MessagesPage() {
                     variant="outline"
                     size="sm"
                     disabled={conversationPage === 1}
-                    onClick={() => setConversationPage((prev) => Math.max(1, prev - 1))}
+                    onClick={() =>
+                      setConversationPage((prev) => Math.max(1, prev - 1))
+                    }
                   >
                     Previous
                   </Button>
@@ -390,7 +431,11 @@ export default function MessagesPage() {
                     variant="outline"
                     size="sm"
                     disabled={conversationPage === totalConversationPages}
-                    onClick={() => setConversationPage((prev) => Math.min(totalConversationPages, prev + 1))}
+                    onClick={() =>
+                      setConversationPage((prev) =>
+                        Math.min(totalConversationPages, prev + 1),
+                      )
+                    }
                   >
                     Next
                   </Button>
@@ -405,14 +450,19 @@ export default function MessagesPage() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/50 pb-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10 text-sm font-semibold">
-                  {(currentParticipant?.fullName || "C").slice(0, 1).toUpperCase()}
+                  {(currentParticipant?.fullName || "C")
+                    .slice(0, 1)
+                    .toUpperCase()}
                 </div>
                 <div>
                   <p className="font-medium text-foreground">
-                    {currentParticipant?.fullName || currentConversation.subject || "Conversation"}
+                    {currentParticipant?.fullName ||
+                      currentConversation.subject ||
+                      "Conversation"}
                   </p>
                   <p className="text-xs capitalize text-muted-foreground">
-                    {currentParticipant?.role?.toLowerCase() || currentConversation.type.toLowerCase()}
+                    {currentParticipant?.role?.toLowerCase() ||
+                      currentConversation.type.toLowerCase()}
                   </p>
                 </div>
               </div>
@@ -420,7 +470,10 @@ export default function MessagesPage() {
                 variant="outline"
                 size="sm"
                 className="gap-2"
-                onClick={() => selectedConversationId && void fetchMessages(selectedConversationId, { force: true })}
+                onClick={() =>
+                  selectedConversationId &&
+                  void fetchMessages(selectedConversationId, { force: true })
+                }
               >
                 <RefreshCw className="h-4 w-4" />
                 Refresh
@@ -468,7 +521,8 @@ export default function MessagesPage() {
                 })
               ) : (
                 <div className="rounded-xl border border-dashed border-border/60 bg-background px-4 py-8 text-center text-sm text-muted-foreground">
-                  Start the conversation with {currentParticipant?.fullName || "this contact"}.
+                  Start the conversation with{" "}
+                  {currentParticipant?.fullName || "this contact"}.
                 </div>
               )}
               <div ref={messagesEndRef} />
@@ -486,8 +540,16 @@ export default function MessagesPage() {
                     }
                   }}
                 />
-                <Button onClick={() => void handleSendMessage()} className="gap-2" disabled={isSending}>
-                  {isSending ? <Spinner className="size-4" /> : <Send className="h-4 w-4" />}
+                <Button
+                  onClick={() => void handleSendMessage()}
+                  className="gap-2"
+                  disabled={isSending}
+                >
+                  {isSending ? (
+                    <Spinner className="size-4" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>

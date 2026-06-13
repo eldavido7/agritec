@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { create } from "zustand";
 import { adminApiRequest } from "@/lib/admin-api";
@@ -211,7 +211,17 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
         token,
       });
 
-      const conversations = response.conversations.map(normalizeConversation);
+      const currentAdminId = useAdminAuthStore.getState().user?.id ?? null;
+      const conversations = response.conversations
+        .map(normalizeConversation)
+        .filter((conversation) =>
+          conversation.participants.some(
+            (participant) =>
+              participant.isCurrentUser &&
+              participant.role.toUpperCase() === "ADMIN" &&
+              (!currentAdminId || participant.userId === currentAdminId),
+          ),
+        );
       console.log("[Admin Messages] Fetch success", {
         count: conversations.length,
         conversationIds: conversations.map((conversation) => conversation.id),
@@ -432,3 +442,4 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+

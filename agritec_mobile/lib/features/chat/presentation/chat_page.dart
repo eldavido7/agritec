@@ -1,6 +1,6 @@
-﻿import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
-import 'package:agritec_mobile/core/localization/app_localizations.dart';
+﻿import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
+import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,11 +21,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final chatState = ref.read(chatProvider);
-      if (chatState.activeDraft == null &&
-          chatState.selectedConversationId != null) {
-        ref.read(chatProvider.notifier).clearSelectedConversation();
-      }
+      if (!mounted || !isBuyerAuthenticated(ref)) return;
+      ref.read(chatProvider.notifier).refreshConversations();
     });
   }
 
@@ -44,17 +41,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         onBack: () => ref.read(shellTabProvider.notifier).setTab(0),
       );
     }
+
     final chatState = ref.watch(chatProvider);
+    final notifier = ref.read(chatProvider.notifier);
     final filtered = chatState.conversations
         .where((conversation) => conversation.channelType == _filter)
         .toList();
-    final selected =
-        filtered.any((c) => c.id == chatState.selectedConversationId)
+    final selected = filtered.any((c) => c.id == chatState.selectedConversationId)
         ? filtered.firstWhere((c) => c.id == chatState.selectedConversationId)
         : null;
     final dateFormat = DateFormat('d MMM, y - h:mm a');
-    final hasDraftSellerChat =
-        _filter == ChatChannelType.seller && chatState.activeDraft != null;
 
     return Container(
       decoration: const BoxDecoration(
@@ -73,36 +69,40 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 children: [
                   Text(
                     ref.tr('chat.title'),
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),
                   SegmentedButton<ChatChannelType>(
                     segments: [
                       ButtonSegment(
                         value: ChatChannelType.seller,
-                        icon: Icon(Icons.storefront_rounded),
+                        icon: const Icon(Icons.storefront_rounded),
                         label: Text(ref.tr('chat.filter.sellers')),
                       ),
                       ButtonSegment(
                         value: ChatChannelType.support,
-                        icon: Icon(Icons.support_agent_rounded),
+                        icon: const Icon(Icons.support_agent_rounded),
                         label: Text(ref.tr('chat.filter.support')),
                       ),
                     ],
                     selected: {_filter},
-                    onSelectionChanged: (selection) {
-                      setState(() => _filter = selection.first);
+                    onSelectionChanged: (selection) async {
+                      final next = selection.first;
+                      setState(() => _filter = next);
+                      if (next == ChatChannelType.support) {
+                        await notifier.startSupportConversation();
+                      }
                     },
                   ),
                 ],
               ),
             ),
-            if (filtered.isEmpty && !hasDraftSellerChat)
+            if (filtered.isEmpty)
               Expanded(
                 child: Center(
                   child: Text(
                     ref.tr('chat.empty'),
-                    style: TextStyle(color: Color(0xFF66716C)),
+                    style: const TextStyle(color: Color(0xFF66716C)),
                   ),
                 ),
               )
@@ -117,16 +117,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     final isSelected = selected?.id == conversation.id;
                     return InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      onTap: () => ref
-                          .read(chatProvider.notifier)
-                          .selectConversation(conversation.id),
+                      onTap: () => notifier.selectConversation(conversation.id),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFF0D8A66)
-                              : Colors.white,
+                          color: isSelected ? const Color(0xFF0D8A66) : Colors.white,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: isSelected
@@ -136,44 +132,85 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ),
                         child: Row(
                           children: [
-                            CircleAvatar(
-                              backgroundColor: isSelected
-                                  ? Colors.white
-                                  : const Color(0xFFEAF7F2),
-                              child: Text(
-                                conversation.avatarLabel,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? const Color(0xFF0D8A66)
-                                      : const Color(0xFF0E5A43),
-                                  fontWeight: FontWeight.w700,
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFFEAF7F2),
+                                  child: Text(
+                                    conversation.avatarLabel,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? const Color(0xFF0D8A66)
+                                          : const Color(0xFF0E5A43),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                if (conversation.unreadCount > 0)
+                                  Positioned(
+                                    right: -6,
+                                    top: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : const Color(0xFFCC3D1F),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        conversation.unreadCount > 99
+                                            ? '99+'
+                                            : '${conversation.unreadCount}',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: isSelected
+                                              ? const Color(0xFF0D8A66)
+                                              : Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                             const SizedBox(width: 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  conversation.title,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : const Color(0xFF1D2522),
-                                    fontWeight: FontWeight.w700,
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 150),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    conversation.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : const Color(0xFF1D2522),
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  conversation.subtitle,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white.withValues(alpha: 0.85)
-                                        : const Color(0xFF6A756F),
-                                    fontSize: 12,
+                                  Text(
+                                    conversation.latestMessage?.text ?? conversation.subtitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.white.withValues(alpha: 0.85)
+                                          : const Color(0xFF6A756F),
+                                      fontSize: 12,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -198,19 +235,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                         child: Row(
                           children: [
-                            const Icon(
-                              Icons.chat_bubble_outline_rounded,
-                              size: 18,
+                            IconButton(
+                              onPressed: selected == null
+                                  ? null
+                                  : () => notifier.clearSelectedConversation(),
+                              icon: const Icon(Icons.arrow_back_rounded),
+                              tooltip: ref.tr('common.back'),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                selected?.title ??
-                                    chatState.activeDraft?.farmName ??
-                                    ref.tr('chat.conversation'),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
+                                selected?.title ?? ref.tr('chat.conversation'),
+                                style: const TextStyle(fontWeight: FontWeight.w700),
                               ),
                             ),
                           ],
@@ -233,50 +269,78 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 itemCount: selected.messages.length,
                                 itemBuilder: (context, index) {
                                   final message = selected.messages[index];
-                            return Align(
-                              alignment: message.isMine
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                constraints: const BoxConstraints(
-                                  maxWidth: 280,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 9,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: message.isMine
-                                      ? const Color(0xFF0D8A66)
-                                      : const Color(0xFFF1F5F3),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      message.text,
-                                      style: TextStyle(
+                                  return Align(
+                                    alignment: message.isMine
+                                        ? Alignment.centerRight
+                                        : Alignment.centerLeft,
+                                    child: Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      constraints: const BoxConstraints(maxWidth: 280),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 9,
+                                      ),
+                                      decoration: BoxDecoration(
                                         color: message.isMine
-                                            ? Colors.white
-                                            : const Color(0xFF1E2623),
+                                            ? const Color(0xFF0D8A66)
+                                            : const Color(0xFFF1F5F3),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            message.text,
+                                            style: TextStyle(
+                                              color: message.isMine
+                                                  ? Colors.white
+                                                  : const Color(0xFF1E2623),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                dateFormat.format(message.sentAt),
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: message.isMine
+                                                      ? Colors.white70
+                                                      : const Color(0xFF73807A),
+                                                ),
+                                              ),
+                                              if (message.isSending) ...[
+                                                const SizedBox(width: 6),
+                                                SizedBox(
+                                                  width: 10,
+                                                  height: 10,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 1.5,
+                                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                                      message.isMine
+                                                          ? Colors.white70
+                                                          : const Color(0xFF73807A),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                              if (message.hasFailed) ...[
+                                                const SizedBox(width: 6),
+                                                Icon(
+                                                  Icons.error_outline_rounded,
+                                                  size: 12,
+                                                  color: message.isMine
+                                                      ? Colors.white70
+                                                      : const Color(0xFFCC3D1F),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      dateFormat.format(message.sentAt),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: message.isMine
-                                            ? Colors.white70
-                                            : const Color(0xFF73807A),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
+                                  );
                                 },
                               ),
                       ),
@@ -291,6 +355,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   controller: _controller,
                                   minLines: 1,
                                   maxLines: 4,
+                                  enabled: selected != null && !chatState.isSending,
                                   decoration: InputDecoration(
                                     hintText: ref.tr('chat.placeholder'),
                                     isDense: true,
@@ -299,13 +364,23 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               ),
                               const SizedBox(width: 8),
                               IconButton.filled(
-                                onPressed: () {
-                                  ref
-                                      .read(chatProvider.notifier)
-                                      .sendMessage(_controller.text);
-                                  _controller.clear();
-                                },
-                                icon: const Icon(Icons.send_rounded),
+                                onPressed: selected == null || chatState.isSending
+                                    ? null
+                                    : () async {
+                                        final text = _controller.text;
+                                        _controller.clear();
+                                        await notifier.sendMessage(text);
+                                      },
+                                icon: chatState.isSending
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      )
+                                    : const Icon(Icons.send_rounded),
                               ),
                             ],
                           ),
@@ -323,6 +398,3 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 }
-
-
-

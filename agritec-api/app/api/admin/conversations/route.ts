@@ -1,4 +1,4 @@
-﻿import { ConversationType, UserRole } from "@prisma/client";
+import { ConversationType, UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth";
@@ -32,9 +32,28 @@ export async function GET(request: Request) {
 
     const conversations = await prisma.conversation.findMany({
       where: {
+        AND: [
+          {
+            participants: {
+              some: {
+                userId: admin.id,
+              },
+            },
+          },
+          ...(participantId
+            ? [
+                {
+                  participants: {
+                    some: {
+                      userId: participantId,
+                    },
+                  },
+                },
+              ]
+            : []),
+        ],
         ...(type === "buyer-seller" ? { type: ConversationType.BUYER_SELLER } : {}),
         ...(type === "buyer-support" ? { type: ConversationType.BUYER_SUPPORT } : {}),
-        ...(participantId ? { participants: { some: { userId: participantId } } } : {}),
       },
       include: {
         participants: {
@@ -225,3 +244,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: "Failed to create admin conversation" }, { status: 500 });
   }
 }
+
+
