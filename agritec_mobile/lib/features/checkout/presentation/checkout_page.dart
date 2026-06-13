@@ -23,34 +23,13 @@ class CheckoutPage extends ConsumerStatefulWidget {
   ConsumerState<CheckoutPage> createState() => _CheckoutPageState();
 }
 
-class _CheckoutPageState extends ConsumerState<CheckoutPage>
-    with WidgetsBindingObserver {
+class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   String _discountCodeInput = '';
   String? _appliedDiscountCode;
   String? _discountMessage;
   String? _selectedAddressId;
   String? _lastQuoteKey;
-  bool _awaitingPaymentReturn = false;
   bool _openingPaymentStatus = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _awaitingPaymentReturn) {
-      unawaited(_openPaymentStatusPage());
-    }
-  }
 
   void _handleBack() {
     final nav = Navigator.of(context);
@@ -246,6 +225,13 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage>
                 ),
               )
             else if (quote != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  ref.tr('checkout.shippingHelper'),
+                  style: const TextStyle(color: Color(0xFF65706B)),
+                ),
+              ),
               for (final group in quote.sellerGroups) ...[
                 _SellerCheckoutCard(group: group, currency: money),
                 const SizedBox(height: 10),
@@ -388,10 +374,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage>
 
   Future<void> _startPayment(String addressId) async {
     try {
-      final session = await ref.read(checkoutProvider.notifier).initializePayment(
-            addressId: addressId,
-            discountCode: _appliedDiscountCode,
-          );
+      final session =
+          await ref.read(checkoutProvider.notifier).initializePayment(
+                addressId: addressId,
+                discountCode: _appliedDiscountCode,
+              );
       if (!mounted) return;
       final launched = await launchUrl(
         Uri.parse(session.authorizationUrl),
@@ -406,7 +393,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage>
         );
         return;
       }
-      _awaitingPaymentReturn = true;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ref.tr('checkout.waitingPayment'))),
       );
@@ -422,7 +408,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage>
     if (_openingPaymentStatus) return;
     _openingPaymentStatus = true;
     try {
-      final session = await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
+      final session =
+          await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
       if (!mounted || session == null) return;
       await context.pushNamed(
         PaymentCallbackPage.routeName,
@@ -433,7 +420,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage>
       );
     } finally {
       _openingPaymentStatus = false;
-      _awaitingPaymentReturn = false;
     }
   }
 
@@ -522,10 +508,6 @@ class _SellerCheckoutCard extends ConsumerWidget {
               currency.format(group.productSubtotal),
             ),
             _breakdownLine(
-              ref.tr('checkout.shippingFee'),
-              currency.format(group.shippingFee),
-            ),
-            _breakdownLine(
               ref.tr('checkout.deliveryRegion'),
               group.shippingQuote.deliveryRegion,
             ),
@@ -534,20 +516,8 @@ class _SellerCheckoutCard extends ConsumerWidget {
               '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg',
             ),
             _breakdownLine(
-              ref.tr('checkout.weightUnitSize'),
-              '${group.shippingQuote.weightUnitSizeKg.toStringAsFixed(1)} kg',
-            ),
-            _breakdownLine(
-              ref.tr('checkout.minimumFee'),
-              currency.format(group.shippingQuote.minimumFee),
-            ),
-            _breakdownLine(
-              ref.tr('checkout.additionalUnitFee'),
-              currency.format(group.shippingQuote.additionalUnitFee),
-            ),
-            _breakdownLine(
-              ref.tr('checkout.shippingUnits'),
-              '${group.shippingQuote.shippingUnits}',
+              ref.tr('checkout.shippingFee'),
+              currency.format(group.shippingFee),
             ),
             _breakdownLine(
               ref.tr('checkout.discount'),
@@ -590,7 +560,3 @@ class _SellerCheckoutCard extends ConsumerWidget {
     );
   }
 }
-
-
-
-

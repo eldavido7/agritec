@@ -169,6 +169,7 @@
   'orderDetails.shippingUnits': 'Shipping units',
   'orderDetails.discount': 'Discount',
   'orderDetails.groupTotal': 'Group total',
+  'orderDetails.shippingHelper': 'Shipping is calculated based on product weight, dimensions where available, and delivery location.',
   'addresses.title': 'Saved Addresses',
   'addresses.intro': 'Manage delivery locations and default checkout address.',
   'addresses.add': 'Add Address',
@@ -263,6 +264,7 @@ final appTranslations = <String, Map<String, String>>{
   'ha': {..._en, ..._ha},
   'ig': {..._en, ..._ig},
 };
+
 
 
 

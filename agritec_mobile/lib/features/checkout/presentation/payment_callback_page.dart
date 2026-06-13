@@ -65,7 +65,8 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
     });
 
     try {
-      final session = await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
+      final session =
+          await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
       final reference = widget.reference ?? session?.reference;
       final orderId = widget.orderId ?? session?.orderId;
       if (reference == null || reference.trim().isEmpty) {
@@ -98,7 +99,9 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
         return;
       }
 
-      if ((result.isPending || result.isPendingTimeout) && _pollAttempts < _maxPollAttempts && !result.isPendingTimeout) {
+      if ((result.isPending || result.isPendingTimeout) &&
+          _pollAttempts < _maxPollAttempts &&
+          !result.isPendingTimeout) {
         _pollAttempts += 1;
         _pollTimer?.cancel();
         _pollTimer = Timer(_pollInterval, () {
@@ -107,17 +110,18 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
           }
         });
       }
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _isChecking = false;
-        _error = '$error';
+        _error = ref.tr('paymentCallback.genericError');
       });
     }
   }
 
   Future<void> _retryPayment() async {
-    final session = await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
+    final session =
+        await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
     if (session == null) {
       if (!mounted) return;
       setState(() {
@@ -173,7 +177,9 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
             padding: const EdgeInsets.all(20),
             child: Card(
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -185,7 +191,10 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
                       Text(
                         ref.tr('paymentCallback.checking'),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -193,12 +202,25 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Color(0xFF65706B)),
                       ),
+                      const SizedBox(height: 6),
+                      Text(
+                        ref.tr('paymentCallback.checkingNote'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Color(0xFF8B9691)),
+                      ),
                     ] else if (_error != null) ...[
-                      const Icon(Icons.error_outline_rounded, size: 52, color: Colors.redAccent),
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        size: 52,
+                        color: Colors.redAccent,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         ref.tr('paymentCallback.failed'),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -207,11 +229,18 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
                         style: const TextStyle(color: Color(0xFF65706B)),
                       ),
                     ] else if (status == 'PAID') ...[
-                      const Icon(Icons.check_circle_rounded, size: 56, color: Color(0xFF136A43)),
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        size: 56,
+                        color: Color(0xFF136A43),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         ref.tr('paymentCallback.success'),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -220,41 +249,48 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
                         style: const TextStyle(color: Color(0xFF65706B)),
                       ),
                     ] else if (status == 'FAILED' || status == 'CANCELLED') ...[
-                      const Icon(Icons.cancel_rounded, size: 56, color: Color(0xFFD9534F)),
+                      const Icon(
+                        Icons.cancel_rounded,
+                        size: 56,
+                        color: Color(0xFFD9534F),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         ref.tr('paymentCallback.failed'),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _result?.message ?? ref.tr('paymentCallback.failedHint'),
+                        ref.tr('paymentCallback.failedHint'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Color(0xFF65706B)),
                       ),
                     ] else ...[
-                      const Icon(Icons.hourglass_top_rounded, size: 56, color: Color(0xFFB15F00)),
+                      const Icon(
+                        Icons.hourglass_top_rounded,
+                        size: 56,
+                        color: Color(0xFFB15F00),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         status == 'PENDING_TIMEOUT'
                             ? ref.tr('paymentCallback.pendingTimeout')
                             : ref.tr('paymentCallback.pending'),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _result?.message ?? ref.tr('paymentCallback.pendingHint'),
+                        ref.tr('paymentCallback.pendingHint'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Color(0xFF65706B)),
                       ),
                     ],
-                    const SizedBox(height: 18),
-                    if (_result != null && _result!.reference.isNotEmpty)
-                      Text(
-                        'Ref: ${_result!.reference}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF65706B)),
-                      ),
                     const SizedBox(height: 18),
                     if (!_isChecking) ...[
                       SizedBox(
@@ -264,12 +300,16 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF136A43),
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                           child: Text(ref.tr('paymentCallback.checkAgain')),
                         ),
                       ),
-                      if (status == 'FAILED' || status == 'CANCELLED' || status == 'PENDING_TIMEOUT') ...[
+                      if (status == 'FAILED' ||
+                          status == 'CANCELLED' ||
+                          status == 'PENDING_TIMEOUT') ...[
                         const SizedBox(height: 10),
                         SizedBox(
                           width: double.infinity,
@@ -290,4 +330,3 @@ class _PaymentCallbackPageState extends ConsumerState<PaymentCallbackPage> {
     );
   }
 }
-

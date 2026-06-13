@@ -1,4 +1,4 @@
-import 'dart:ui' as ui;
+﻿import 'dart:ui' as ui;
 
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
@@ -52,16 +52,25 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
     final order = ref.watch(orderByIdProvider(widget.orderId));
     if (order == null && !_requestedRemote) {
       _requestedRemote = true;
-      Future.microtask(() => ref.read(ordersProvider.notifier).fetchOrderById(widget.orderId));
+      Future.microtask(
+        () => ref.read(ordersProvider.notifier).fetchOrderById(widget.orderId),
+      );
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (order == null) {
       return Scaffold(body: Center(child: Text(ref.tr('orderDetails.notFound'))));
     }
 
-    final hasBuyerCoords = order.buyerAddress.latitude != null && order.buyerAddress.longitude != null;
-    final buyerPoint = hasBuyerCoords ? LatLng(order.buyerAddress.latitude!, order.buyerAddress.longitude!) : null;
-    final money = NumberFormat.currency(locale: 'en_NG', symbol: 'NGN ', decimalDigits: 0);
+    final hasBuyerCoords =
+        order.buyerAddress.latitude != null && order.buyerAddress.longitude != null;
+    final buyerPoint = hasBuyerCoords
+        ? LatLng(order.buyerAddress.latitude!, order.buyerAddress.longitude!)
+        : null;
+    final money = NumberFormat.currency(
+      locale: 'en_NG',
+      symbol: 'NGN ',
+      decimalDigits: 0,
+    );
 
     return PopScope(
       canPop: false,
@@ -93,21 +102,47 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
           children: [
             Card(
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${ref.tr('orderDetails.paymentReference')}: ${order.paymentReference}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(
+                      '${ref.tr('orderDetails.paymentReference')}: ${order.paymentReference}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     const SizedBox(height: 6),
-                    Text(order.buyerAddress.fullAddress, style: const TextStyle(color: Color(0xFF65706B))),
+                    Text(
+                      order.buyerAddress.fullAddress,
+                      style: const TextStyle(color: Color(0xFF65706B)),
+                    ),
                     const SizedBox(height: 10),
-                    _line(ref.tr('orderDetails.productSubtotal'), money.format(order.productSubtotal)),
-                    _line(ref.tr('orderDetails.totalShippingFee'), money.format(order.totalShippingFee)),
-                    _line(ref.tr('orderDetails.discountTotal'), '- ${money.format(order.discountTotal)}'),
+                    Text(
+                      ref.tr('orderDetails.shippingHelper'),
+                      style: const TextStyle(color: Color(0xFF65706B)),
+                    ),
+                    const SizedBox(height: 10),
+                    _line(
+                      ref.tr('orderDetails.productSubtotal'),
+                      money.format(order.productSubtotal),
+                    ),
+                    _line(
+                      ref.tr('orderDetails.totalShippingFee'),
+                      money.format(order.totalShippingFee),
+                    ),
+                    _line(
+                      ref.tr('orderDetails.discountTotal'),
+                      '- ${money.format(order.discountTotal)}',
+                    ),
                     const Divider(),
-                    _line(ref.tr('orderDetails.grandTotal'), money.format(order.grandTotal), bold: true),
+                    _line(
+                      ref.tr('orderDetails.grandTotal'),
+                      money.format(order.grandTotal),
+                      bold: true,
+                    ),
                   ],
                 ),
               ),
@@ -122,14 +157,16 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
                     child: SizedBox(
                       height: 220,
                       child: _RouteMap(
-                        sellerPoint: LatLng(group.sellerLatitude, group.sellerLongitude),
+                        sellerPoint:
+                            LatLng(group.sellerLatitude, group.sellerLongitude),
                         buyerPoint: buyerPoint,
                         riderPoint: LatLng(
                           (group.sellerLatitude + buyerPoint.latitude) / 2,
                           (group.sellerLongitude + buyerPoint.longitude) / 2,
                         ),
                         farmName: group.farmName,
-                        sellerAddress: ref.watch(homeSellerByIdProvider(group.sellerId)).location,
+                        sellerAddress:
+                            ref.watch(homeSellerByIdProvider(group.sellerId)).location,
                         buyerAddress: order.buyerAddress.fullAddress,
                       ),
                     ),
@@ -138,7 +175,9 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
               if (!hasBuyerCoords)
                 Card(
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: ListTile(
                     title: Text(ref.tr('orderDetails.mapUnavailable')),
                     subtitle: Text(ref.tr('orderDetails.mapUnavailableHint')),
@@ -162,9 +201,21 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400))),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
-          Text(value, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+            ),
+          ),
         ],
       ),
     );
@@ -193,8 +244,17 @@ class _SellerGroupCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(group.farmName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                      Text('${ref.tr('orderDetails.sellerLabel')}: ${group.sellerName}', style: const TextStyle(color: Color(0xFF65706B))),
+                      Text(
+                        group.farmName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        '${ref.tr('orderDetails.sellerLabel')}: ${group.sellerName}',
+                        style: const TextStyle(color: Color(0xFF65706B)),
+                      ),
                     ],
                   ),
                 ),
@@ -209,7 +269,10 @@ class _SellerGroupCard extends ConsumerWidget {
                 showConnector: i < group.timeline.length - 1,
               ),
             const SizedBox(height: 10),
-            Text(ref.tr('orderDetails.itemsLabel'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            Text(
+              ref.tr('orderDetails.itemsLabel'),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
             const SizedBox(height: 8),
             for (final line in group.items)
               Padding(
@@ -224,23 +287,40 @@ class _SellerGroupCard extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(currency.format(line.lineTotal), style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text(
+                      currency.format(line.lineTotal),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
               ),
             const Divider(),
-            _infoLine(ref.tr('orderDetails.productSubtotal'), currency.format(group.productSubtotal)),
-            _infoLine(ref.tr('orderDetails.deliveryRegion'), group.shippingQuote.deliveryRegion),
-            _infoLine(ref.tr('orderDetails.shippingFee'), currency.format(group.shippingFee)),
-            _infoLine(ref.tr('orderDetails.actualWeight'), '${group.shippingQuote.totalActualWeightKg.toStringAsFixed(1)} kg'),
-            _infoLine(ref.tr('orderDetails.chargeableWeight'), '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg'),
-            _infoLine(ref.tr('orderDetails.weightUnitSize'), '${group.shippingQuote.weightUnitSizeKg.toStringAsFixed(1)} kg'),
-            _infoLine(ref.tr('orderDetails.minimumFee'), currency.format(group.shippingQuote.minimumFee)),
-            _infoLine(ref.tr('orderDetails.additionalUnitFee'), currency.format(group.shippingQuote.additionalUnitFee)),
-            _infoLine(ref.tr('orderDetails.shippingUnits'), '${group.shippingQuote.shippingUnits}'),
-            _infoLine(ref.tr('orderDetails.discount'), '- ${currency.format(group.discountTotal)}'),
+            _infoLine(
+              ref.tr('orderDetails.productSubtotal'),
+              currency.format(group.productSubtotal),
+            ),
+            _infoLine(
+              ref.tr('orderDetails.deliveryRegion'),
+              group.shippingQuote.deliveryRegion,
+            ),
+            _infoLine(
+              ref.tr('orderDetails.chargeableWeight'),
+              '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg',
+            ),
+            _infoLine(
+              ref.tr('orderDetails.shippingFee'),
+              currency.format(group.shippingFee),
+            ),
+            _infoLine(
+              ref.tr('orderDetails.discount'),
+              '- ${currency.format(group.discountTotal)}',
+            ),
             const Divider(),
-            _infoLine(ref.tr('orderDetails.groupTotal'), currency.format(group.groupTotal), bold: true),
+            _infoLine(
+              ref.tr('orderDetails.groupTotal'),
+              currency.format(group.groupTotal),
+              bold: true,
+            ),
           ],
         ),
       ),
@@ -253,9 +333,21 @@ class _SellerGroupCard extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: Text(label, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400))),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
-          Text(value, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+            ),
+          ),
         ],
       ),
     );
@@ -327,19 +419,30 @@ class _RouteMapState extends State<_RouteMap> {
         Marker(
           markerId: const MarkerId('seller'),
           position: widget.sellerPoint,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-          infoWindow: InfoWindow(title: widget.farmName, snippet: widget.sellerAddress),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
+          infoWindow: InfoWindow(
+            title: widget.farmName,
+            snippet: widget.sellerAddress,
+          ),
         ),
         Marker(
           markerId: const MarkerId('buyer'),
           position: widget.buyerPoint,
-          infoWindow: InfoWindow(title: 'Delivery Address', snippet: widget.buyerAddress),
+          infoWindow: InfoWindow(
+            title: 'Delivery Address',
+            snippet: widget.buyerAddress,
+          ),
         ),
         Marker(
           markerId: const MarkerId('rider'),
           position: widget.riderPoint,
           anchor: const Offset(0.5, 0.5),
-          icon: _riderIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          icon: _riderIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueOrange,
+              ),
           infoWindow: const InfoWindow(title: 'Rider'),
         ),
       },
@@ -357,13 +460,24 @@ class _RouteMapState extends State<_RouteMap> {
   Future<void> _fitBounds() async {
     final controller = _controller;
     if (controller == null) return;
-    final south = widget.sellerPoint.latitude < widget.buyerPoint.latitude ? widget.sellerPoint.latitude : widget.buyerPoint.latitude;
-    final north = widget.sellerPoint.latitude > widget.buyerPoint.latitude ? widget.sellerPoint.latitude : widget.buyerPoint.latitude;
-    final west = widget.sellerPoint.longitude < widget.buyerPoint.longitude ? widget.sellerPoint.longitude : widget.buyerPoint.longitude;
-    final east = widget.sellerPoint.longitude > widget.buyerPoint.longitude ? widget.sellerPoint.longitude : widget.buyerPoint.longitude;
+    final south = widget.sellerPoint.latitude < widget.buyerPoint.latitude
+        ? widget.sellerPoint.latitude
+        : widget.buyerPoint.latitude;
+    final north = widget.sellerPoint.latitude > widget.buyerPoint.latitude
+        ? widget.sellerPoint.latitude
+        : widget.buyerPoint.latitude;
+    final west = widget.sellerPoint.longitude < widget.buyerPoint.longitude
+        ? widget.sellerPoint.longitude
+        : widget.buyerPoint.longitude;
+    final east = widget.sellerPoint.longitude > widget.buyerPoint.longitude
+        ? widget.sellerPoint.longitude
+        : widget.buyerPoint.longitude;
     await controller.animateCamera(
       CameraUpdate.newLatLngBounds(
-        LatLngBounds(southwest: LatLng(south, west), northeast: LatLng(north, east)),
+        LatLngBounds(
+          southwest: LatLng(south, west),
+          northeast: LatLng(north, east),
+        ),
         56,
       ),
     );
@@ -411,9 +525,13 @@ class _RouteMapState extends State<_RouteMap> {
       ),
     );
     painter.layout();
-    painter.paint(canvas, Offset((size - painter.width) / 2, (size - painter.height) / 2));
+    painter.paint(
+      canvas,
+      Offset((size - painter.width) / 2, (size - painter.height) / 2),
+    );
 
-    final image = await recorder.endRecording().toImage(size.toInt(), size.toInt());
+    final image =
+        await recorder.endRecording().toImage(size.toInt(), size.toInt());
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(data!.buffer.asUint8List());
   }
@@ -442,7 +560,9 @@ class _TimelineRow extends StatelessWidget {
           child: Column(
             children: [
               Icon(
-                isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                isDone
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
                 size: 18,
                 color: isDone ? activeColor : mutedColor,
               ),
@@ -450,7 +570,9 @@ class _TimelineRow extends StatelessWidget {
                 Container(
                   width: 2,
                   height: 22,
-                  color: isDone ? activeColor.withValues(alpha: 0.45) : mutedColor.withValues(alpha: 0.4),
+                  color: isDone
+                      ? activeColor.withValues(alpha: 0.45)
+                      : mutedColor.withValues(alpha: 0.4),
                 ),
             ],
           ),
@@ -462,7 +584,9 @@ class _TimelineRow extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                color: isDone ? const Color(0xFF1F2D27) : const Color(0xFF6C7872),
+                color: isDone
+                    ? const Color(0xFF1F2D27)
+                    : const Color(0xFF6C7872),
                 fontWeight: isDone ? FontWeight.w600 : FontWeight.w400,
               ),
             ),

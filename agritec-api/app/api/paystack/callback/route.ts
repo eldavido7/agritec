@@ -27,12 +27,56 @@ function buildMobileCallbackUrl(args: {
   return url;
 }
 
+function buildDeepLinkHtml(url: URL) {
+  const destination = url.toString();
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Returning to Agritec</title>
+    <meta http-equiv="refresh" content="0;url=${destination}" />
+    <style>
+      body { font-family: Arial, sans-serif; background: #f4f8f5; color: #163020; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 24px; }
+      .card { background: #fff; border-radius: 18px; padding: 24px; max-width: 420px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+      .spinner { width: 38px; height: 38px; margin: 0 auto 16px; border: 4px solid #dceadf; border-top-color: #136A43; border-radius: 50%; animation: spin 0.9s linear infinite; }
+      a { color: #136A43; font-weight: 600; text-decoration: none; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="spinner"></div>
+      <h2>Returning to Agritec</h2>
+      <p>Please wait while we bring you back to the app.</p>
+      <p><a href="${destination}">Tap here if the app does not open automatically.</a></p>
+    </div>
+    <script>
+      window.location.replace(${JSON.stringify(destination)});
+      setTimeout(function () {
+        window.location.href = ${JSON.stringify(destination)};
+      }, 400);
+    </script>
+  </body>
+</html>`;
+}
+
+function deepLinkResponse(url: URL) {
+  return new Response(buildDeepLinkHtml(url), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const reference = searchParams.get("reference") ?? searchParams.get("trxref");
 
   if (!reference) {
-    return NextResponse.redirect(buildMobileCallbackUrl({ status: "FAILED" }));
+    return deepLinkResponse(buildMobileCallbackUrl({ status: "FAILED" }));
   }
 
   try {
@@ -46,13 +90,13 @@ export async function GET(request: Request) {
     });
 
     if (!payment) {
-      return NextResponse.redirect(
+      return deepLinkResponse(
         buildMobileCallbackUrl({ reference, status: "FAILED" })
       );
     }
 
     if (payment.status === PaymentStatus.PAID) {
-      return NextResponse.redirect(
+      return deepLinkResponse(
         buildMobileCallbackUrl({
           reference,
           orderId: payment.parentOrderId,
@@ -70,7 +114,7 @@ export async function GET(request: Request) {
         verification,
       });
 
-      return NextResponse.redirect(
+      return deepLinkResponse(
         buildMobileCallbackUrl({
           reference,
           orderId: result.order.id,
@@ -87,7 +131,7 @@ export async function GET(request: Request) {
         rawVerifyResponse: verification,
       });
 
-      return NextResponse.redirect(
+      return deepLinkResponse(
         buildMobileCallbackUrl({
           reference,
           orderId: payment.parentOrderId,
@@ -96,7 +140,7 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.redirect(
+    return deepLinkResponse(
       buildMobileCallbackUrl({
         reference,
         orderId: payment.parentOrderId,
@@ -105,7 +149,7 @@ export async function GET(request: Request) {
     );
   } catch (error) {
     console.error("[PAYSTACK_CALLBACK_GET_ERROR]", error);
-    return NextResponse.redirect(
+    return deepLinkResponse(
       buildMobileCallbackUrl({
         reference,
         status: "FAILED",
@@ -113,4 +157,3 @@ export async function GET(request: Request) {
     );
   }
 }
-
