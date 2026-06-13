@@ -8,11 +8,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 bool isBuyerAuthenticated(WidgetRef ref) {
-  final startupAuth = ref.read(startupControllerProvider).maybeWhen(
+  final startupAuth = ref.watch(startupControllerProvider).maybeWhen(
         data: (state) => state.isAuthenticated,
         orElse: () => false,
       );
-  return startupAuth && ref.read(currentBuyerUserProvider) != null;
+  return startupAuth && ref.watch(currentBuyerUserProvider) != null;
 }
 
 Future<void> showBuyerAuthPrompt(
@@ -187,5 +187,6 @@ class AuthRequiredPage extends ConsumerWidget {
     );
   }
 }
+
 
 

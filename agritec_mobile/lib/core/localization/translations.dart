@@ -138,6 +138,24 @@
   'checkout.actualWeightOnly': 'Using actual weight only for this seller group.',
   'checkout.discount': 'Discount',
   'checkout.groupTotal': 'Group total',
+  'checkout.shippingHelper': 'Shipping is calculated based on product weight, dimensions where available, and delivery location.',
+  'checkout.checkPaymentStatus': 'Check payment status',
+  'paymentCallback.title': 'Awaiting Confirmation',
+  'paymentCallback.checking': 'Confirming your payment...',
+  'paymentCallback.checkingHint': 'Please wait while we verify your order.',
+  'paymentCallback.checkingNote': 'This may take a few seconds.',
+  'paymentCallback.noPending': 'No pending payment was found.',
+  'paymentCallback.success': 'Payment confirmed',
+  'paymentCallback.successHint': 'Your payment has been confirmed. Opening your order details...',
+  'paymentCallback.pending': 'Awaiting confirmation',
+  'paymentCallback.pendingHint': 'We are still waiting for payment confirmation. If you have already paid, check again in a moment.',
+  'paymentCallback.pendingTimeout': 'Confirmation is taking longer than expected',
+  'paymentCallback.failed': 'Payment not completed',
+  'paymentCallback.failedHint': 'We could not confirm this payment yet. You can retry or check again shortly.',
+  'paymentCallback.checkAgain': 'I have paid, check again',
+  'paymentCallback.retryPayment': 'Retry payment',
+  'paymentCallback.retryOpenFailed': 'Unable to reopen the payment page right now.',
+  'paymentCallback.genericError': 'We could not confirm your payment right now. Please try again shortly.',
   'orders.title': 'My Orders',
   'orders.empty': 'No orders yet.',
   'orders.paymentRef': 'Payment ref',
@@ -264,6 +282,7 @@ final appTranslations = <String, Map<String, String>>{
   'ha': {..._en, ..._ha},
   'ig': {..._en, ..._ig},
 };
+
 
 
 

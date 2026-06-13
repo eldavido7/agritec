@@ -1,11 +1,12 @@
 ﻿import { PaymentStatus } from "@prisma/client";
-import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import {
   finalizeSuccessfulPayment,
   markPaymentVerificationState,
 } from "@/lib/payment-order-utils";
 import { verifyPaystackTransaction } from "@/lib/paystack";
+
+const ANDROID_PACKAGE_NAME = "com.example.agritec_mobile";
 
 function isFailureStatus(status: string) {
   return ["abandoned", "failed", "reversed"].includes(status.toLowerCase());
@@ -27,15 +28,20 @@ function buildMobileCallbackUrl(args: {
   return url;
 }
 
+function buildAndroidIntentUrl(url: URL) {
+  const query = url.search ? url.search : "";
+  return `intent://payment/callback${query}#Intent;scheme=agritec;package=${ANDROID_PACKAGE_NAME};end`;
+}
+
 function buildDeepLinkHtml(url: URL) {
   const destination = url.toString();
+  const androidIntent = buildAndroidIntentUrl(url);
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Returning to Agritec</title>
-    <meta http-equiv="refresh" content="0;url=${destination}" />
     <style>
       body { font-family: Arial, sans-serif; background: #f4f8f5; color: #163020; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 24px; }
       .card { background: #fff; border-radius: 18px; padding: 24px; max-width: 420px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
@@ -49,13 +55,24 @@ function buildDeepLinkHtml(url: URL) {
       <div class="spinner"></div>
       <h2>Returning to Agritec</h2>
       <p>Please wait while we bring you back to the app.</p>
-      <p><a href="${destination}">Tap here if the app does not open automatically.</a></p>
+      <p><a href="${destination}">Open Agritec</a></p>
     </div>
     <script>
-      window.location.replace(${JSON.stringify(destination)});
-      setTimeout(function () {
-        window.location.href = ${JSON.stringify(destination)};
-      }, 400);
+      (function () {
+        var customScheme = ${JSON.stringify(destination)};
+        var androidIntent = ${JSON.stringify(androidIntent)};
+        var opened = false;
+
+        function tryOpen(url) {
+          window.location.href = url;
+        }
+
+        tryOpen(customScheme);
+        setTimeout(function () {
+          if (opened) return;
+          tryOpen(androidIntent);
+        }, 500);
+      })();
     </script>
   </body>
 </html>`;
