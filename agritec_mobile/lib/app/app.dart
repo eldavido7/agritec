@@ -2,7 +2,9 @@
 
 import 'package:agritec_mobile/app/router.dart';
 import 'package:agritec_mobile/core/localization/localization_controller.dart';
+import 'package:agritec_mobile/core/notifications/push_notification_service.dart';
 import 'package:agritec_mobile/core/theme/app_theme.dart';
+import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/checkout/application/checkout_providers.dart';
 import 'package:agritec_mobile/features/checkout/presentation/payment_callback_page.dart';
 import 'package:app_links/app_links.dart';
@@ -20,21 +22,51 @@ class _AgritecBuyerAppState extends ConsumerState<AgritecBuyerApp>
     with WidgetsBindingObserver {
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSubscription;
+  ProviderSubscription<AsyncValue<AuthStoreState>>? _authSubscription;
   bool _handlingResume = false;
+  late final PushNotificationService _pushNotificationService;
 
   @override
   void initState() {
     super.initState();
+    _pushNotificationService = ref.read(pushNotificationServiceProvider);
     WidgetsBinding.instance.addObserver(this);
     _linkSubscription = _appLinks.uriLinkStream.listen(
       _handleIncomingUri,
       onError: (_) {},
+    );
+
+    Future.microtask(() async {
+      await _pushNotificationService.initialize(ref);
+      final authState = ref.read(localAuthProvider).asData?.value;
+      await _pushNotificationService.syncAuthenticatedSession(ref, authState?.token);
+    });
+
+    _authSubscription = ref.listenManual<AsyncValue<AuthStoreState>>(
+      localAuthProvider,
+      (previous, next) {
+        final previousToken = previous?.asData?.value.token;
+        final nextToken = next.asData?.value.token;
+        if (previousToken == nextToken) {
+          return;
+        }
+        if (previousToken != null && previousToken.trim().isNotEmpty &&
+            (nextToken == null || nextToken.trim().isEmpty)) {
+          unawaited(_pushNotificationService.unregisterCurrentDevice(ref, previousToken));
+          return;
+        }
+        if (nextToken != null && nextToken.trim().isNotEmpty) {
+          unawaited(_pushNotificationService.syncAuthenticatedSession(ref, nextToken));
+        }
+      },
     );
   }
 
   @override
   void dispose() {
     _linkSubscription?.cancel();
+    _authSubscription?.close();
+    unawaited(_pushNotificationService.dispose());
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -69,7 +101,8 @@ class _AgritecBuyerAppState extends ConsumerState<AgritecBuyerApp>
     if (_handlingResume) return;
     _handlingResume = true;
     try {
-      final session = await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
+      final session =
+          await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
       if (!mounted || session == null) return;
 
       final router = ref.read(appRouterProvider);

@@ -1,4 +1,4 @@
-import {
+﻿import {
   NotificationType,
   ParentOrderStatus,
   Prisma,
@@ -6,6 +6,7 @@ import {
   WalletTransactionType,
 } from "@prisma/client";
 import { reserveSequentialId } from "@/lib/id-sequence";
+import { queueNotificationPush, shouldSendPushForNotificationType } from "@/lib/push-notifications";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -91,7 +92,7 @@ export async function createNotification(tx: TxClient, args: {
   metadata?: Prisma.InputJsonValue;
 }) {
   const notificationId = await reserveSequentialId(tx, "notification");
-  return tx.notification.create({
+  const notification = await tx.notification.create({
     data: {
       id: notificationId,
       userId: args.userId,
@@ -103,6 +104,12 @@ export async function createNotification(tx: TxClient, args: {
       metadata: args.metadata,
     },
   });
+
+  if (shouldSendPushForNotificationType(args.type)) {
+    queueNotificationPush(notification.id);
+  }
+
+  return notification;
 }
 
 export async function createAuditLog(tx: TxClient, args: {
@@ -151,3 +158,4 @@ export async function syncParentOrderStatusFromGroups(tx: TxClient, parentOrderI
     });
   }
 }
+

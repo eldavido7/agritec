@@ -126,6 +126,12 @@ enum NotificationType {
   SYSTEM
 }
 
+enum DevicePlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
 enum InventoryMovementType {
   SALE_DEDUCTION
   REFUND_RESTORE
@@ -152,6 +158,7 @@ model User {
   auditLogs                  AuditLog[]                @relation("AdminAuditLogs")
   passwordResetTokens        PasswordResetToken[]
   approvedWithdrawalRequests WithdrawalRequest[]       @relation("AdminApprovedWithdrawals")
+  deviceTokens               DeviceToken[]
 }
 
 model PasswordResetToken {
@@ -647,6 +654,22 @@ model Notification {
   createdAt  DateTime         @default(now())
 
   @@index([userId, isRead, createdAt])
+}
+
+model DeviceToken {
+  id         String         @id
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String         @unique
+  platform   DevicePlatform
+  deviceId   String?
+  isActive   Boolean        @default(true)
+  lastUsedAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([userId, isActive, updatedAt])
+  @@unique([userId, deviceId])
 }
 
 model AuditLog {

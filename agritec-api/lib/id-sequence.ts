@@ -53,6 +53,8 @@ async function getExistingMaxId(tx: TxClient, sequenceName: string): Promise<num
       return extractMax(await tx.withdrawalRequest.findMany({ select: { id: true } }));
     case "notification":
       return extractMax(await tx.notification.findMany({ select: { id: true } }));
+    case "device_token":
+      return extractMax(await tx.deviceToken.findMany({ select: { id: true } }));
     case "audit_log":
       return extractMax(await tx.auditLog.findMany({ select: { id: true } }));
     case "inventory_movement":

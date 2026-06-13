@@ -15,6 +15,8 @@ import 'package:intl/intl.dart';
 class NotificationsPage extends ConsumerStatefulWidget {
   const NotificationsPage({super.key});
 
+  static const routeName = 'notifications';
+  static const routePath = '/notifications';
   static const _pageSize = 10;
 
   @override
@@ -267,6 +269,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     };
   }
 }
+
 
 
 

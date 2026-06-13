@@ -5,6 +5,7 @@ import 'package:agritec_mobile/features/auth/presentation/sign_up_page.dart';
 import 'package:agritec_mobile/features/checkout/presentation/checkout_page.dart';
 import 'package:agritec_mobile/features/checkout/presentation/payment_callback_page.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
+import 'package:agritec_mobile/features/notifications/presentation/notifications_page.dart';
 import 'package:agritec_mobile/features/onboarding/presentation/onboarding_page.dart';
 import 'package:agritec_mobile/features/orders/presentation/order_details_page.dart';
 import 'package:agritec_mobile/features/orders/presentation/orders_page.dart';
@@ -47,6 +48,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const MainShellPage(),
       ),
       GoRoute(
+        path: NotificationsPage.routePath,
+        name: NotificationsPage.routeName,
+        builder: (context, state) => const NotificationsPage(),
+      ),
+      GoRoute(
         path: AddressesPage.routePath,
         name: AddressesPage.routeName,
         builder: (context, state) => const AddressesPage(),
@@ -79,4 +85,3 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-

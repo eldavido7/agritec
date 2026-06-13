@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { z } from "zod";
 import { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -58,7 +58,7 @@ export async function PATCH(request: Request) {
     const payload = sellerProfileUpdateSchema.parse(await request.json());
 
     if (payload.email) {
-      const existingUser = await prisma.user.findUnique({
+      const existingUser = await prisma.user.findFirst({
         where: { email: normalizeEmail(payload.email) },
         select: { id: true },
       });
@@ -169,3 +169,4 @@ export async function PATCH(request: Request) {
     );
   }
 }
+

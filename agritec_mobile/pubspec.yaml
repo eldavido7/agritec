@@ -1,4 +1,4 @@
-﻿name: agritec_mobile
+name: agritec_mobile
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -50,6 +50,8 @@ dependencies:
   google_maps_flutter: ^2.9.0
   url_launcher: ^6.3.1
   app_links: ^7.1.2
+  firebase_core: ^3.1.0
+  firebase_messaging: ^15.2.10
 
 dev_dependencies:
   flutter_test:
