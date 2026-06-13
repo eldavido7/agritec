@@ -6,7 +6,7 @@ import {
 } from "@/lib/payment-order-utils";
 import { verifyPaystackTransaction } from "@/lib/paystack";
 
-const ANDROID_PACKAGE_NAME = "com.example.agritec_mobile";
+const ANDROID_PACKAGE_NAME = "com.agritec.marketplace";
 
 function isFailureStatus(status: string) {
   return ["abandoned", "failed", "reversed"].includes(status.toLowerCase());

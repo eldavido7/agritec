@@ -8,7 +8,7 @@
 PRODUCT_NAME = agritec_mobile
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.agritecMobile
+PRODUCT_BUNDLE_IDENTIFIER = com.agritec.marketplace
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Agritec. All rights reserved.
