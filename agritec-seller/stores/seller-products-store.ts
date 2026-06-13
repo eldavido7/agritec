@@ -169,7 +169,7 @@ const mapApiProduct = (product: any): SellerProductRecord => ({
   images: Array.isArray(product.images)
     ? product.images
         .map((image: unknown, index: number) => imageRecordFromValue(image, index))
-        .filter((value): value is SellerProductImageRecord => Boolean(value))
+        .filter((value: SellerProductImageRecord | null): value is SellerProductImageRecord => Boolean(value))
     : [],
   variants: Array.isArray(product.variants)
     ? product.variants.map((variant: any) => ({

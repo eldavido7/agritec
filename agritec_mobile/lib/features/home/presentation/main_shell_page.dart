@@ -53,8 +53,8 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(
-            content: Text('Press back again to close the app.'),
+          SnackBar(
+            content: Text(ref.tr('common.backAgainToExit')),
             duration: Duration(seconds: 2),
           ),
         );
@@ -106,10 +106,10 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
                       width: double.infinity,
                       color: const Color(0xFFCC3D1F),
                       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                      child: const SafeArea(
+                      child: SafeArea(
                         bottom: false,
                         child: Text(
-                          'You are offline. Showing cached/mock content.',
+                          ref.tr('common.offlineCached'),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -225,3 +225,6 @@ class _CartIconWithBadge extends StatelessWidget {
     );
   }
 }
+
+
+

@@ -1,5 +1,6 @@
 import { ConversationType, NotificationType, Prisma, UserRole } from "@prisma/client";
 import { reserveSequentialId } from "@/lib/id-sequence";
+import { sendChatMessageAlertEmail } from "@/lib/email";
 import prisma from "@/lib/prisma";
 import { createNotification } from "@/lib/wallet-utils";
 
@@ -201,6 +202,7 @@ export async function ensureBuyerSupportConversation(tx: TxClient, args: {
 
   return tx.conversation.findUniqueOrThrow({ where: { id: conversationId } });
 }
+
 export async function ensureSellerSupportConversation(tx: TxClient, args: {
   sellerUserId: string;
   supportUserId: string;
@@ -302,4 +304,109 @@ export async function createConversationMessage(tx: TxClient, args: {
 
   return message;
 }
+
+const CHAT_EMAIL_THROTTLE_MINUTES = 30;
+
+function shouldEmailWebRecipient(args: {
+  senderRole: UserRole;
+  recipientRole: UserRole;
+}) {
+  void args.senderRole;
+
+  if (args.recipientRole !== UserRole.SELLER && args.recipientRole !== UserRole.ADMIN) {
+    return false;
+  }
+
+  return true;
+}
+
+export function queueConversationMessageEmailAlerts(messageId: string) {
+  queueMicrotask(async () => {
+    try {
+      const message = await prisma.message.findUnique({
+        where: { id: messageId },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              fullName: true,
+              role: true,
+            },
+          },
+          conversation: {
+            include: {
+              participants: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      email: true,
+                      fullName: true,
+                      role: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!message) {
+        return;
+      }
+
+      const cutoff = new Date(Date.now() - CHAT_EMAIL_THROTTLE_MINUTES * 60 * 1000);
+      const recipients = message.conversation.participants.filter(
+        (participant) => participant.userId !== message.senderId,
+      );
+
+      await Promise.all(
+        recipients.map(async (participant) => {
+          const recipient = participant.user;
+
+          if (
+            !recipient.email ||
+            !shouldEmailWebRecipient({
+              senderRole: message.sender.role,
+              recipientRole: recipient.role,
+            })
+          ) {
+            return;
+          }
+
+          const recentCount = await prisma.notification.count({
+            where: {
+              userId: recipient.id,
+              type: NotificationType.MESSAGE,
+              targetType: "conversation",
+              targetId: message.conversationId,
+              createdAt: { gte: cutoff },
+            },
+          });
+
+          if (recentCount > 1) {
+            return;
+          }
+
+          await sendChatMessageAlertEmail({
+            toEmail: recipient.email,
+            recipientName: recipient.fullName,
+            recipientRole: recipient.role as "SELLER" | "ADMIN",
+            senderName: message.sender.fullName,
+            messagePreview: message.body?.trim() || "You have a new chat message.",
+            conversationType: message.conversation.type,
+            conversationId: message.conversationId,
+          });
+        }),
+      );
+    } catch (error) {
+      console.error("[CHAT_MESSAGE_EMAIL_ALERT_ERROR]", {
+        messageId,
+        error,
+      });
+    }
+  });
+}
+
 

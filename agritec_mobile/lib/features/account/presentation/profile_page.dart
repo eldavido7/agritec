@@ -1,4 +1,4 @@
-﻿import 'package:agritec_mobile/core/localization/app_locale.dart';
+import 'package:agritec_mobile/core/localization/app_locale.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/core/localization/localization_controller.dart';
 import 'package:agritec_mobile/features/account/application/account_settings_provider.dart';
@@ -27,6 +27,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   late final TextEditingController _nameController;
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
+  bool _isSavingProfile = false;
 
   @override
   void initState() {
@@ -66,6 +67,53 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     super.dispose();
   }
 
+  Future<void> _saveProfile() async {
+    final fullName = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    if (fullName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ref.tr('profile.fullNameRequired'))),
+      );
+      return;
+    }
+
+    final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailPattern.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ref.tr('profile.invalidEmail'))),
+      );
+      return;
+    }
+
+    setState(() => _isSavingProfile = true);
+    try {
+      await ref.read(localAuthProvider.notifier).updateProfile(
+            fullName: fullName,
+            email: email,
+            phone: phone,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ref.tr('profile.updated'))),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final rawMessage = error.toString();
+      final message = rawMessage.contains(': ')
+          ? rawMessage.split(': ').last
+          : rawMessage;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSavingProfile = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!isBuyerAuthenticated(ref)) {
@@ -75,7 +123,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         onBack: () => ref.read(shellTabProvider.notifier).setTab(0),
       );
     }
-    final settings = ref.watch(accountSettingsProvider);
     final locale = ref.watch(selectedLocaleProvider);
     final unreadNotifications = ref.watch(unreadNotificationsCountProvider);
     return Container(
@@ -129,6 +176,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const SizedBox(height: 10),
                     TextField(
                       controller: _nameController,
+                      enabled: !_isSavingProfile,
                       decoration: InputDecoration(
                         labelText: ref.tr('profile.fullName'),
                       ),
@@ -136,6 +184,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _emailController,
+                      enabled: !_isSavingProfile,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
                         labelText: ref.tr('profile.email'),
@@ -144,6 +193,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _phoneController,
+                      enabled: !_isSavingProfile,
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
                         labelText: ref.tr('profile.phone'),
@@ -153,17 +203,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          ref.read(accountSettingsProvider.notifier).updateProfile(
-                                fullName: _nameController.text.trim(),
-                                email: _emailController.text.trim(),
-                                phone: _phoneController.text.trim(),
-                              );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(ref.tr('profile.updated'))),
-                          );
-                        },
-                        child: Text(ref.tr('profile.saveProfile')),
+                        onPressed: _isSavingProfile ? null : _saveProfile,
+                        child: _isSavingProfile
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Text(ref.tr('profile.saveProfile')),
                       ),
                     ),
                   ],
@@ -209,38 +256,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    value: settings.orderNotifications,
-                    onChanged: (value) => ref
-                        .read(accountSettingsProvider.notifier)
-                        .setOrderNotifications(value),
-                    title: Text(ref.tr('profile.orderNotifications')),
-                  ),
-                  SwitchListTile(
-                    value: settings.promoNotifications,
-                    onChanged: (value) => ref
-                        .read(accountSettingsProvider.notifier)
-                        .setPromoNotifications(value),
-                    title: Text(ref.tr('profile.promoNotifications')),
-                  ),
-                  SwitchListTile(
-                    value: settings.chatNotifications,
-                    onChanged: (value) => ref
-                        .read(accountSettingsProvider.notifier)
-                        .setChatNotifications(value),
-                    title: Text(ref.tr('profile.chatNotifications')),
-                  ),
-                ],
-              ),
-            ),
+
             const SizedBox(height: 10),
             Card(
               elevation: 0,
@@ -303,3 +319,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 }
+
+
+
+

@@ -62,6 +62,31 @@ function statusMessage(status: SellerOrderGroupStatus, farmName: string) {
   }
 }
 
+function chatConversationLabel(value: string) {
+  switch (value) {
+    case "BUYER_SELLER":
+      return "Buyer to seller chat";
+    case "BUYER_SUPPORT":
+      return "Support chat";
+    default:
+      return "Chat conversation";
+  }
+}
+
+function getDashboardChatUrl(role: UserRole, conversationId: string) {
+  const sellerBase =
+    process.env.SELLER_APP_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    "http://localhost:3000";
+  const adminBase =
+    process.env.ADMIN_APP_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    "http://localhost:3001";
+
+  const base = role === UserRole.SELLER ? sellerBase : adminBase;
+  return `${base.replace(/\/+$/, "")}/dashboard/messages?conversationId=${encodeURIComponent(conversationId)}`;
+}
+
 export async function sendBuyerOrderGroupStatusEmail(args: {
   toEmail: string;
   buyerName: string;
@@ -164,3 +189,49 @@ export async function sendPasswordResetEmail(args: {
     `,
   });
 }
+
+export async function sendChatMessageAlertEmail(args: {
+  toEmail: string;
+  recipientName: string;
+  recipientRole: "SELLER" | "ADMIN";
+  senderName: string;
+  messagePreview: string;
+  conversationType: string;
+  conversationId: string;
+}) {
+  const transporter = getTransporter();
+  const from = process.env.GMAIL_USER as string;
+  const brand = process.env.MARKETPLACE_NAME || process.env.STORE_NAME || "Agritec";
+  const chatUrl = getDashboardChatUrl(args.recipientRole, args.conversationId);
+  const preview = args.messagePreview.trim().slice(0, 160);
+
+  await transporter.sendMail({
+    from: `"${brand}" <${from}>`,
+    to: args.toEmail,
+    subject: `New chat message from ${args.senderName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; background: #f4f7f4; color: #1f2937;">
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid #e5e7eb;">
+          <h1 style="margin: 0 0 8px; font-size: 24px; color: #14532d;">New chat message</h1>
+          <p style="margin: 0; font-size: 15px; color: #4b5563;">Hi ${args.recipientName}, you received a new message on ${brand}.</p>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid #e5e7eb;">
+          <div style="display: grid; gap: 8px; font-size: 14px; color: #374151;">
+            <div><strong>Sender:</strong> ${args.senderName}</div>
+            <div><strong>Conversation:</strong> ${chatConversationLabel(args.conversationType)}</div>
+            <div><strong>Message preview:</strong> ${preview}</div>
+          </div>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #e5e7eb;">
+          <a href="${chatUrl}" style="display: inline-block; background: #166534; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 10px; font-weight: 600;">
+            Open chat
+          </a>
+          <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; word-break: break-all;">${chatUrl}</p>
+        </div>
+      </div>
+    `,
+  });
+}
+

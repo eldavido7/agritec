@@ -108,6 +108,32 @@ class AuthService {
     return user;
   }
 
+  Future<BuyerSessionUser> updateProfile({
+    required String token,
+    required String fullName,
+    required String email,
+    required String phone,
+  }) async {
+    final response = await _client.patch(
+      '/api/buyer/profile',
+      token: token,
+      data: {
+        'fullName': fullName.trim(),
+        'email': email.trim(),
+        'phone': phone.trim(),
+      },
+    );
+    final userJson = response['user'];
+    if (userJson is! Map) {
+      throw const MobileApiException(message: 'Invalid profile update response');
+    }
+    final user = BuyerSessionUser.fromJson(Map<String, dynamic>.from(userJson));
+    if (user.role.toUpperCase() != 'BUYER') {
+      throw const MobileApiException(message: 'Invalid buyer session');
+    }
+    return user;
+  }
+
   Future<void> saveToken(String token) {
     return _storage.write(key: buyerAuthTokenStorageKey, value: token);
   }
@@ -148,4 +174,5 @@ final authServiceProvider = Provider<AuthService>((ref) {
     ref.watch(secureStorageProvider),
   );
 });
+
 

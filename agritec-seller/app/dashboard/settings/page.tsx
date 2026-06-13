@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
-  Bell,
   CheckCircle,
   CreditCard,
   Lock,
@@ -41,7 +40,6 @@ const itemVariants = {
 type SettingsTab =
   | "profile"
   | "password"
-  | "notifications"
   | "appearance"
   | "categories"
   | "banking";
@@ -117,7 +115,6 @@ export default function SettingsPage() {
     () => [
       { id: "profile", label: "Profile", icon: User },
       { id: "password", label: "Password", icon: Lock },
-      { id: "notifications", label: "Notifications", icon: Bell },
       { id: "appearance", label: "Appearance", icon: Palette },
       { id: "categories", label: "Categories", icon: User },
       { id: "banking", label: "Banking & Payouts", icon: CreditCard },
@@ -638,68 +635,6 @@ export default function SettingsPage() {
                   "Update Password"
                 )}
               </Button>
-            </div>
-          </Card>
-        )}
-
-        {activeTab === "notifications" && (
-          <Card className="max-w-2xl p-8">
-            <h2 className="mb-6 text-2xl font-bold text-foreground">
-              Notification Preferences
-            </h2>
-            <div className="space-y-4">
-              {[
-                [
-                  "newOrders",
-                  "New Orders",
-                  "Get notified when you receive new orders",
-                ],
-                [
-                  "deliveryUpdates",
-                  "Delivery Updates",
-                  "Updates on order delivery status",
-                ],
-                [
-                  "priceAlerts",
-                  "Price Alerts",
-                  "Get alerted on price changes in the market",
-                ],
-                [
-                  "messages",
-                  "Messages",
-                  "New messages from customers and partners",
-                ],
-                [
-                  "productAlerts",
-                  "Product Alerts",
-                  "Low stock and product status alerts",
-                ],
-              ].map(([key, label, description]) => (
-                <div
-                  key={key}
-                  className="flex items-center justify-between rounded-lg bg-muted/30 p-4 transition-colors hover:bg-secondary/50"
-                >
-                  <div>
-                    <p className="font-medium text-foreground">{label}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {description}
-                    </p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={
-                      notificationPrefs[key as keyof typeof notificationPrefs]
-                    }
-                    onChange={(event) =>
-                      setNotificationPrefs((current) => ({
-                        ...current,
-                        [key]: event.target.checked,
-                      }))
-                    }
-                    className="size-5 cursor-pointer accent-primary"
-                  />
-                </div>
-              ))}
             </div>
           </Card>
         )}

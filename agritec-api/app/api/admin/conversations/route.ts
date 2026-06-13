@@ -4,9 +4,9 @@ import { z } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import {
   createConversationMessage,
-  ensureBuyerSellerConversation,
   ensureBuyerSupportConversation,
   findSupportAdminUser,
+  queueConversationMessageEmailAlerts,
   serializeConversation,
 } from "@/lib/conversation-utils";
 import prisma from "@/lib/prisma";
@@ -131,7 +131,9 @@ export async function POST(request: Request) {
 
     const payload = createSchema.parse(await request.json());
 
-    const conversation = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
+      let createdMessageId: string | null = null;
+
       if (payload.participantType === "buyer") {
         const buyer = await tx.buyerProfile.findUnique({
           where: { id: payload.participantId },
@@ -148,15 +150,16 @@ export async function POST(request: Request) {
         });
 
         if (payload.initialMessage) {
-          await createConversationMessage(tx, {
+          const message = await createConversationMessage(tx, {
             conversationId: supportConversation.id,
             senderId: admin.id,
             body: payload.initialMessage,
             relatedParentOrderId: payload.relatedParentOrderId ?? null,
           });
+          createdMessageId = message.id;
         }
 
-        return supportConversation;
+        return { conversation: supportConversation, createdMessageId };
       }
 
       const seller = await tx.sellerProfile.findUnique({
@@ -170,9 +173,10 @@ export async function POST(request: Request) {
       const uniqueKey = `admin-seller:${admin.id}:${seller.userId}`;
       let existing = await tx.conversation.findUnique({ where: { uniqueKey } });
       if (!existing) {
-        const conversationId = await (await import("@/lib/id-sequence")).reserveSequentialId(tx, "conversation");
-        const participantId1 = await (await import("@/lib/id-sequence")).reserveSequentialId(tx, "conversation_participant");
-        const participantId2 = await (await import("@/lib/id-sequence")).reserveSequentialId(tx, "conversation_participant");
+        const { reserveSequentialId } = await import("@/lib/id-sequence");
+        const conversationId = await reserveSequentialId(tx, "conversation");
+        const participantId1 = await reserveSequentialId(tx, "conversation_participant");
+        const participantId2 = await reserveSequentialId(tx, "conversation_participant");
         await tx.conversation.create({
           data: {
             id: conversationId,
@@ -192,19 +196,24 @@ export async function POST(request: Request) {
       }
 
       if (payload.initialMessage) {
-        await createConversationMessage(tx, {
+        const message = await createConversationMessage(tx, {
           conversationId: existing.id,
           senderId: admin.id,
           body: payload.initialMessage,
           relatedParentOrderId: payload.relatedParentOrderId ?? null,
         });
+        createdMessageId = message.id;
       }
 
-      return existing;
+      return { conversation: existing, createdMessageId };
     });
 
+    if (created.createdMessageId) {
+      queueConversationMessageEmailAlerts(created.createdMessageId);
+    }
+
     const hydrated = await prisma.conversation.findUniqueOrThrow({
-      where: { id: conversation.id },
+      where: { id: created.conversation.id },
       include: {
         participants: {
           include: {
@@ -244,5 +253,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: "Failed to create admin conversation" }, { status: 500 });
   }
 }
-
-

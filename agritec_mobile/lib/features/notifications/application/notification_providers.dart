@@ -69,7 +69,7 @@ class BuyerNotification {
       body: '${json['body'] ?? ''}',
       createdAt: DateTime.parse('${json['createdAt']}'),
       read: json['read'] as bool? ?? false,
-      buyerUserId: (json['buyerUserId'] as String?) ?? 'buyer-demo-1',
+      buyerUserId: (json['buyerUserId'] as String?) ?? '',
       relatedOrderId: json['relatedOrderId'] as String?,
       relatedSellerId: json['relatedSellerId'] as String?,
       relatedConversationId: json['relatedConversationId'] as String?,
@@ -231,3 +231,4 @@ final unreadNotificationsCountProvider = Provider<int>((ref) {
       .where((notification) => !notification.read)
       .length;
 });
+

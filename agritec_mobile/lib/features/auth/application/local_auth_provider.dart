@@ -70,6 +70,28 @@ class LocalAuthNotifier extends AsyncNotifier<AuthStoreState> {
     await ref.read(authServiceProvider).forgotPassword(email: email);
   }
 
+  Future<BuyerSessionUser> updateProfile({
+    required String fullName,
+    required String email,
+    required String phone,
+  }) async {
+    final currentState = state.asData?.value;
+    final token = currentState?.token;
+    if (token == null || token.trim().isEmpty) {
+      throw const MobileApiException(message: 'Buyer session not found');
+    }
+
+    final user = await ref.read(authServiceProvider).updateProfile(
+          token: token,
+          fullName: fullName,
+          email: email,
+          phone: phone,
+        );
+
+    state = AsyncData(AuthStoreState(activeUser: user, token: token));
+    return user;
+  }
+
   Future<void> signOut() async {
     await ref.read(authServiceProvider).clearToken();
     state = const AsyncData(AuthStoreState());
@@ -93,4 +115,3 @@ final buyerAuthTokenProvider = Provider<String?>((ref) {
   final auth = ref.watch(localAuthProvider);
   return auth.asData?.value.token;
 });
-

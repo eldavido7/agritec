@@ -1,4 +1,4 @@
-﻿import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
@@ -32,6 +32,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     super.dispose();
   }
 
+
+  String _conversationSubtitle(ChatConversation conversation) {
+    final subtitle = conversation.participantSubtitle?.trim() ?? '';
+    if (subtitle.isNotEmpty) {
+      if (subtitle.startsWith('Seller: ')) {
+        return "${ref.tr('product.seller')}: ${subtitle.substring(8)}";
+      }
+      return subtitle;
+    }
+    return conversation.channelType == ChatChannelType.support
+        ? ref.tr('chat.supportSubtitle')
+        : ref.tr('chat.sellerSubtitle');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!isBuyerAuthenticated(ref)) {
@@ -44,8 +58,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final chatState = ref.watch(chatProvider);
     final notifier = ref.read(chatProvider.notifier);
+    final selectedConversation = chatState.selectedConversationId == null
+        ? null
+        : (() {
+            for (final conversation in chatState.conversations) {
+              if (conversation.id == chatState.selectedConversationId) {
+                return conversation;
+              }
+            }
+            return null;
+          })();
+    final effectiveFilter = selectedConversation?.channelType ?? _filter;
     final filtered = chatState.conversations
-        .where((conversation) => conversation.channelType == _filter)
+        .where((conversation) => conversation.channelType == effectiveFilter)
         .toList();
     final selected = filtered.any((c) => c.id == chatState.selectedConversationId)
         ? filtered.firstWhere((c) => c.id == chatState.selectedConversationId)
@@ -85,10 +110,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         label: Text(ref.tr('chat.filter.support')),
                       ),
                     ],
-                    selected: {_filter},
+                    selected: {effectiveFilter},
                     onSelectionChanged: (selection) async {
                       final next = selection.first;
                       setState(() => _filter = next);
+                      if (selectedConversation != null &&
+                          selectedConversation.channelType != next) {
+                        notifier.clearSelectedConversation();
+                      }
                       if (next == ChatChannelType.support) {
                         await notifier.startSupportConversation();
                       }
@@ -199,7 +228,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     ),
                                   ),
                                   Text(
-                                    conversation.latestMessage?.text ?? conversation.subtitle,
+                                    conversation.latestMessage?.text ?? _conversationSubtitle(conversation),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -398,3 +427,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 }
+
+
+
+
+
+
+

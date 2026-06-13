@@ -5,6 +5,7 @@ import { requireAuthenticatedUser } from "@/lib/auth";
 import {
   createConversationMessage,
   getConversationForUser,
+  queueConversationMessageEmailAlerts,
   serializeConversationMessage,
 } from "@/lib/conversation-utils";
 import prisma from "@/lib/prisma";
@@ -92,6 +93,8 @@ export async function POST(
         relatedParentOrderId: payload.relatedParentOrderId ?? null,
       });
     });
+
+    queueConversationMessageEmailAlerts(message.id);
 
     return NextResponse.json({ success: true, message: serializeConversationMessage(message) });
   } catch (error) {
