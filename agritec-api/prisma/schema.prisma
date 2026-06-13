@@ -133,6 +133,8 @@ enum DevicePlatform {
 }
 
 enum InventoryMovementType {
+  RESERVATION
+  RESERVATION_RELEASE
   SALE_DEDUCTION
   REFUND_RESTORE
   MANUAL_ADJUSTMENT
@@ -257,6 +259,7 @@ model Product {
   tags               String[]
   basePrice          Int
   inventory          Int                 @default(0)
+  reservedInventory  Int                 @default(0)
   hasVariants        Boolean             @default(false)
   images             Json?
   salesUnit          SalesUnit
@@ -285,6 +288,7 @@ model ProductVariant {
   name               String
   price              Int
   inventory          Int                 @default(0)
+  reservedInventory  Int                 @default(0)
   salesUnit          SalesUnit?
   packageType        PackageType?
   unitWeightKg       Decimal?            @db.Decimal(10, 3)
@@ -742,3 +746,6 @@ model PayoutSettings {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
+
+
+

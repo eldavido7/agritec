@@ -84,7 +84,10 @@ export async function buildAdminAssistedQuote(args: {
       throw new Error(`VARIANT_NOT_FOUND:${item.variantId}`);
     }
 
-    const availableInventory = variant?.inventory ?? product.inventory;
+    const availableInventory = variant
+      ? Math.max(0, variant.inventory - variant.reservedInventory)
+      : Math.max(0, product.inventory - product.reservedInventory);
+
     if (item.quantity <= 0) {
       throw new Error(`INVALID_QUANTITY:${item.productId}`);
     }

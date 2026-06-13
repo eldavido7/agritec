@@ -150,6 +150,98 @@ export async function releaseSellerGroupEarnings(tx: Prisma.TransactionClient, s
   return group;
 }
 
+export async function finalizeDeliveredSellerGroupInventory(tx: Prisma.TransactionClient, sellerOrderGroupId: string) {
+  const group = await tx.sellerOrderGroup.findUnique({
+    where: { id: sellerOrderGroupId },
+    include: { items: true },
+  });
+
+  if (!group) {
+    throw new Error("SELLER_ORDER_GROUP_NOT_FOUND");
+  }
+
+  for (const item of group.items) {
+    const finalizeKey = `seller-group:${group.id}:inventory-finalize:${item.id}`;
+    const existingFinalize = await tx.inventoryMovement.findUnique({ where: { idempotencyKey: finalizeKey } });
+    if (existingFinalize) continue;
+
+    const reservationMovement = await tx.inventoryMovement.findFirst({
+      where: {
+        orderItemId: item.id,
+        type: InventoryMovementType.RESERVATION,
+      },
+    });
+
+    if (!reservationMovement) continue;
+
+    if (item.variantId) {
+      const variant = await tx.productVariant.findUnique({
+        where: { id: item.variantId },
+        select: { reservedInventory: true },
+      });
+
+      if (!variant || variant.reservedInventory < item.quantity) {
+        throw new Error(`INSUFFICIENT_RESERVED_VARIANT_INVENTORY:${item.variantId}`);
+      }
+
+      await tx.productVariant.update({
+        where: { id: item.variantId },
+        data: {
+          inventory: {
+            decrement: item.quantity,
+          },
+          reservedInventory: {
+            decrement: item.quantity,
+          },
+        },
+      });
+    }
+
+    if (item.productId) {
+      const product = await tx.product.findUnique({
+        where: { id: item.productId },
+        select: { reservedInventory: true },
+      });
+
+      if (!product || product.reservedInventory < item.quantity) {
+        throw new Error(`INSUFFICIENT_RESERVED_PRODUCT_INVENTORY:${item.productId}`);
+      }
+
+      await tx.product.update({
+        where: { id: item.productId },
+        data: {
+          inventory: {
+            decrement: item.quantity,
+          },
+          reservedInventory: {
+            decrement: item.quantity,
+          },
+        },
+      });
+    }
+
+    const movementId = await reserveSequentialId(tx, "inventory_movement");
+    await tx.inventoryMovement.create({
+      data: {
+        id: movementId,
+        sellerId: item.sellerId,
+        productId: item.productId,
+        variantId: item.variantId,
+        orderItemId: item.id,
+        type: InventoryMovementType.SALE_DEDUCTION,
+        quantityDelta: -item.quantity,
+        idempotencyKey: finalizeKey,
+        metadata: toJsonValue({
+          parentOrderId: group.parentOrderId,
+          sellerOrderGroupId: group.id,
+        }),
+      },
+    });
+  }
+
+  return group;
+}
+
 export async function reverseCancelledSellerGroup(tx: Prisma.TransactionClient, sellerOrderGroupId: string) {
   const group = await tx.sellerOrderGroup.findUnique({
     where: { id: sellerOrderGroupId },
@@ -199,7 +291,7 @@ export async function reverseCancelledSellerGroup(tx: Prisma.TransactionClient, 
       availableBalanceAfter: updatedWallet.availableBalance,
       processingBalanceAfter: updatedWallet.processingBalance,
       withdrawnBalanceAfter: updatedWallet.withdrawnBalance,
-      description: `Reversed pending earnings for cancelled order group ${group.id}`,
+      description: `Reversed pending earnings for closed order group ${group.id}`,
       parentOrderId: group.parentOrderId,
       sellerOrderGroupId: group.id,
       idempotencyKey: reversalKey,
@@ -210,39 +302,53 @@ export async function reverseCancelledSellerGroup(tx: Prisma.TransactionClient, 
   }
 
   for (const item of group.items) {
-    const restoreKey = `seller-group:${group.id}:inventory-restore:${item.id}`;
-    const existingRestore = await tx.inventoryMovement.findUnique({ where: { idempotencyKey: restoreKey } });
-    if (existingRestore) continue;
+    const releaseKey = `seller-group:${group.id}:inventory-release:${item.id}`;
+    const existingRelease = await tx.inventoryMovement.findUnique({ where: { idempotencyKey: releaseKey } });
+    if (existingRelease) continue;
 
-    const saleMovement = await tx.inventoryMovement.findFirst({
+    const reservationMovement = await tx.inventoryMovement.findFirst({
       where: {
         orderItemId: item.id,
-        type: InventoryMovementType.SALE_DEDUCTION,
+        type: InventoryMovementType.RESERVATION,
       },
     });
 
-    if (!saleMovement) continue;
+    if (!reservationMovement) continue;
 
     if (item.variantId) {
-      await tx.productVariant.update({
+      const variant = await tx.productVariant.findUnique({
         where: { id: item.variantId },
-        data: {
-          inventory: {
-            increment: item.quantity,
-          },
-        },
+        select: { reservedInventory: true },
       });
+
+      if (variant && variant.reservedInventory > 0) {
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: {
+            reservedInventory: {
+              decrement: Math.min(item.quantity, variant.reservedInventory),
+            },
+          },
+        });
+      }
     }
 
     if (item.productId) {
-      await tx.product.update({
+      const product = await tx.product.findUnique({
         where: { id: item.productId },
-        data: {
-          inventory: {
-            increment: item.quantity,
-          },
-        },
+        select: { reservedInventory: true },
       });
+
+      if (product && product.reservedInventory > 0) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            reservedInventory: {
+              decrement: Math.min(item.quantity, product.reservedInventory),
+            },
+          },
+        });
+      }
     }
 
     const movementId = await reserveSequentialId(tx, "inventory_movement");
@@ -253,9 +359,9 @@ export async function reverseCancelledSellerGroup(tx: Prisma.TransactionClient, 
         productId: item.productId,
         variantId: item.variantId,
         orderItemId: item.id,
-        type: InventoryMovementType.REFUND_RESTORE,
+        type: InventoryMovementType.RESERVATION_RELEASE,
         quantityDelta: item.quantity,
-        idempotencyKey: restoreKey,
+        idempotencyKey: releaseKey,
         metadata: toJsonValue({
           parentOrderId: group.parentOrderId,
           sellerOrderGroupId: group.id,
@@ -267,8 +373,8 @@ export async function reverseCancelledSellerGroup(tx: Prisma.TransactionClient, 
   await createNotification(tx, {
     userId: group.seller.userId,
     type: NotificationType.ORDER,
-    title: "Order group cancelled",
-    body: `Order group ${group.id} was cancelled before completion. Pending earnings were reversed.`,
+    title: "Order group closed",
+    body: `Order group ${group.id} was closed before delivery. Reserved stock was released and pending earnings were reversed where applicable.`,
     targetType: "sellerOrderGroup",
     targetId: group.id,
     metadata: toJsonValue({
@@ -333,7 +439,10 @@ export async function updateSellerOrderGroupStatus(args: {
       throw new Error("ORDER_GROUP_ALREADY_CLOSED");
     }
 
-    if (group.status === SellerOrderGroupStatus.DELIVERED && args.nextStatus === SellerOrderGroupStatus.CANCELLED) {
+    if (
+      group.status === SellerOrderGroupStatus.DELIVERED &&
+      (args.nextStatus === SellerOrderGroupStatus.CANCELLED || args.nextStatus === SellerOrderGroupStatus.REFUNDED)
+    ) {
       throw new Error("DELIVERED_GROUP_CANNOT_BE_CANCELLED_HERE");
     }
 
@@ -343,10 +452,14 @@ export async function updateSellerOrderGroupStatus(args: {
     });
 
     if (args.nextStatus === SellerOrderGroupStatus.DELIVERED) {
+      await finalizeDeliveredSellerGroupInventory(tx, group.id);
       await releaseSellerGroupEarnings(tx, group.id);
     }
 
-    if (args.nextStatus === SellerOrderGroupStatus.CANCELLED) {
+    if (
+      args.nextStatus === SellerOrderGroupStatus.CANCELLED ||
+      args.nextStatus === SellerOrderGroupStatus.REFUNDED
+    ) {
       await reverseCancelledSellerGroup(tx, group.id);
     }
 

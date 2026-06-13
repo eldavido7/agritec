@@ -107,8 +107,10 @@ Payment flow:
 4. User completes payment on Paystack.
 5. Backend callback/webhook verifies transaction server-side.
 6. Backend marks payment/order paid idempotently.
-7. Inventory is deducted only after successful payment verification.
-8. Seller earnings are credited to pending wallet balance.
+7. Successful payment reserves inventory so it is no longer purchasable by other buyers.
+8. Inventory is permanently deducted only when each seller order group is delivered/completed.
+9. If a paid seller order group is cancelled/refunded before delivery, the reservation is released and stock becomes available again.
+10. Seller earnings are credited to pending wallet balance.
 
 Payout flow:
 
@@ -481,5 +483,7 @@ The MVP covers the full marketplace loop:
 - seller product/discount/settings/wallet/order visibility
 - admin seller/buyer/order/payout/settings/audit/support operations
 - backend multivendor order/payment/wallet/shipping/notification foundation
+
+
 
 

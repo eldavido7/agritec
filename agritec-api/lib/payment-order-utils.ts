@@ -643,33 +643,50 @@ export async function finalizeSuccessfulPayment(args: {
 
       for (const item of group.items) {
         const movementId = await reserveSequentialId(tx, "inventory_movement");
-        const idempotencyKey = `payment:${payment.id}:sale:${item.id}`;
+        const idempotencyKey = `payment:${payment.id}:reservation:${item.id}`;
 
         if (item.variantId) {
           const variant = await tx.productVariant.findUnique({
             where: { id: item.variantId },
-            select: { inventory: true },
+            select: { inventory: true, reservedInventory: true },
           });
 
-          if (!variant || variant.inventory < item.quantity) {
+          const variantAvailableInventory = variant
+            ? Math.max(0, variant.inventory - variant.reservedInventory)
+            : 0;
+
+          if (!variant || variantAvailableInventory < item.quantity) {
             throw new Error(`INSUFFICIENT_VARIANT_INVENTORY:${item.variantId}`);
           }
 
           await tx.productVariant.update({
             where: { id: item.variantId },
             data: {
-              inventory: {
-                decrement: item.quantity,
+              reservedInventory: {
+                increment: item.quantity,
               },
             },
           });
 
           if (item.productId) {
+            const product = await tx.product.findUnique({
+              where: { id: item.productId },
+              select: { inventory: true, reservedInventory: true },
+            });
+
+            const productAvailableInventory = product
+              ? Math.max(0, product.inventory - product.reservedInventory)
+              : 0;
+
+            if (!product || productAvailableInventory < item.quantity) {
+              throw new Error(`INSUFFICIENT_PRODUCT_INVENTORY:${item.productId}`);
+            }
+
             await tx.product.update({
               where: { id: item.productId },
               data: {
-                inventory: {
-                  decrement: item.quantity,
+                reservedInventory: {
+                  increment: item.quantity,
                 },
               },
             });
@@ -677,18 +694,22 @@ export async function finalizeSuccessfulPayment(args: {
         } else if (item.productId) {
           const product = await tx.product.findUnique({
             where: { id: item.productId },
-            select: { inventory: true },
+            select: { inventory: true, reservedInventory: true },
           });
 
-          if (!product || product.inventory < item.quantity) {
+          const productAvailableInventory = product
+            ? Math.max(0, product.inventory - product.reservedInventory)
+            : 0;
+
+          if (!product || productAvailableInventory < item.quantity) {
             throw new Error(`INSUFFICIENT_PRODUCT_INVENTORY:${item.productId}`);
           }
 
           await tx.product.update({
             where: { id: item.productId },
             data: {
-              inventory: {
-                decrement: item.quantity,
+              reservedInventory: {
+                increment: item.quantity,
               },
             },
           });
@@ -701,7 +722,7 @@ export async function finalizeSuccessfulPayment(args: {
             productId: item.productId,
             variantId: item.variantId,
             orderItemId: item.id,
-            type: InventoryMovementType.SALE_DEDUCTION,
+            type: InventoryMovementType.RESERVATION,
             quantityDelta: -item.quantity,
             idempotencyKey,
             metadata: toJsonValue({
@@ -744,3 +765,4 @@ export async function finalizeSuccessfulPayment(args: {
     return { alreadyProcessed: false, order: finalizedOrder };
   });
 }
+

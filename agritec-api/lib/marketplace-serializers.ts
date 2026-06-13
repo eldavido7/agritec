@@ -4,6 +4,16 @@ export function decimalToNumber(value: Prisma.Decimal | null | undefined) {
   return value == null ? null : Number(value);
 }
 
+function withInventoryState<T extends { inventory?: number | null; reservedInventory?: number | null }>(record: T) {
+  const inventory = typeof record.inventory === "number" ? record.inventory : 0;
+  const reservedInventory = typeof record.reservedInventory === "number" ? record.reservedInventory : 0;
+  return {
+    ...record,
+    reservedInventory,
+    availableInventory: Math.max(0, inventory - reservedInventory),
+  };
+}
+
 export function serializePublicSeller(seller: any) {
   return {
     ...seller,
@@ -15,7 +25,7 @@ export function serializePublicSeller(seller: any) {
 
 export function serializeProduct(product: any) {
   return {
-    ...product,
+    ...withInventoryState(product),
     unitWeightKg: decimalToNumber(product.unitWeightKg),
     unitLengthCm: decimalToNumber(product.unitLengthCm),
     unitWidthCm: decimalToNumber(product.unitWidthCm),
@@ -23,7 +33,7 @@ export function serializeProduct(product: any) {
     seller: product.seller ? serializePublicSeller(product.seller) : undefined,
     variants: Array.isArray(product.variants)
       ? product.variants.map((variant: any) => ({
-          ...variant,
+          ...withInventoryState(variant),
           unitWeightKg: decimalToNumber(variant.unitWeightKg),
           unitLengthCm: decimalToNumber(variant.unitLengthCm),
           unitWidthCm: decimalToNumber(variant.unitWidthCm),

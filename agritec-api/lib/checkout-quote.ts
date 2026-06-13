@@ -1,4 +1,4 @@
-﻿import { DiscountType } from "@prisma/client";
+import { DiscountType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
   calculatePlatformShippingBreakdown,
@@ -80,6 +80,14 @@ export async function buildCheckoutQuote(args: {
       let totalChargeableWeight = 0;
 
       const items = sellerItems.map((item) => {
+        const availableInventory = item.variant
+          ? Math.max(0, item.variant.inventory - item.variant.reservedInventory)
+          : Math.max(0, item.product.inventory - item.product.reservedInventory);
+
+        if (item.quantity > availableInventory) {
+          throw new Error(`INSUFFICIENT_INVENTORY:${item.variant?.id ?? item.product.id}`);
+        }
+
         const product = item.product;
         const variant = item.variant;
         const logisticsSource = variant ?? product;

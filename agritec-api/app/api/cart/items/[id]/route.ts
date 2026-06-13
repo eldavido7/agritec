@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -60,7 +60,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: true, message: "Item removed from cart" });
     }
 
-    const availableInventory = item.variant ? item.variant.inventory : item.product.inventory;
+    const availableInventory = item.variant
+      ? Math.max(0, item.variant.inventory - item.variant.reservedInventory)
+      : Math.max(0, item.product.inventory - item.product.reservedInventory);
+
     if (payload.quantity > availableInventory) {
       return NextResponse.json(
         { success: false, message: "Requested quantity exceeds available inventory" },

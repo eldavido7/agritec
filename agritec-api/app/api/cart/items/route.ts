@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -63,7 +63,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Product variant not found" }, { status: 404 });
     }
 
-    const availableInventory = selectedVariant ? selectedVariant.inventory : product.inventory;
+    const availableInventory = selectedVariant
+      ? Math.max(0, selectedVariant.inventory - selectedVariant.reservedInventory)
+      : Math.max(0, product.inventory - product.reservedInventory);
+
     if (payload.quantity > availableInventory) {
       return NextResponse.json(
         { success: false, message: "Requested quantity exceeds available inventory" },
