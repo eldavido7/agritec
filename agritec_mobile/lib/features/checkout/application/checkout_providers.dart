@@ -1,5 +1,6 @@
-import 'package:agritec_mobile/core/api/mobile_api.dart';
+﻿import 'package:agritec_mobile/core/api/mobile_api.dart';
 import 'package:agritec_mobile/core/logistics/logistics_models.dart';
+import 'package:agritec_mobile/core/storage/cache_providers.dart';
 import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/auth/data/auth_service.dart';
@@ -59,11 +60,29 @@ class CheckoutPaymentSession {
     required this.orderId,
     required this.reference,
     required this.authorizationUrl,
+    required this.createdAt,
   });
 
   final String orderId;
   final String reference;
   final String authorizationUrl;
+  final DateTime createdAt;
+
+  Map<String, dynamic> toJson() => {
+        'orderId': orderId,
+        'reference': reference,
+        'authorizationUrl': authorizationUrl,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory CheckoutPaymentSession.fromJson(Map<String, dynamic> json) {
+    return CheckoutPaymentSession(
+      orderId: json['orderId'] as String? ?? '',
+      reference: json['reference'] as String? ?? '',
+      authorizationUrl: json['authorizationUrl'] as String? ?? '',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
 }
 
 class CheckoutVerificationResult {
@@ -78,6 +97,32 @@ class CheckoutVerificationResult {
   final bool finalStatus;
   final String message;
   final MarketplaceOrder? order;
+}
+
+class CheckoutPaymentStatusResult {
+  const CheckoutPaymentStatusResult({
+    required this.reference,
+    required this.orderId,
+    required this.status,
+    required this.verified,
+    required this.finalStatus,
+    required this.message,
+    this.order,
+  });
+
+  final String reference;
+  final String orderId;
+  final String status;
+  final bool verified;
+  final bool finalStatus;
+  final String message;
+  final MarketplaceOrder? order;
+
+  bool get isPaid => status.toUpperCase() == 'PAID';
+  bool get isPending => status.toUpperCase() == 'PENDING';
+  bool get isPendingTimeout => status.toUpperCase() == 'PENDING_TIMEOUT';
+  bool get isFailed =>
+      status.toUpperCase() == 'FAILED' || status.toUpperCase() == 'CANCELLED';
 }
 
 class CheckoutState {
@@ -110,7 +155,8 @@ class CheckoutState {
   }) {
     return CheckoutState(
       quote: clearQuote ? null : (quote ?? this.quote),
-      paymentSession: clearPaymentSession ? null : (paymentSession ?? this.paymentSession),
+      paymentSession:
+          clearPaymentSession ? null : (paymentSession ?? this.paymentSession),
       isLoadingQuote: isLoadingQuote ?? this.isLoadingQuote,
       isInitializing: isInitializing ?? this.isInitializing,
       isVerifying: isVerifying ?? this.isVerifying,
@@ -120,8 +166,50 @@ class CheckoutState {
 }
 
 class CheckoutNotifier extends Notifier<CheckoutState> {
+  static const _pendingPaymentCacheKey = 'cache_pending_payment_v1';
+  bool _didPrimePendingPayment = false;
+
   @override
-  CheckoutState build() => const CheckoutState();
+  CheckoutState build() {
+    if (!_didPrimePendingPayment) {
+      _didPrimePendingPayment = true;
+      _primePendingPayment();
+    }
+    return const CheckoutState();
+  }
+
+  Future<void> _primePendingPayment() async {
+    final cache = await ref.read(localCacheServiceProvider.future);
+    final raw = cache.readJson(_pendingPaymentCacheKey);
+    if (raw == null) return;
+
+    state = state.copyWith(
+      paymentSession: CheckoutPaymentSession.fromJson(raw),
+    );
+  }
+
+  Future<void> _persistPendingPayment(CheckoutPaymentSession session) async {
+    final cache = await ref.read(localCacheServiceProvider.future);
+    await cache.saveJson(_pendingPaymentCacheKey, session.toJson());
+  }
+
+  Future<void> _clearPersistedPendingPayment() async {
+    final prefs = await ref.read(sharedPreferencesProvider.future);
+    await prefs.remove(_pendingPaymentCacheKey);
+  }
+
+  Future<CheckoutPaymentSession?> getPendingPaymentSession() async {
+    final current = state.paymentSession;
+    if (current != null) return current;
+
+    final cache = await ref.read(localCacheServiceProvider.future);
+    final raw = cache.readJson(_pendingPaymentCacheKey);
+    if (raw == null) return null;
+
+    final session = CheckoutPaymentSession.fromJson(raw);
+    state = state.copyWith(paymentSession: session);
+    return session;
+  }
 
   Future<CheckoutQuoteData> refreshQuote({
     required String addressId,
@@ -145,7 +233,11 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       );
       final quoteJson = payload['quote'] as Map<String, dynamic>;
       final quote = _parseQuote(quoteJson);
-      state = state.copyWith(quote: quote, isLoadingQuote: false, clearError: true);
+      state = state.copyWith(
+        quote: quote,
+        isLoadingQuote: false,
+        clearError: true,
+      );
       return quote;
     } on MobileApiException catch (error) {
       state = state.copyWith(isLoadingQuote: false, error: error.message);
@@ -181,10 +273,16 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
       final paymentJson = payload['payment'] as Map<String, dynamic>;
       final session = CheckoutPaymentSession(
-        orderId: (orderJson?['id'] as String?) ?? '',
-        reference: paymentJson['reference'] as String,
-        authorizationUrl: paymentJson['authorizationUrl'] as String,
+        orderId: (payload['orderId'] as String?) ??
+            (orderJson?['id'] as String?) ??
+            '',
+        reference: (payload['reference'] as String?) ??
+            (paymentJson['reference'] as String? ?? ''),
+        authorizationUrl: (payload['authorizationUrl'] as String?) ??
+            (paymentJson['authorizationUrl'] as String? ?? ''),
+        createdAt: DateTime.now(),
       );
+      await _persistPendingPayment(session);
       state = state.copyWith(
         paymentSession: session,
         isInitializing: false,
@@ -222,13 +320,17 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       }
       final result = CheckoutVerificationResult(
         verified: payload['verified'] as bool? ?? false,
-        finalStatus: payload['final'] as bool? ?? (payload['verified'] as bool? ?? false),
+        finalStatus: payload['final'] as bool? ??
+            (payload['verified'] as bool? ?? false),
         message: (payload['message'] as String?) ??
             ((payload['verified'] as bool? ?? false)
                 ? 'Payment verified successfully'
                 : 'Payment is still pending'),
         order: order,
       );
+      if (result.verified) {
+        await _clearPersistedPendingPayment();
+      }
       state = state.copyWith(
         isVerifying: false,
         clearError: true,
@@ -241,11 +343,77 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     }
   }
 
+  Future<CheckoutPaymentStatusResult> checkPaymentStatus({
+    String? reference,
+    String? orderId,
+  }) async {
+    final token = ref.read(buyerAuthTokenProvider);
+    if (token == null || token.trim().isEmpty) {
+      throw const MobileApiException(message: 'Sign in to continue');
+    }
+
+    final pendingSession = await getPendingPaymentSession();
+    final paymentReference = reference ?? pendingSession?.reference;
+    final paymentOrderId = orderId ?? pendingSession?.orderId ?? '';
+    if (paymentReference == null || paymentReference.trim().isEmpty) {
+      throw const MobileApiException(message: 'No pending payment found');
+    }
+
+    state = state.copyWith(isVerifying: true, clearError: true);
+    try {
+      final api = ref.read(mobileApiClientProvider);
+      final payload = await api.get(
+        '/api/payments/$paymentReference/status',
+        token: token,
+      );
+
+      final orderJson = payload['order'] as Map<String, dynamic>?;
+      MarketplaceOrder? order;
+      if (orderJson != null) {
+        ref.read(ordersProvider.notifier).upsertFromApiJson(orderJson);
+        order = orderFromApiJson(
+          orderJson,
+          fallbackProducts: ref.read(homeFeaturedProductsProvider),
+        );
+      }
+
+      final status = (payload['status'] as String?) ?? 'PENDING';
+      final result = CheckoutPaymentStatusResult(
+        reference: (payload['reference'] as String?) ?? paymentReference,
+        orderId: (payload['orderId'] as String?) ?? paymentOrderId,
+        status: status,
+        verified: payload['verified'] as bool? ?? status.toUpperCase() == 'PAID',
+        finalStatus: payload['final'] as bool? ?? false,
+        message:
+            (payload['message'] as String?) ?? 'Checking payment status...',
+        order: order,
+      );
+
+      if (result.isPaid) {
+        await ref.read(cartProvider.notifier).clear();
+        await _clearPersistedPendingPayment();
+        state = state.copyWith(
+          isVerifying: false,
+          clearError: true,
+          clearPaymentSession: true,
+        );
+      } else {
+        state = state.copyWith(isVerifying: false, clearError: true);
+      }
+
+      return result;
+    } on MobileApiException catch (error) {
+      state = state.copyWith(isVerifying: false, error: error.message);
+      rethrow;
+    }
+  }
+
   void clearQuote() {
     state = state.copyWith(clearQuote: true, clearError: true);
   }
 
-  void clearPaymentSession() {
+  Future<void> clearPaymentSession() async {
+    await _clearPersistedPendingPayment();
     state = state.copyWith(clearPaymentSession: true, clearError: true);
   }
 
@@ -269,7 +437,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       address: BuyerAddress(
         id: addressJson['id'] as String,
         label: 'Delivery',
-        displayName: (addressJson['displayName'] as String?) ?? (addressJson['addressLine'] as String?) ?? '',
+        displayName: (addressJson['displayName'] as String?) ??
+            (addressJson['addressLine'] as String?) ??
+            '',
         fullAddress: (addressJson['fullAddress'] as String?) ?? '',
         addressLine: (addressJson['addressLine'] as String?) ?? '',
         latitude: (addressJson['latitude'] as num?)?.toDouble(),
@@ -280,7 +450,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         isDefault: false,
         isManualAddress: addressJson['isManualAddress'] as bool? ?? false,
         isAdminAssisted: addressJson['isAdminAssisted'] as bool? ?? false,
-        createdByRole: (addressJson['createdByRole'] as String?)?.toLowerCase() == 'admin' ? 'admin' : 'buyer',
+        createdByRole:
+            (addressJson['createdByRole'] as String?)?.toLowerCase() == 'admin'
+                ? 'admin'
+                : 'buyer',
       ),
       productSubtotal: (quoteJson['productSubtotal'] as num?)?.toInt() ?? 0,
       totalShippingFee: (quoteJson['totalShippingFee'] as num?)?.toInt() ?? 0,
@@ -304,15 +477,25 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
             );
           }).toList(),
           shippingQuote: ShippingQuote(
-            deliveryRegion: (groupJson['deliveryRegion'] as String?) ?? 'Unknown region',
-            totalActualWeightKg: rawItems.fold<double>(0, (sum, item) => sum + ((item['actualWeightKg'] as num?)?.toDouble() ?? 0)),
+            deliveryRegion: (groupJson['deliveryRegion'] as String?) ??
+                'Unknown region',
+            totalActualWeightKg: rawItems.fold<double>(
+              0,
+              (sum, item) =>
+                  sum + ((item['actualWeightKg'] as num?)?.toDouble() ?? 0),
+            ),
             totalVolumetricWeightKg: null,
-            usedVolumetricWeight: rawItems.any((item) => (item['volumetricWeightKg'] as num?) != null),
-            totalChargeableWeightKg: (groupJson['totalChargeableWeightKg'] as num?)?.toDouble() ?? 0,
-            weightUnitSizeKg: (groupJson['weightUnitSizeKg'] as num?)?.toDouble() ?? 10,
+            usedVolumetricWeight: rawItems.any(
+              (item) => (item['volumetricWeightKg'] as num?) != null,
+            ),
+            totalChargeableWeightKg:
+                (groupJson['totalChargeableWeightKg'] as num?)?.toDouble() ?? 0,
+            weightUnitSizeKg:
+                (groupJson['weightUnitSizeKg'] as num?)?.toDouble() ?? 10,
             shippingUnits: (groupJson['shippingUnits'] as num?)?.toInt() ?? 1,
             minimumFee: (groupJson['minimumFee'] as num?)?.toInt() ?? 0,
-            additionalUnitFee: (groupJson['additionalUnitFee'] as num?)?.toInt() ?? 0,
+            additionalUnitFee:
+                (groupJson['additionalUnitFee'] as num?)?.toInt() ?? 0,
             shippingFee: (groupJson['shippingFee'] as num?)?.toInt() ?? 0,
           ),
           productSubtotal: (groupJson['productSubtotal'] as num?)?.toInt() ?? 0,
@@ -330,3 +513,4 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 final checkoutProvider = NotifierProvider<CheckoutNotifier, CheckoutState>(
   CheckoutNotifier.new,
 );
+

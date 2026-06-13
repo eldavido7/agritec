@@ -1,12 +1,12 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/cart/application/cart_providers.dart';
 import 'package:agritec_mobile/features/checkout/application/checkout_providers.dart';
+import 'package:agritec_mobile/features/checkout/presentation/payment_callback_page.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
-import 'package:agritec_mobile/features/orders/presentation/order_details_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,12 +23,34 @@ class CheckoutPage extends ConsumerStatefulWidget {
   ConsumerState<CheckoutPage> createState() => _CheckoutPageState();
 }
 
-class _CheckoutPageState extends ConsumerState<CheckoutPage> {
+class _CheckoutPageState extends ConsumerState<CheckoutPage>
+    with WidgetsBindingObserver {
   String _discountCodeInput = '';
   String? _appliedDiscountCode;
   String? _discountMessage;
   String? _selectedAddressId;
   String? _lastQuoteKey;
+  bool _awaitingPaymentReturn = false;
+  bool _openingPaymentStatus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _awaitingPaymentReturn) {
+      unawaited(_openPaymentStatusPage());
+    }
+  }
 
   void _handleBack() {
     final nav = Navigator.of(context);
@@ -72,7 +94,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     final quote = checkoutState.quote;
     _queueQuoteRefreshIfNeeded(address, groups, checkoutState);
 
-    final money = NumberFormat.currency(locale: 'en_NG', symbol: 'NGN ', decimalDigits: 0);
+    final money = NumberFormat.currency(
+      locale: 'en_NG',
+      symbol: 'NGN ',
+      decimalDigits: 0,
+    );
 
     return PopScope(
       canPop: false,
@@ -104,13 +130,18 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           children: [
             Card(
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(ref.tr('checkout.selectAddress'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(
+                      ref.tr('checkout.selectAddress'),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     const SizedBox(height: 8),
                     if (address != null)
                       Padding(
@@ -125,7 +156,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       ),
                     DropdownButtonFormField<String>(
                       isExpanded: true,
-                      key: ValueKey<String?>('addr-${_selectedAddressId ?? address?.id}'),
+                      key: ValueKey<String?>(
+                        'addr-${_selectedAddressId ?? address?.id}',
+                      ),
                       initialValue: address?.id,
                       hint: Text(ref.tr('checkout.chooseAddress')),
                       items: [
@@ -199,14 +232,19 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Text(
                   checkoutState.error!,
-                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             if (checkoutState.isLoadingQuote && quote == null)
-              const Center(child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 40),
-                child: CircularProgressIndicator(),
-              ))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: CircularProgressIndicator(),
+                ),
+              )
             else if (quote != null) ...[
               for (final group in quote.sellerGroups) ...[
                 _SellerCheckoutCard(group: group, currency: money),
@@ -214,19 +252,31 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               ],
               Card(
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
                     children: [
-                      _line(ref.tr('checkout.overallProductSubtotal'), money.format(quote.productSubtotal)),
-                      _line(ref.tr('checkout.totalShippingFee'), money.format(quote.totalShippingFee)),
+                      _line(
+                        ref.tr('checkout.overallProductSubtotal'),
+                        money.format(quote.productSubtotal),
+                      ),
+                      _line(
+                        ref.tr('checkout.totalShippingFee'),
+                        money.format(quote.totalShippingFee),
+                      ),
                       _line(
                         '${ref.tr('checkout.discountTotal')}${_appliedDiscountCode != null ? ' ($_appliedDiscountCode)' : ''}',
                         '- ${money.format(quote.discountTotal)}',
                       ),
                       const Divider(),
-                      _line(ref.tr('checkout.finalTotalPayable'), money.format(quote.grandTotal), bold: true),
+                      _line(
+                        ref.tr('checkout.finalTotalPayable'),
+                        money.format(quote.grandTotal),
+                        bold: true,
+                      ),
                     ],
                   ),
                 ),
@@ -240,9 +290,14 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF136A43),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
-                onPressed: checkoutState.isInitializing || checkoutState.isVerifying || address == null || quote == null
+                onPressed: checkoutState.isInitializing ||
+                        checkoutState.isVerifying ||
+                        address == null ||
+                        quote == null
                     ? null
                     : () => _startPayment(address!.id),
                 child: Text(
@@ -257,10 +312,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               OutlinedButton(
                 onPressed: checkoutState.isVerifying
                     ? null
-                    : () => _verifyPayment(checkoutState.paymentSession!.reference),
-                child: Text(
-                  checkoutState.isVerifying ? 'Verifying payment...' : 'I have completed payment',
-                ),
+                    : _openPaymentStatusPage,
+                child: Text(ref.tr('checkout.checkPaymentStatus')),
               ),
             ],
             if (cartState.isLoading)
@@ -280,10 +333,13 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     CheckoutState checkoutState,
   ) {
     if (address == null) return;
-    if (checkoutState.isLoadingQuote || checkoutState.isInitializing || checkoutState.isVerifying) {
+    if (checkoutState.isLoadingQuote ||
+        checkoutState.isInitializing ||
+        checkoutState.isVerifying) {
       return;
     }
-    final nextKey = '${address.id}|${_appliedDiscountCode ?? ''}|${groups.map((item) => item.sellerId).join(',')}';
+    final nextKey =
+        '${address.id}|${_appliedDiscountCode ?? ''}|${groups.map((item) => item.sellerId).join(',')}';
     if (_lastQuoteKey == nextKey) return;
     _lastQuoteKey = nextKey;
     scheduleMicrotask(() async {
@@ -319,7 +375,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         _discountMessage = quote.discountTotal > 0
             ? ref.tr('checkout.discountApplied')
             : ref.tr('checkout.invalidCode');
-        _lastQuoteKey = '$addressId|${_appliedDiscountCode ?? ''}|${quote.sellerGroups.map((item) => item.sellerId).join(',')}';
+        _lastQuoteKey =
+            '$addressId|${_appliedDiscountCode ?? ''}|${quote.sellerGroups.map((item) => item.sellerId).join(',')}';
       });
     } catch (error) {
       if (!mounted) return;
@@ -343,10 +400,13 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       if (!mounted) return;
       if (!launched) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to open Paystack checkout right now.')),
+          const SnackBar(
+            content: Text('Unable to open Paystack checkout right now.'),
+          ),
         );
         return;
       }
+      _awaitingPaymentReturn = true;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ref.tr('checkout.waitingPayment'))),
       );
@@ -358,68 +418,22 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     }
   }
 
-  Future<void> _verifyPayment(String reference) async {
+  Future<void> _openPaymentStatusPage() async {
+    if (_openingPaymentStatus) return;
+    _openingPaymentStatus = true;
     try {
-      final result = await ref.read(checkoutProvider.notifier).verifyPayment(reference: reference);
-      if (!mounted) return;
-      if (!result.verified || result.order == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.message)),
-        );
-        return;
-      }
-      await ref.read(cartProvider.notifier).clear();
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Color(0xFFE4F4EC),
-                  child: Icon(Icons.check_circle_rounded, size: 30, color: Color(0xFF136A43)),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Payment Successful',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  ref.tr('checkout.paymentSuccessBody'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFF65706B)),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF136A43),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text(ref.tr('checkout.viewOrder')),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      final session = await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
+      if (!mounted || session == null) return;
+      await context.pushNamed(
+        PaymentCallbackPage.routeName,
+        queryParameters: {
+          'reference': session.reference,
+          'orderId': session.orderId,
+        },
       );
-      if (!mounted) return;
-      context.pushNamed(OrderDetailsPage.routeName, pathParameters: {'orderId': result.order!.id});
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
-      );
+    } finally {
+      _openingPaymentStatus = false;
+      _awaitingPaymentReturn = false;
     }
   }
 
@@ -434,7 +448,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             child: Text(
               label,
               softWrap: true,
-              style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400),
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -444,7 +460,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               value,
               textAlign: TextAlign.right,
               softWrap: true,
-              style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400),
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              ),
             ),
           ),
         ],
@@ -472,8 +490,14 @@ class _SellerCheckoutCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(group.farmName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-            Text(group.sellerName, style: const TextStyle(color: Color(0xFF65706B))),
+            Text(
+              group.farmName,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            Text(
+              group.sellerName,
+              style: const TextStyle(color: Color(0xFF65706B)),
+            ),
             const SizedBox(height: 8),
             for (final item in group.items)
               Padding(
@@ -493,9 +517,18 @@ class _SellerCheckoutCard extends ConsumerWidget {
                 ),
               ),
             const Divider(),
-            _breakdownLine(ref.tr('checkout.subtotal'), currency.format(group.productSubtotal)),
-            _breakdownLine(ref.tr('checkout.shippingFee'), currency.format(group.shippingFee)),
-            _breakdownLine(ref.tr('checkout.deliveryRegion'), group.shippingQuote.deliveryRegion),
+            _breakdownLine(
+              ref.tr('checkout.subtotal'),
+              currency.format(group.productSubtotal),
+            ),
+            _breakdownLine(
+              ref.tr('checkout.shippingFee'),
+              currency.format(group.shippingFee),
+            ),
+            _breakdownLine(
+              ref.tr('checkout.deliveryRegion'),
+              group.shippingQuote.deliveryRegion,
+            ),
             _breakdownLine(
               ref.tr('checkout.chargeableWeight'),
               '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg',
@@ -504,12 +537,28 @@ class _SellerCheckoutCard extends ConsumerWidget {
               ref.tr('checkout.weightUnitSize'),
               '${group.shippingQuote.weightUnitSizeKg.toStringAsFixed(1)} kg',
             ),
-            _breakdownLine(ref.tr('checkout.minimumFee'), currency.format(group.shippingQuote.minimumFee)),
-            _breakdownLine(ref.tr('checkout.additionalUnitFee'), currency.format(group.shippingQuote.additionalUnitFee)),
-            _breakdownLine(ref.tr('checkout.shippingUnits'), '${group.shippingQuote.shippingUnits}'),
-            _breakdownLine(ref.tr('checkout.discount'), '- ${currency.format(group.discountTotal)}'),
+            _breakdownLine(
+              ref.tr('checkout.minimumFee'),
+              currency.format(group.shippingQuote.minimumFee),
+            ),
+            _breakdownLine(
+              ref.tr('checkout.additionalUnitFee'),
+              currency.format(group.shippingQuote.additionalUnitFee),
+            ),
+            _breakdownLine(
+              ref.tr('checkout.shippingUnits'),
+              '${group.shippingQuote.shippingUnits}',
+            ),
+            _breakdownLine(
+              ref.tr('checkout.discount'),
+              '- ${currency.format(group.discountTotal)}',
+            ),
             const Divider(),
-            _breakdownLine(ref.tr('checkout.groupTotal'), currency.format(group.groupTotal), bold: true),
+            _breakdownLine(
+              ref.tr('checkout.groupTotal'),
+              currency.format(group.groupTotal),
+              bold: true,
+            ),
           ],
         ),
       ),
@@ -521,11 +570,27 @@ class _SellerCheckoutCard extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400))),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
-          Text(value, style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+            ),
+          ),
         ],
       ),
     );
   }
 }
+
+
+
+

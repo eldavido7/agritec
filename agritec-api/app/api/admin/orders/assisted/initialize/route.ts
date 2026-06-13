@@ -1,4 +1,4 @@
-import { AddressCreatorRole, UserRole } from "@prisma/client";
+﻿import { AddressCreatorRole, UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth";
@@ -212,7 +212,10 @@ export async function POST(request: Request) {
     pendingOrderId = pendingOrder.id;
     pendingPaymentId = pendingOrder.payment.id;
 
-    const callbackUrl = payload.callbackUrl ?? process.env.PAYSTACK_CALLBACK_URL ?? undefined;
+    const callbackUrl =
+      payload.callbackUrl ??
+      process.env.PAYSTACK_CALLBACK_URL ??
+      new URL("/api/paystack/callback", request.url).toString();
     const initializeResult = await initializePaystackTransaction({
       email: buyer.user.email,
       amountInSubunit: pendingOrder.payment.amount * 100,
@@ -237,7 +240,7 @@ export async function POST(request: Request) {
         authorizationUrl: initializeResult.authorization_url,
         rawInitializeResponse: initializeResult,
         metadata: {
-          ...(pendingOrder.payment.metadata as object ?? {}),
+          ...((pendingOrder.payment.metadata as object) ?? {}),
           initiatedByAdminId: admin.id,
           isAdminAssisted: true,
         },
@@ -252,6 +255,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: "Assisted order initialized",
+      orderId: order.id,
+      reference: order.payment.reference,
+      authorizationUrl: order.payment.authorizationUrl,
       order: serializeOrder(order),
       payment: {
         id: order.payment.id,
@@ -281,3 +287,4 @@ export async function POST(request: Request) {
     return errorResponse(error);
   }
 }
+

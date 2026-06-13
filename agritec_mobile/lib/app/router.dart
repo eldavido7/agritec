@@ -3,6 +3,7 @@ import 'package:agritec_mobile/features/auth/presentation/forgot_password_page.d
 import 'package:agritec_mobile/features/auth/presentation/sign_in_page.dart';
 import 'package:agritec_mobile/features/auth/presentation/sign_up_page.dart';
 import 'package:agritec_mobile/features/checkout/presentation/checkout_page.dart';
+import 'package:agritec_mobile/features/checkout/presentation/payment_callback_page.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
 import 'package:agritec_mobile/features/onboarding/presentation/onboarding_page.dart';
 import 'package:agritec_mobile/features/orders/presentation/order_details_page.dart';
@@ -58,13 +59,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: OrderDetailsPage.routePath,
         name: OrderDetailsPage.routeName,
-        builder: (context, state) => OrderDetailsPage(orderId: state.pathParameters['orderId'] ?? ''),
+        builder: (context, state) =>
+            OrderDetailsPage(orderId: state.pathParameters['orderId'] ?? ''),
       ),
       GoRoute(
         path: CheckoutPage.routePath,
         name: CheckoutPage.routeName,
         builder: (context, state) => const CheckoutPage(),
       ),
+      GoRoute(
+        path: PaymentCallbackPage.routePath,
+        name: PaymentCallbackPage.routeName,
+        builder: (context, state) => PaymentCallbackPage(
+          reference: state.uri.queryParameters['reference'],
+          orderId: state.uri.queryParameters['orderId'],
+          status: state.uri.queryParameters['status'],
+        ),
+      ),
     ],
   );
 });
+

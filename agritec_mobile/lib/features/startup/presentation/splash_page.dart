@@ -1,6 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:agritec_mobile/features/checkout/application/checkout_providers.dart';
+import 'package:agritec_mobile/features/checkout/presentation/payment_callback_page.dart';
+import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
 import 'package:agritec_mobile/features/onboarding/presentation/onboarding_page.dart';
 import 'package:agritec_mobile/features/startup/application/startup_controller.dart';
@@ -20,6 +23,8 @@ class SplashPage extends ConsumerStatefulWidget {
 
 class _SplashPageState extends ConsumerState<SplashPage>
     with SingleTickerProviderStateMixin {
+  static const _minimumSplashDuration = Duration(seconds: 3);
+
   late final AnimationController _controller;
 
   @override
@@ -33,16 +38,43 @@ class _SplashPageState extends ConsumerState<SplashPage>
   }
 
   Future<void> _resolveStartup() async {
+    final start = DateTime.now();
     final startup = await ref.read(startupControllerProvider.future);
-    if (!mounted) return;
+    final repository = await ref.read(homeRepositoryProvider.future);
 
-    await Future<void>.delayed(const Duration(seconds: 3));
+    try {
+      await repository.getSnapshot();
+    } catch (_) {
+      // Keep the current splash flow resilient. The home providers will still
+      // attempt their own refresh and can surface any downstream issues.
+    }
+
+    final elapsed = DateTime.now().difference(start);
+    if (elapsed < _minimumSplashDuration) {
+      await Future<void>.delayed(_minimumSplashDuration - elapsed);
+    }
     if (!mounted) return;
 
     if (!startup.hasOnboarded) {
       context.go(OnboardingPage.routePath);
       return;
     }
+
+    if (startup.isAuthenticated) {
+      final pendingSession = await ref.read(checkoutProvider.notifier).getPendingPaymentSession();
+      if (!mounted) return;
+      if (pendingSession != null) {
+        context.goNamed(
+          PaymentCallbackPage.routeName,
+          queryParameters: {
+            'reference': pendingSession.reference,
+            'orderId': pendingSession.orderId,
+          },
+        );
+        return;
+      }
+    }
+
     context.go(MainShellPage.routePath);
   }
 
@@ -274,3 +306,4 @@ class _SplashScenePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SplashScenePainter oldDelegate) => oldDelegate.t != t;
 }
+

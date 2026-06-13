@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { PaymentStatus, UserRole } from "@prisma/client";
 import { z } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth";
@@ -88,7 +88,10 @@ export async function POST(request: Request) {
     pendingOrderId = pendingOrder.id;
     pendingPaymentId = pendingOrder.payment.id;
 
-    const callbackUrl = payload.callbackUrl ?? process.env.PAYSTACK_CALLBACK_URL ?? undefined;
+    const callbackUrl =
+      payload.callbackUrl ??
+      process.env.PAYSTACK_CALLBACK_URL ??
+      new URL("/api/paystack/callback", request.url).toString();
     const initializeResult = await initializePaystackTransaction({
       email: user.email,
       amountInSubunit: pendingOrder.payment.amount * 100,
@@ -121,6 +124,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: "Checkout initialized",
+      orderId: order.id,
+      reference: order.payment.reference,
+      authorizationUrl: order.payment.authorizationUrl,
       order: serializeOrder(order),
       payment: {
         id: order.payment.id,
@@ -150,3 +156,4 @@ export async function POST(request: Request) {
     return checkoutErrorResponse(error);
   }
 }
+
