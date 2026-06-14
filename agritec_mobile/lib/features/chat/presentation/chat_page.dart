@@ -1,10 +1,16 @@
+import 'dart:io';
+
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
+import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
+import 'package:agritec_mobile/features/auth/data/auth_service.dart';
 import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
@@ -13,9 +19,24 @@ class ChatPage extends ConsumerStatefulWidget {
   ConsumerState<ChatPage> createState() => _ChatPageState();
 }
 
+class _PendingAttachment {
+  const _PendingAttachment({
+    required this.fileName,
+    required this.filePath,
+    this.mimeType,
+  });
+
+  final String fileName;
+  final String filePath;
+  final String? mimeType;
+}
+
 class _ChatPageState extends ConsumerState<ChatPage> {
   final _controller = TextEditingController();
   ChatChannelType _filter = ChatChannelType.seller;
+  final List<_PendingAttachment> _pendingAttachments = [];
+  bool _isUploadingAttachment = false;
+  static const int _attachmentLimitBytes = 10 * 1024 * 1024;
 
   @override
   void initState() {
@@ -32,7 +53,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     super.dispose();
   }
 
-
   String _conversationSubtitle(ChatConversation conversation) {
     final subtitle = conversation.participantSubtitle?.trim() ?? '';
     if (subtitle.isNotEmpty) {
@@ -44,6 +64,136 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return conversation.channelType == ChatChannelType.support
         ? ref.tr('chat.supportSubtitle')
         : ref.tr('chat.sellerSubtitle');
+  }
+
+  bool _isImageMimeType(String? mimeType) {
+    if (mimeType == null || mimeType.trim().isEmpty) return false;
+    final value = mimeType.toLowerCase();
+    return value.startsWith('image/') ||
+        value == 'jpg' ||
+        value == 'jpeg' ||
+        value == 'png' ||
+        value == 'gif' ||
+        value == 'webp';
+  }
+
+  String? _mimeFromFileName(String fileName) {
+    final value = fileName.toLowerCase();
+    if (value.endsWith('.jpg') || value.endsWith('.jpeg')) return 'image/jpeg';
+    if (value.endsWith('.png')) return 'image/png';
+    if (value.endsWith('.gif')) return 'image/gif';
+    if (value.endsWith('.webp')) return 'image/webp';
+    if (value.endsWith('.pdf')) return 'application/pdf';
+    return null;
+  }
+
+  Future<void> _pickAttachments() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'],
+      withData: false,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final drafts = <_PendingAttachment>[];
+    for (final file in result.files) {
+      final path = file.path;
+      if (path == null || path.isEmpty) continue;
+      final mimeType = _mimeFromFileName(file.name);
+      final fileSize = await File(path).length();
+      final isAllowed = (mimeType != null &&
+              mimeType.toLowerCase().startsWith('image/')) ||
+          mimeType == 'application/pdf';
+
+      if (!isAllowed) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only images and PDF documents are allowed in chat.'),
+          ),
+        );
+        continue;
+      }
+
+      if (fileSize > _attachmentLimitBytes) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Each chat attachment must be 10 MB or less.'),
+          ),
+        );
+        continue;
+      }
+
+      drafts.add(
+        _PendingAttachment(
+          fileName: file.name,
+          filePath: path,
+          mimeType: mimeType,
+        ),
+      );
+    }
+
+    if (!mounted || drafts.isEmpty) return;
+    setState(() {
+      _pendingAttachments.addAll(drafts);
+    });
+  }
+
+  Future<void> _openAttachment(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _sendMessage(ChatNotifier notifier, ChatState chatState) async {
+    final text = _controller.text.trim();
+    if ((text.isEmpty && _pendingAttachments.isEmpty) || chatState.isSending) {
+      return;
+    }
+
+    try {
+      final token = ref.read(buyerAuthTokenProvider);
+      if (token == null || token.trim().isEmpty) return;
+
+      _controller.clear();
+      setState(() => _isUploadingAttachment = true);
+
+      final api = ref.read(mobileApiClientProvider);
+      final attachments = <ChatAttachment>[];
+      for (final attachment in _pendingAttachments) {
+        final upload = await api.uploadChatAttachment(
+          token: token,
+          filePath: attachment.filePath,
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType,
+        );
+        final asset = Map<String, dynamic>.from(upload['asset'] as Map);
+        attachments.add(
+          ChatAttachment(
+            id: 'pending-${asset['publicId']}',
+            secureUrl: '${asset['secureUrl'] ?? ''}',
+            publicId: '${asset['publicId'] ?? ''}',
+            mimeType: asset['mimeType'] as String?,
+          ),
+        );
+      }
+
+      await notifier.sendMessage(text, attachments: attachments);
+      if (!mounted) return;
+      setState(() => _pendingAttachments.clear());
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to send message.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingAttachment = false);
+      }
+    }
   }
 
   @override
@@ -119,7 +269,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         notifier.clearSelectedConversation();
                       }
                       if (next == ChatChannelType.support) {
-                        await notifier.startSupportConversation();
+                        notifier.clearSelectedConversation();
                       }
                     },
                   ),
@@ -129,9 +279,23 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             if (filtered.isEmpty)
               Expanded(
                 child: Center(
-                  child: Text(
-                    ref.tr('chat.empty'),
-                    style: const TextStyle(color: Color(0xFF66716C)),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        ref.tr('chat.empty'),
+                        style: const TextStyle(color: Color(0xFF66716C)),
+                      ),
+                      if (effectiveFilter == ChatChannelType.support) ...[
+                        const SizedBox(height: 12),
+                        FilledButton.tonal(
+                          onPressed: chatState.isLoading
+                              ? null
+                              : () => notifier.startSupportConversation(),
+                          child: const Text('Start support chat'),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               )
@@ -228,7 +392,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     ),
                                   ),
                                   Text(
-                                    conversation.latestMessage?.text ?? _conversationSubtitle(conversation),
+                                    conversation.latestMessage?.text.isNotEmpty == true
+                                        ? conversation.latestMessage!.text
+                                        : _conversationSubtitle(conversation),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -278,10 +444,85 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 style: const TextStyle(fontWeight: FontWeight.w700),
                               ),
                             ),
+                            IconButton(
+                              onPressed: selected == null || _isUploadingAttachment
+                                  ? null
+                                  : _pickAttachments,
+                              icon: _isUploadingAttachment
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.attach_file_rounded),
+                            ),
                           ],
                         ),
                       ),
                       const Divider(height: 1),
+                      if (_pendingAttachments.isNotEmpty)
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                          child: Row(
+                            children: _pendingAttachments
+                                .map(
+                                  (attachment) => Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F3),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _isImageMimeType(attachment.mimeType)
+                                              ? Icons.image_outlined
+                                              : Icons.description_outlined,
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        ConstrainedBox(
+                                          constraints: const BoxConstraints(maxWidth: 140),
+                                          child: _isImageMimeType(attachment.mimeType)
+                                              ? ClipRRect(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  child: Image.file(
+                                                    File(attachment.filePath),
+                                                    width: 52,
+                                                    height: 52,
+                                                    fit: BoxFit.cover,
+                                                  ),
+                                                )
+                                              : Text(
+                                                  attachment.fileName,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(fontSize: 12),
+                                                ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        InkWell(
+                                          onTap: () {
+                                            setState(() {
+                                              _pendingAttachments.removeWhere(
+                                                (entry) => entry.filePath == attachment.filePath,
+                                              );
+                                            });
+                                          },
+                                          child: const Icon(Icons.close_rounded, size: 16),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
                       Expanded(
                         child: selected == null
                             ? Center(
@@ -318,15 +559,75 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            message.text,
-                                            style: TextStyle(
-                                              color: message.isMine
-                                                  ? Colors.white
-                                                  : const Color(0xFF1E2623),
+                                          if (message.text.isNotEmpty)
+                                            Text(
+                                              message.text,
+                                              style: TextStyle(
+                                                color: message.isMine
+                                                    ? Colors.white
+                                                    : const Color(0xFF1E2623),
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(height: 4),
+                                          if (message.attachments.isNotEmpty) ...[
+                                            if (message.text.isNotEmpty)
+                                              const SizedBox(height: 8),
+                                            ...message.attachments.map((attachment) {
+                                              final image = _isImageMimeType(attachment.mimeType);
+                                              return GestureDetector(
+                                                onTap: () => _openAttachment(attachment.secureUrl),
+                                                child: Container(
+                                                  margin: const EdgeInsets.only(bottom: 8),
+                                                  decoration: BoxDecoration(
+                                                    color: message.isMine
+                                                        ? Colors.white.withValues(alpha: 0.12)
+                                                        : Colors.white,
+                                                    borderRadius: BorderRadius.circular(12),
+                                                  ),
+                                                  child: image
+                                                      ? ClipRRect(
+                                                          borderRadius: BorderRadius.circular(12),
+                                                          child: Image.network(
+                                                            attachment.secureUrl,
+                                                            height: 160,
+                                                            width: double.infinity,
+                                                            fit: BoxFit.cover,
+                                                          ),
+                                                        )
+                                                      : Padding(
+                                                          padding: const EdgeInsets.all(12),
+                                                          child: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons.description_outlined,
+                                                                color: message.isMine
+                                                                    ? Colors.white
+                                                                    : const Color(0xFF1E2623),
+                                                              ),
+                                                              const SizedBox(width: 8),
+                                                              Expanded(
+                                                                child: Text(
+                                                                  'Document attachment',
+                                                                  style: TextStyle(
+                                                                    color: message.isMine
+                                                                        ? Colors.white
+                                                                        : const Color(0xFF1E2623),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              Icon(
+                                                                Icons.open_in_new_rounded,
+                                                                size: 16,
+                                                                color: message.isMine
+                                                                    ? Colors.white70
+                                                                    : const Color(0xFF73807A),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                ),
+                                              );
+                                            }),
+                                          ],
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
@@ -384,7 +685,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   controller: _controller,
                                   minLines: 1,
                                   maxLines: 4,
-                                  enabled: selected != null && !chatState.isSending,
+                                  enabled: selected != null &&
+                                      !chatState.isSending &&
+                                      !_isUploadingAttachment,
                                   decoration: InputDecoration(
                                     hintText: ref.tr('chat.placeholder'),
                                     isDense: true,
@@ -393,13 +696,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               ),
                               const SizedBox(width: 8),
                               IconButton.filled(
-                                onPressed: selected == null || chatState.isSending
+                                onPressed: selected == null ||
+                                        chatState.isSending ||
+                                        _isUploadingAttachment
                                     ? null
-                                    : () async {
-                                        final text = _controller.text;
-                                        _controller.clear();
-                                        await notifier.sendMessage(text);
-                                      },
+                                    : () => _sendMessage(notifier, chatState),
                                 icon: chatState.isSending
                                     ? const SizedBox(
                                         width: 18,
@@ -427,9 +728,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 }
-
-
-
 
 
 

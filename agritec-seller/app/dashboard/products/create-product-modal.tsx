@@ -7,36 +7,27 @@ import {
   ProductForm,
   defaultLogistics,
   parseOptionalNumber,
+  type ProductFormDraft,
 } from "./product-form";
-import { categorySlugFromLabel, type ProductLogistics } from "@/lib/mock-data";
+import { type ProductLogistics } from "@/lib/mock-data";
 import { toast } from "sonner";
-import {
-  type SellerProductRecord,
-  type SellerProductImageRecord,
-} from "@/stores/seller-products-store";
+import { type SellerProductRecord } from "@/stores/seller-products-store";
 
 type Product = SellerProductRecord;
-type ProductImage = SellerProductImageRecord;
+type ProductDraft = ProductFormDraft;
 
 interface CreateProductModalProps {
   isOpen: boolean;
-  formData: Partial<Product>;
-  onFormDataChange: (data: Partial<Product>) => void;
+  formData: ProductDraft;
+  onFormDataChange: (data: ProductDraft) => void;
   categories: readonly string[];
   uploadingImageIndex: number | null;
   isSaving: boolean;
   isImageUploading: boolean;
   onClose: () => void;
-  onSave: (payload: Partial<Product>) => Promise<void>;
-  onUploadImage: (
-    file: File,
-    index: number,
-  ) => Promise<{
-    secureUrl: string;
-    publicId?: string | null;
-    altText?: string;
-    displayOrder?: number;
-  }>;
+  onSave: (payload: ProductDraft) => Promise<void>;
+  onSelectImage: (file: File, index: number) => void;
+  onRemoveImage: (index: number) => void;
 }
 
 const normalizeVariantLogistics = (
@@ -66,7 +57,8 @@ export function CreateProductModal({
   isImageUploading,
   onClose,
   onSave,
-  onUploadImage,
+  onSelectImage,
+  onRemoveImage,
 }: CreateProductModalProps) {
   if (!isOpen) return null;
 
@@ -100,21 +92,20 @@ export function CreateProductModal({
       return;
     }
 
-    const normalizedImages = (formData.images || [])
+    const draftImages = (formData.images || [])
       .map((image, index) => {
-        if (!image?.secureUrl?.trim()) return null;
+        if (!image) return null;
         return {
-          secureUrl: image.secureUrl.trim(),
-          publicId: (image as any).publicId ?? null,
+          ...image,
+          secureUrl: image.secureUrl?.trim() || image.previewUrl || "",
           altText:
-            (image as any).altText ??
-            `${formData.name || "Product"} image ${index + 1}`,
-          displayOrder: (image as any).displayOrder ?? index,
+            image.altText ?? `${formData.name || "Product"} image ${index + 1}`,
+          displayOrder: image.displayOrder ?? index,
         };
       })
-      .filter(Boolean) as ProductImage[];
+      .filter(Boolean) as NonNullable<ProductDraft["images"]>;
 
-    if (normalizedImages.length === 0) {
+    if (draftImages.length === 0) {
       toast.error("Add at least one product image before saving");
       return;
     }
@@ -152,7 +143,7 @@ export function CreateProductModal({
       unitWidthCm,
       unitHeightCm,
       packageType: formData.packageType || defaultLogistics.packageType,
-      images: normalizedImages,
+      images: draftImages,
     };
 
     try {
@@ -192,7 +183,8 @@ export function CreateProductModal({
             categories={categories}
             uploadingImageIndex={uploadingImageIndex}
             isFormBusy={isFormBusy}
-            onUploadImage={onUploadImage}
+            onSelectImage={onSelectImage}
+            onRemoveImage={onRemoveImage}
           />
 
           <div className="flex gap-3 pt-4 border-t border-border">
@@ -222,3 +214,5 @@ export function CreateProductModal({
     </div>
   );
 }
+
+

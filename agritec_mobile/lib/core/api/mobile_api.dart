@@ -84,6 +84,54 @@ class MobileApiClient {
     );
   }
 
+
+  Future<Map<String, dynamic>> uploadChatAttachment({
+    required String token,
+    required String filePath,
+    required String fileName,
+    String? mimeType,
+  }) async {
+    final signature = await post(
+      '/api/upload',
+      token: token,
+      data: const {'type': 'chat'},
+    );
+
+    final upload = Map<String, dynamic>.from(signature['upload'] as Map);
+    final cloudinaryUrl =
+        'https://api.cloudinary.com/v1_1/${upload['cloudName']}/${upload['resourceType']}/upload';
+
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      'api_key': upload['apiKey'],
+      'timestamp': '${upload['timestamp']}',
+      'signature': upload['signature'],
+      'folder': upload['folder'],
+    });
+
+    try {
+      final response = await Dio().post<dynamic>(cloudinaryUrl, data: formData);
+      final payload = _normalize(response.data);
+      return {
+        'success': true,
+        'asset': {
+          'secureUrl': payload['secure_url'],
+          'publicId': payload['public_id'],
+          'originalFilename': payload['original_filename'] ?? fileName,
+          'bytes': payload['bytes'],
+          'mimeType': mimeType,
+          'folder': upload['folder'],
+        },
+      };
+    } on DioException catch (error) {
+      final payload = _normalize(error.response?.data);
+      throw _toException(
+        payload: payload,
+        statusCode: error.response?.statusCode,
+        fallbackMessage: 'Upload failed',
+      );
+    }
+  }
   Future<Map<String, dynamic>> delete(
     String path, {
     Object? data,

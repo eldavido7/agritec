@@ -1,23 +1,48 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { MessageSquare, RotateCw, Search, Send } from "lucide-react";
+import {
+  ExternalLink,
+  FileImage,
+  FileText,
+  Loader2,
+  MessageSquare,
+  Paperclip,
+  Search,
+  Send,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime } from "@/lib/formatting";
+import { sellerUploadRequest } from "@/lib/seller-api";
 import { useSellerAuthStore } from "@/stores/seller-auth-store";
 import {
   SellerConversationRecord,
+  SellerMessageAttachmentInput,
   useSellerMessagesStore,
 } from "@/stores/seller-messages-store";
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.35 } },
+};
+
+const CHAT_ATTACHMENT_LIMIT_BYTES = 10 * 1024 * 1024;
+const ALLOWED_CHAT_ATTACHMENT_MIME_TYPES = [
+  "application/pdf",
+] as const;
+
+type PendingAttachment = Partial<SellerMessageAttachmentInput> & {
+  id: string;
+  file?: File;
+  previewUrl?: string;
+  isLocalDraft?: boolean;
+  originalFilename: string;
 };
 
 function getConversationDisplayName(
@@ -39,8 +64,26 @@ function getConversationDisplayName(
   );
 }
 
+function isImageMimeType(mimeType: string | null | undefined) {
+  return Boolean(mimeType && mimeType.toLowerCase().startsWith("image/"));
+}
+
+function isAllowedChatAttachment(file: File) {
+  return (
+    file.type.startsWith("image/") ||
+    ALLOWED_CHAT_ATTACHMENT_MIME_TYPES.includes(
+      file.type as (typeof ALLOWED_CHAT_ATTACHMENT_MIME_TYPES)[number],
+    )
+  );
+}
+
+function formatFileSize(bytes: number) {
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
 export default function MessagesPage() {
   const authReady = useSellerAuthStore((state) => state.isReady);
+  const sellerToken = useSellerAuthStore((state) => state.token);
   const sellerUserId = useSellerAuthStore((state) => state.user?.id ?? null);
   const sellerProfile = useSellerAuthStore((state) => state.user?.sellerProfile);
   const {
@@ -62,6 +105,22 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [replyText, setReplyText] = useState("");
   const [isWindowActive, setIsWindowActive] = useState(true);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingAttachmentsRef = useRef<PendingAttachment[]>([]);
+
+  function cleanupPendingAttachments(attachments: PendingAttachment[]) {
+    for (const attachment of attachments) {
+      if (attachment.isLocalDraft && attachment.previewUrl) {
+        URL.revokeObjectURL(attachment.previewUrl);
+      }
+    }
+  }
+
+  useEffect(() => {
+    pendingAttachmentsRef.current = pendingAttachments;
+  }, [pendingAttachments]);
 
   useEffect(() => {
     if (!authReady || !sellerProfile) return;
@@ -102,7 +161,17 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!selectedConversationId) return;
     void fetchMessages(selectedConversationId).catch(() => undefined);
+    setPendingAttachments((current) => {
+      cleanupPendingAttachments(current);
+      return [];
+    });
   }, [selectedConversationId, fetchMessages]);
+
+  useEffect(() => {
+    return () => {
+      cleanupPendingAttachments(pendingAttachmentsRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -165,18 +234,111 @@ export default function MessagesPage() {
     }
   }
 
+  async function handleAttachmentSelection(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!files.length) return;
+
+    const currentCount = pendingAttachments.length;
+    if (currentCount >= 10) {
+      toast.error("You can attach up to 10 files per message");
+      return;
+    }
+
+    const nextDrafts: PendingAttachment[] = [];
+    for (const file of files.slice(0, 10 - currentCount)) {
+      if (!isAllowedChatAttachment(file)) {
+        toast.error("Only images and PDF documents are allowed in chat.");
+        continue;
+      }
+
+      if (file.size > CHAT_ATTACHMENT_LIMIT_BYTES) {
+        toast.error(
+          `Each chat attachment must be ${formatFileSize(CHAT_ATTACHMENT_LIMIT_BYTES)} or less.`,
+        );
+        continue;
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      nextDrafts.push({
+        id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        file,
+        previewUrl,
+        secureUrl: previewUrl,
+        mimeType: file.type,
+        originalFilename: file.name,
+        isLocalDraft: true,
+      });
+    }
+
+    if (nextDrafts.length === 0) {
+      return;
+    }
+
+    setPendingAttachments((current) => [...current, ...nextDrafts]);
+    toast.success(
+      nextDrafts.length === 1
+        ? "Attachment added. It will upload when you send the message."
+        : `${nextDrafts.length} attachments added. They will upload when you send the message.`,
+    );
+  }
+
+  function handleRemovePendingAttachment(attachmentId: string) {
+    setPendingAttachments((current) => {
+      const attachment = current.find((entry) => entry.id === attachmentId);
+      if (attachment?.isLocalDraft && attachment.previewUrl) {
+        URL.revokeObjectURL(attachment.previewUrl);
+      }
+      return current.filter((entry) => entry.id !== attachmentId);
+    });
+  }
+
   async function handleSendMessage() {
     const conversationId = selectedConversationId;
     const body = replyText.trim();
-    if (!conversationId || !body) return;
+    if (!conversationId || (!body && pendingAttachments.length === 0)) return;
+    if (!sellerToken) {
+      toast.error("Seller session not found");
+      return;
+    }
 
     try {
+      setIsUploadingAttachment(true);
+      const uploadedAttachments: SellerMessageAttachmentInput[] =
+        await Promise.all(
+          pendingAttachments.map(async (attachment) => {
+            if (attachment.file) {
+              const result = await sellerUploadRequest(
+                attachment.file,
+                "chat",
+                sellerToken,
+              );
+              return {
+                secureUrl: result.asset.secureUrl,
+                publicId: result.asset.publicId,
+                mimeType: result.asset.mimeType ?? attachment.file.type,
+              };
+            }
+
+            return {
+              secureUrl: attachment.secureUrl ?? "",
+              publicId: attachment.publicId ?? "",
+              mimeType: attachment.mimeType ?? null,
+            };
+          }),
+        );
+
       await sendMessage(
         conversationId,
         body,
         selectedConversation?.relatedParentOrderId ?? null,
+        uploadedAttachments,
       );
       setReplyText("");
+      cleanupPendingAttachments(pendingAttachments);
+      setPendingAttachments([]);
       toast.success("Reply sent");
     } catch (actionError) {
       toast.error(
@@ -184,8 +346,11 @@ export default function MessagesPage() {
           ? actionError.message
           : "Failed to send reply",
       );
+    } finally {
+      setIsUploadingAttachment(false);
     }
   }
+
   async function handleRetryMessage(clientTempId: string) {
     if (!selectedConversationId) return;
 
@@ -206,7 +371,7 @@ export default function MessagesPage() {
       <motion.div initial="hidden" animate="visible" variants={itemVariants}>
         <div>
           <p className="mt-2 text-muted-foreground">
-            Buyers initiate chats. Sellers reply here for{" "}
+            Buyers initiate chats. Sellers reply here for {" "}
             {sellerProfile?.farmName ?? "your farm"}.
           </p>
         </div>
@@ -341,18 +506,77 @@ export default function MessagesPage() {
                                 {message.sender.fullName}
                               </p>
                             ) : null}
-                            <p className="whitespace-pre-wrap text-sm leading-6">
-                              {message.body}
-                            </p>
-                            <p
-                              className={`mt-2 text-xs ${
-                                isMine
-                                  ? "text-primary-foreground/75"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              {formatDateTime(new Date(message.createdAt))}
-                            </p>
+                            {message.body ? (
+                              <p className="whitespace-pre-wrap text-sm leading-6">
+                                {message.body}
+                              </p>
+                            ) : null}
+                            {message.attachments.length > 0 ? (
+                              <div className="mt-3 space-y-2">
+                                {message.attachments.map((attachment) => {
+                                  const image = isImageMimeType(attachment.mimeType);
+                                  return image ? (
+                                    <a
+                                      key={attachment.id}
+                                      href={attachment.secureUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block overflow-hidden rounded-xl border border-white/15"
+                                    >
+                                      <img
+                                        src={attachment.secureUrl}
+                                        alt="Chat attachment"
+                                        className="max-h-64 w-full object-cover"
+                                      />
+                                    </a>
+                                  ) : (
+                                    <a
+                                      key={attachment.id}
+                                      href={attachment.secureUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
+                                        isMine
+                                          ? "border-white/15 bg-white/10 text-primary-foreground"
+                                          : "border-border bg-background text-foreground"
+                                      }`}
+                                    >
+                                      <FileText className="size-4 shrink-0" />
+                                      <span className="truncate">Document attachment</span>
+                                      <ExternalLink className="ml-auto size-4 shrink-0" />
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                            <div className="mt-2 flex items-center gap-2">
+                              <p
+                                className={`text-xs ${
+                                  isMine
+                                    ? "text-primary-foreground/75"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {formatDateTime(new Date(message.createdAt))}
+                              </p>
+                              {message.deliveryState === "failed" ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    message.clientTempId
+                                      ? void handleRetryMessage(message.clientTempId)
+                                      : undefined
+                                  }
+                                  className={`text-xs font-medium underline ${
+                                    isMine
+                                      ? "text-primary-foreground/85"
+                                      : "text-destructive"
+                                  }`}
+                                >
+                                  Retry
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       );
@@ -362,32 +586,97 @@ export default function MessagesPage() {
               </div>
 
               <div className="border-t border-border p-6">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  accept="image/*,.pdf,application/pdf"
+                  onChange={(event) => void handleAttachmentSelection(event)}
+                />
+                {pendingAttachments.length > 0 ? (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {pendingAttachments.map((attachment) => {
+                      const image = isImageMimeType(attachment.mimeType);
+                      return (
+                        <div
+                          key={attachment.id}
+                          className="flex items-center gap-2 rounded-2xl border border-border bg-secondary/30 px-3 py-2 text-xs"
+                        >
+                          {image && attachment.previewUrl ? (
+                            <img
+                              src={attachment.previewUrl}
+                              alt={attachment.originalFilename}
+                              className="size-10 rounded-lg object-cover"
+                            />
+                          ) : image ? (
+                            <FileImage className="size-3.5" />
+                          ) : (
+                            <FileText className="size-3.5" />
+                          )}
+                          <span className="max-w-44 truncate">{attachment.originalFilename}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePendingAttachment(attachment.id)}
+                            className="rounded-full p-0.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 <div className="space-y-3">
                   <textarea
                     rows={3}
                     value={replyText}
                     onChange={(event) => setReplyText(event.target.value)}
                     placeholder="Write your reply..."
-                    disabled={isSendingMessage}
+                    disabled={isSendingMessage || isUploadingAttachment}
                     className="w-full resize-none rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none ring-0 transition focus:border-primary"
                   />
-                  <Button
-                    onClick={() => void handleSendMessage()}
-                    disabled={isSendingMessage || replyText.trim().length === 0}
-                    className="w-full"
-                  >
-                    {isSendingMessage ? (
-                      <>
-                        <Spinner className="mr-2 size-4" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="mr-2 size-4" />
-                        Send Reply
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingAttachment || isSendingMessage || pendingAttachments.length >= 10}
+                    >
+                      {isUploadingAttachment ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Preparing...
+                        </>
+                      ) : (
+                        <>
+                          <Paperclip className="mr-2 size-4" />
+                          Attach file
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => void handleSendMessage()}
+                      disabled={
+                        isSendingMessage ||
+                        isUploadingAttachment ||
+                        (replyText.trim().length === 0 && pendingAttachments.length === 0)
+                      }
+                      className="w-full sm:w-auto"
+                    >
+                      {isSendingMessage || isUploadingAttachment ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          {isUploadingAttachment ? "Uploading..." : "Sending..."}
+                        </>
+                      ) : (
+                        <>
+                          <Send className="mr-2 size-4" />
+                          Send Reply
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </>
@@ -407,6 +696,3 @@ export default function MessagesPage() {
     </div>
   );
 }
-
-
-

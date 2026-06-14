@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, X, Loader2, Trash2 } from "lucide-react";
+import { Plus, X, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import {
@@ -14,7 +14,7 @@ import {
   volumetricWeightKg,
   type ProductLogistics,
 } from "@/lib/mock-data";
-import { type SellerProductRecord } from "@/stores/seller-products-store";
+import { type SellerProductImageRecord, type SellerProductRecord } from "@/stores/seller-products-store";
 
 const CLOUDINARY_FREE_IMAGE_LIMIT_BYTES = 10 * 1024 * 1024;
 const formatFileSize = (bytes: number) =>
@@ -61,21 +61,24 @@ const buildVariantLogisticsDraft = (
 
 type Product = SellerProductRecord;
 
+export type DraftProductImage = SellerProductImageRecord & {
+  file?: File;
+  previewUrl?: string;
+  isLocalDraft?: boolean;
+};
+
+export type ProductFormDraft = Partial<Omit<Product, "images">> & {
+  images?: DraftProductImage[];
+};
+
 interface ProductFormProps {
-  formData: Partial<Product>;
-  onFormDataChange: (data: Partial<Product>) => void;
+  formData: ProductFormDraft;
+  onFormDataChange: (data: ProductFormDraft) => void;
   categories: readonly string[];
   uploadingImageIndex: number | null;
   isFormBusy: boolean;
-  onUploadImage: (
-    file: File,
-    index: number,
-  ) => Promise<{
-    secureUrl: string;
-    publicId?: string | null;
-    altText?: string;
-    displayOrder?: number;
-  }>;
+  onSelectImage: (file: File, index: number) => void;
+  onRemoveImage: (index: number) => void;
 }
 
 export function ProductForm({
@@ -84,7 +87,8 @@ export function ProductForm({
   categories,
   uploadingImageIndex,
   isFormBusy,
-  onUploadImage,
+  onSelectImage,
+  onRemoveImage,
 }: ProductFormProps) {
   const hasVariants =
     (formData.variants && formData.variants.length > 0) || false;
@@ -107,7 +111,7 @@ export function ProductForm({
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
 
@@ -119,30 +123,17 @@ export function ProductForm({
 
                     if (file.size > CLOUDINARY_FREE_IMAGE_LIMIT_BYTES) {
                       toast.error(
-                        `Image is too large. Cloudinary free plan supports up to ${formatFileSize(CLOUDINARY_FREE_IMAGE_LIMIT_BYTES)} per image.`,
+                        `Image is too large. This platform supports up to ${formatFileSize(CLOUDINARY_FREE_IMAGE_LIMIT_BYTES)} per image.`,
                       );
                       e.target.value = "";
                       return;
                     }
 
-                    try {
-                      const uploadedImage = await onUploadImage(file, idx);
-                      const newImages = [...(formData.images || [])];
-                      newImages[idx] = uploadedImage;
-                      onFormDataChange({
-                        ...formData,
-                        images: newImages.filter(Boolean),
-                      });
-                      toast.success("Image uploaded successfully");
-                    } catch (uploadError) {
-                      toast.error(
-                        uploadError instanceof Error
-                          ? uploadError.message
-                          : "Unable to upload image",
-                      );
-                    } finally {
-                      e.target.value = "";
-                    }
+                    onSelectImage(file, idx);
+                    toast.success(
+                      "Image added. It will upload when you save the product.",
+                    );
+                    e.target.value = "";
                   }}
                   className="hidden"
                   id={`image-upload-${idx}`}
@@ -173,14 +164,7 @@ export function ProductForm({
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          const newImages =
-                            formData.images?.filter(
-                              (_: any, i: number) => i !== idx,
-                            ) || [];
-                          onFormDataChange({
-                            ...formData,
-                            images: newImages,
-                          });
+                          onRemoveImage(idx);
                         }}
                         className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-100 shadow-sm transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                       >
@@ -216,12 +200,12 @@ export function ProductForm({
           })}
         </div>
         <p className="text-xs text-muted-foreground mt-3">
-          PNG, JPG, WEBP - Click on any box to upload or replace
+          PNG, JPG, WEBP - Select up to 4 images. Files stay local until you
+          save the product.
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          Cloudinary free plan supports up to{" "}
-          {formatFileSize(CLOUDINARY_FREE_IMAGE_LIMIT_BYTES)} per image. Uploads
-          now go directly to Cloudinary using a signed backend payload.
+          This platform supports up to{" "}
+          {formatFileSize(CLOUDINARY_FREE_IMAGE_LIMIT_BYTES)} per image. 
         </p>
       </div>
 
@@ -988,3 +972,6 @@ export function ProductForm({
 }
 
 export { defaultLogistics, parseOptionalNumber, buildVariantLogisticsDraft };
+
+
+

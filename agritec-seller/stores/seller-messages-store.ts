@@ -41,6 +41,11 @@ export type SellerConversationRecord = {
   latestMessage: SellerConversationLatestMessageRecord;
 };
 
+export type SellerMessageAttachmentInput = {
+  secureUrl: string;
+  publicId: string;
+  mimeType?: string | null;
+};
 export type SellerConversationMessageRecord = {
   clientTempId?: string;
   deliveryState?: "sending" | "sent" | "failed";
@@ -84,6 +89,7 @@ type SellerMessagesState = {
     conversationId: string,
     body: string,
     relatedParentOrderId?: string | null,
+    attachments?: SellerMessageAttachmentInput[],
   ) => Promise<SellerConversationMessageRecord>;
   retryMessage: (
     conversationId: string,
@@ -395,13 +401,13 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
     selectConversation: (conversationId) =>
       set({ selectedConversationId: conversationId }),
 
-    sendMessage: async (conversationId, body, relatedParentOrderId) => {
+    sendMessage: async (conversationId, body, relatedParentOrderId, attachments = []) => {
       const token = useSellerAuthStore.getState().token;
       const currentUser = useSellerAuthStore.getState().user;
       if (!token || !currentUser) throw new Error("Seller session not found");
 
       const trimmedBody = body.trim();
-      if (!trimmedBody) {
+      if (!trimmedBody && attachments.length === 0) {
         throw new Error("Message cannot be empty");
       }
 
@@ -411,7 +417,7 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
         clientTempId: tempId,
         deliveryState: "sending",
         id: tempId,
-        type: "TEXT",
+        type: attachments.length > 0 && !trimmedBody ? "IMAGE" : "TEXT",
         body: trimmedBody,
         relatedParentOrderId: relatedParentOrderId ?? null,
         sender: {
@@ -420,7 +426,13 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
           email: currentUser.email,
           role: currentUser.role,
         },
-        attachments: [],
+        attachments: attachments.map((attachment, index) => ({
+          id: `temp-attachment-${tempId}-${index}`,
+          secureUrl: attachment.secureUrl,
+          publicId: attachment.publicId,
+          mimeType: attachment.mimeType ?? "",
+          createdAt: optimisticTimestamp,
+        })),
         createdAt: optimisticTimestamp,
         updatedAt: optimisticTimestamp,
       };
@@ -429,6 +441,7 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
         conversationId,
         relatedParentOrderId: relatedParentOrderId ?? null,
         clientTempId: tempId,
+        attachmentCount: attachments.length,
       });
 
       set((state) => {
@@ -440,8 +453,8 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
                 lastMessageAt: optimisticTimestamp,
                 latestMessage: {
                   id: tempId,
-                  type: "TEXT",
-                  body: trimmedBody,
+                  type: optimisticMessage.type,
+                  body: trimmedBody || "Sent an attachment",
                   senderId: currentUser.id,
                   senderName: currentUser.fullName,
                   senderRole: currentUser.role,
@@ -471,8 +484,10 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
           method: "POST",
           token,
           body: JSON.stringify({
-            body: trimmedBody,
+            body: trimmedBody || null,
+            type: optimisticMessage.type,
             relatedParentOrderId: relatedParentOrderId ?? null,
+            attachments,
           }),
         });
 
@@ -494,7 +509,7 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
                   latestMessage: {
                     id: message.id,
                     type: message.type,
-                    body: message.body,
+                    body: message.body || "Sent an attachment",
                     senderId: message.sender.id,
                     senderName: message.sender.fullName,
                     senderRole: message.sender.role,
@@ -563,6 +578,11 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
         conversationId,
         message.body,
         message.relatedParentOrderId ?? null,
+        message.attachments.map((attachment) => ({
+          secureUrl: attachment.secureUrl,
+          publicId: attachment.publicId,
+          mimeType: attachment.mimeType,
+        })),
       );
     },
 

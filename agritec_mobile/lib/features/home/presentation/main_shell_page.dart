@@ -8,6 +8,7 @@ import 'package:agritec_mobile/features/cart/presentation/cart_page.dart';
 import 'package:agritec_mobile/features/catalog/application/catalog_providers.dart';
 import 'package:agritec_mobile/features/catalog/presentation/catalog_hub_page.dart';
 import 'package:agritec_mobile/features/catalog/presentation/catalog_listing_page.dart';
+import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
 import 'package:agritec_mobile/features/chat/presentation/chat_page.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/home_page.dart';
@@ -76,6 +77,7 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
   @override
   Widget build(BuildContext context) {
     final cartCount = ref.watch(cartItemCountProvider);
+    final unreadChatCount = isBuyerAuthenticated(ref) ? ref.watch(unreadChatCountProvider) : 0;
     final tab = ref.watch(shellTabProvider);
     final isOnline = ref.watch(connectivityStatusProvider);
     ref.listen<String?>(currentBuyerUserIdProvider, (previous, next) {
@@ -170,7 +172,7 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
               label: ref.tr('nav.search'),
             ),
             NavigationDestination(
-              icon: const Icon(Icons.chat_bubble_rounded),
+              icon: _ChatIconWithBadge(count: unreadChatCount),
               label: ref.tr('nav.chat'),
             ),
             NavigationDestination(
@@ -226,5 +228,40 @@ class _CartIconWithBadge extends StatelessWidget {
   }
 }
 
+class _ChatIconWithBadge extends StatelessWidget {
+  const _ChatIconWithBadge({required this.count});
 
+  final int count;
 
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const Icon(Icons.chat_bubble_rounded),
+        if (count > 0)
+          Positioned(
+            right: -8,
+            top: -7,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: const Color(0xFFCC3D1F),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              constraints: const BoxConstraints(minWidth: 18),
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}

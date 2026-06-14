@@ -13,6 +13,11 @@ const FOLDER_BY_TYPE = {
   chat: "agritec/chats",
 } as const;
 
+const RESOURCE_TYPE_BY_TYPE = {
+  product: "image",
+  chat: "auto",
+} as const;
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(request, [UserRole.BUYER, UserRole.SELLER, UserRole.ADMIN]);
@@ -35,6 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     const folder = FOLDER_BY_TYPE[payload.type];
+    const resourceType = RESOURCE_TYPE_BY_TYPE[payload.type];
     const timestamp = Math.floor(Date.now() / 1000);
     const paramsToSign = {
       folder,
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest) {
         folder,
         timestamp,
         signature,
-        resourceType: "image",
+        resourceType,
       },
     });
   } catch (error) {

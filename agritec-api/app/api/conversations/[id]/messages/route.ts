@@ -10,11 +10,43 @@ import {
 } from "@/lib/conversation-utils";
 import prisma from "@/lib/prisma";
 
-const createMessageSchema = z.object({
-  body: z.string().trim().min(1),
-  type: z.nativeEnum(MessageType).optional().default(MessageType.TEXT),
-  relatedParentOrderId: z.string().trim().min(1).optional().nullable(),
-});
+const createMessageSchema = z
+  .object({
+    body: z.string().trim().optional().nullable(),
+    type: z.nativeEnum(MessageType).optional().default(MessageType.TEXT),
+    relatedParentOrderId: z.string().trim().min(1).optional().nullable(),
+    attachments: z
+      .array(
+        z.object({
+          secureUrl: z.string().url(),
+          publicId: z.string().trim().min(1),
+          mimeType: z.string().trim().min(1).optional().nullable(),
+        }),
+      )
+      .max(10)
+      .optional()
+      .default([]),
+  })
+  .superRefine((value, ctx) => {
+    const hasBody = (value.body ?? "").trim().length > 0;
+    const hasAttachments = (value.attachments ?? []).length > 0;
+
+    if (!hasBody && !hasAttachments) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide a message or at least one attachment",
+        path: ["body"],
+      });
+    }
+
+    if ((value.attachments ?? []).some((attachment) => !attachment.publicId.startsWith("agritec/chats/"))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid chat attachment",
+        path: ["attachments"],
+      });
+    }
+  });
 
 export async function GET(
   request: Request,
@@ -81,16 +113,20 @@ export async function POST(
       return NextResponse.json({ success: false, message: "Conversation not found" }, { status: 404 });
     }
 
-    if (payload.type !== MessageType.TEXT) {
-      return NextResponse.json({ success: false, message: "Only text messages are supported on this route" }, { status: 400 });
-    }
-
     const message = await prisma.$transaction(async (tx) => {
       return createConversationMessage(tx, {
         conversationId: id,
         senderId: user.id,
-        body: payload.body,
+        body: payload.body?.trim() || null,
+        type: payload.attachments.length > 0 && !(payload.body?.trim().length)
+          ? MessageType.IMAGE
+          : payload.type,
         relatedParentOrderId: payload.relatedParentOrderId ?? null,
+        attachments: payload.attachments.map((attachment) => ({
+          secureUrl: attachment.secureUrl,
+          publicId: attachment.publicId,
+          mimeType: attachment.mimeType ?? null,
+        })),
       });
     });
 

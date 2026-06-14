@@ -108,7 +108,7 @@ export async function sellerUploadRequest(
       folder: string;
       timestamp: number;
       signature: string;
-      resourceType: "image";
+      resourceType: "image" | "auto";
     };
 
     const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${upload.cloudName}/${upload.resourceType}/upload`;

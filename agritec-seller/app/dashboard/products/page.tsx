@@ -24,6 +24,10 @@ import {
 import { ViewProductModal } from "./view-product-modal";
 import { CreateProductModal } from "./create-product-modal";
 import { EditProductModal } from "./edit-product-modal";
+import {
+  type DraftProductImage,
+  type ProductFormDraft,
+} from "./product-form";
 
 const PLATFORM_CATEGORIES = [
   "Vegetables",
@@ -75,7 +79,7 @@ export default function ProductsPage() {
     useState<SellerProductRecord | null>(null);
   const [imageIndex, setImageIndex] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Partial<SellerProductRecord>>({});
+  const [formData, setFormData] = useState<ProductFormDraft>({});
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(
     null,
   );
@@ -89,6 +93,89 @@ export default function ProductsPage() {
     if (!authReady) return;
     void fetchProducts();
   }, [authReady, fetchProducts]);
+
+  const cleanupDraftImages = (images?: DraftProductImage[]) => {
+    for (const image of images || []) {
+      if (image?.isLocalDraft && image.previewUrl) {
+        URL.revokeObjectURL(image.previewUrl);
+      }
+    }
+  };
+
+  const handleSelectImage = (file: File, index: number) => {
+    setFormData((current) => {
+      const nextImages = [...(current.images || [])];
+      const existing = nextImages[index];
+      if (existing?.isLocalDraft && existing.previewUrl) {
+        URL.revokeObjectURL(existing.previewUrl);
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      nextImages[index] = {
+        secureUrl: previewUrl,
+        previewUrl,
+        file,
+        isLocalDraft: true,
+        publicId: null,
+        altText: file.name,
+        displayOrder: index,
+      };
+
+      return {
+        ...current,
+        images: nextImages,
+      };
+    });
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setFormData((current) => {
+      const nextImages = [...(current.images || [])];
+      const existing = nextImages[index];
+      if (existing?.isLocalDraft && existing.previewUrl) {
+        URL.revokeObjectURL(existing.previewUrl);
+      }
+      nextImages.splice(index, 1);
+      return {
+        ...current,
+        images: nextImages,
+      };
+    });
+  };
+
+  const resolveDraftImages = async (images: DraftProductImage[] = []) => {
+    const resolved = [] as DraftProductImage[];
+
+    try {
+      for (let index = 0; index < images.length; index += 1) {
+        const image = images[index];
+        if (!image?.secureUrl?.trim()) continue;
+
+        if (image.file) {
+          setUploadingImageIndex(index);
+          const result = await uploadProductImage(image.file, index);
+          resolved.push({
+            secureUrl: result.secureUrl,
+            publicId: result.publicId ?? null,
+            altText:
+              image.altText ?? result.altText ?? `Product image ${index + 1}`,
+            displayOrder: index,
+          });
+        } else {
+          resolved.push({
+            secureUrl: image.secureUrl,
+            publicId: image.publicId ?? null,
+            altText: image.altText ?? null,
+            displayOrder: image.displayOrder ?? index,
+          });
+        }
+      }
+
+      return resolved;
+    } finally {
+      setUploadingImageIndex(null);
+    }
+  };
 
   const filteredProducts = products.filter(
     (product) =>
@@ -154,6 +241,7 @@ export default function ProductsPage() {
   };
 
   const openEditModal = (product: SellerProductRecord) => {
+    cleanupDraftImages(formData.images);
     setSelectedProduct(product);
     setEditModalOpen(true);
     setImageIndex(0);
@@ -169,6 +257,7 @@ export default function ProductsPage() {
   };
 
   const openCreateModal = () => {
+    cleanupDraftImages(formData.images);
     setSelectedProduct(null);
     setCreateModalOpen(true);
     setImageIndex(0);
@@ -189,6 +278,7 @@ export default function ProductsPage() {
   };
 
   const closeAllModals = () => {
+    cleanupDraftImages(formData.images);
     setViewModalOpen(false);
     setCreateModalOpen(false);
     setEditModalOpen(false);
@@ -427,22 +517,14 @@ export default function ProductsPage() {
         isImageUploading={isImageUploading}
         onClose={closeAllModals}
         onSave={async (payload) => {
-          await createProduct(payload);
+          const resolvedImages = await resolveDraftImages(payload.images || []);
+          await createProduct({
+            ...payload,
+            images: resolvedImages,
+          });
         }}
-        onUploadImage={async (file, index) => {
-          setUploadingImageIndex(index);
-          try {
-            const result = await uploadProductImage(file, index);
-            return {
-              secureUrl: result.secureUrl,
-              publicId: result.publicId ?? null,
-              altText: result.altText ?? undefined,
-              displayOrder: result.displayOrder,
-            };
-          } finally {
-            setUploadingImageIndex(null);
-          }
-        }}
+        onSelectImage={handleSelectImage}
+        onRemoveImage={handleRemoveImage}
       />
 
       <EditProductModal
@@ -455,22 +537,14 @@ export default function ProductsPage() {
         isImageUploading={isImageUploading}
         onClose={closeAllModals}
         onSave={async (productId, payload) => {
-          await updateProduct(productId, payload);
+          const resolvedImages = await resolveDraftImages(payload.images || []);
+          await updateProduct(productId, {
+            ...payload,
+            images: resolvedImages,
+          });
         }}
-        onUploadImage={async (file, index) => {
-          setUploadingImageIndex(index);
-          try {
-            const result = await uploadProductImage(file, index);
-            return {
-              secureUrl: result.secureUrl,
-              publicId: result.publicId ?? null,
-              altText: result.altText ?? undefined,
-              displayOrder: result.displayOrder,
-            };
-          } finally {
-            setUploadingImageIndex(null);
-          }
-        }}
+        onSelectImage={handleSelectImage}
+        onRemoveImage={handleRemoveImage}
         selectedProductId={selectedProduct?.id ?? null}
       />
 
@@ -512,3 +586,9 @@ export default function ProductsPage() {
     </div>
   );
 }
+
+
+
+
+
+

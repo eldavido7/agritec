@@ -1,4 +1,4 @@
-import { ConversationType, NotificationType, Prisma, UserRole } from "@prisma/client";
+import { ConversationType, MessageType, NotificationType, Prisma, UserRole } from "@prisma/client";
 import { reserveSequentialId } from "@/lib/id-sequence";
 import { sendChatMessageAlertEmail } from "@/lib/email";
 import prisma from "@/lib/prisma";
@@ -102,7 +102,7 @@ export function serializeConversation(conversation: any, currentUserId: string, 
       ? {
           id: latestMessage.id,
           type: latestMessage.type,
-          body: latestMessage.body,
+          body: latestMessage.body || ((Array.isArray(latestMessage.attachments) && latestMessage.attachments.length > 0) ? "Sent an attachment" : null),
           senderId: latestMessage.senderId,
           senderName: latestMessage.sender.fullName,
           senderRole: latestMessage.sender.role,
@@ -237,17 +237,38 @@ export async function ensureSellerSupportConversation(tx: TxClient, args: {
 export async function createConversationMessage(tx: TxClient, args: {
   conversationId: string;
   senderId: string;
-  body: string;
+  body?: string | null;
+  type?: MessageType | null;
   relatedParentOrderId?: string | null;
+  attachments?: Array<{
+    secureUrl: string;
+    publicId: string;
+    mimeType?: string | null;
+  }>;
 }) {
   const messageId = await reserveSequentialId(tx, "message");
+  const attachments = args.attachments ?? [];
   const message = await tx.message.create({
     data: {
       id: messageId,
       conversationId: args.conversationId,
       senderId: args.senderId,
-      body: args.body,
+      type: args.type ?? (attachments.length > 0 ? MessageType.IMAGE : MessageType.TEXT),
+      body: args.body?.trim() || null,
       relatedParentOrderId: args.relatedParentOrderId ?? null,
+      attachments:
+        attachments.length > 0
+          ? {
+              create: await Promise.all(
+                attachments.map(async (attachment) => ({
+                  id: await reserveSequentialId(tx, "message_attachment"),
+                  secureUrl: attachment.secureUrl,
+                  publicId: attachment.publicId,
+                  mimeType: attachment.mimeType ?? null,
+                })),
+              ),
+            }
+          : undefined,
     },
     include: {
       sender: {
@@ -285,12 +306,14 @@ export async function createConversationMessage(tx: TxClient, args: {
     },
   });
 
+  const notificationBody = args.body?.trim() || (attachments.length > 0 ? "Sent an attachment" : "New message");
+
   for (const recipient of recipients) {
     await createNotification(tx, {
       userId: recipient.userId,
       type: NotificationType.MESSAGE,
       title: `New message from ${message.sender.fullName}`,
-      body: args.body,
+      body: notificationBody,
       targetType: "conversation",
       targetId: args.conversationId,
       metadata: toJsonValue({
@@ -408,5 +431,6 @@ export function queueConversationMessageEmailAlerts(messageId: string) {
     }
   });
 }
+
 
 

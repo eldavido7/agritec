@@ -1,8 +1,9 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:agritec_mobile/app/router.dart';
 import 'package:agritec_mobile/core/localization/localization_controller.dart';
 import 'package:agritec_mobile/core/notifications/push_notification_service.dart';
+import 'package:agritec_mobile/core/state/session_refresh.dart';
 import 'package:agritec_mobile/core/theme/app_theme.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/checkout/application/checkout_providers.dart';
@@ -74,6 +75,7 @@ class _AgritecBuyerAppState extends ConsumerState<AgritecBuyerApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      refreshBuyerScopedStateFromWidget(ref);
       _maybeOpenPendingPayment();
     }
   }

@@ -39,6 +39,12 @@ export type AdminConversationRecord = {
   } | null;
 };
 
+export type AdminMessageAttachmentInput = {
+  secureUrl: string;
+  publicId: string;
+  mimeType?: string | null;
+};
+
 export type AdminConversationMessageRecord = {
   id: string;
   type: string;
@@ -73,8 +79,15 @@ type AdminMessagesState = {
   error: string | null;
   loaded: boolean;
   fetchConversations: (options?: { force?: boolean }) => Promise<void>;
-  fetchMessages: (conversationId: string, options?: { force?: boolean }) => Promise<AdminConversationMessageRecord[]>;
-  sendMessage: (conversationId: string, body: string) => Promise<void>;
+  fetchMessages: (
+    conversationId: string,
+    options?: { force?: boolean },
+  ) => Promise<AdminConversationMessageRecord[]>;
+  sendMessage: (
+    conversationId: string,
+    body: string,
+    attachments?: AdminMessageAttachmentInput[],
+  ) => Promise<void>;
   createConversation: (payload: {
     participantType: "buyer" | "seller";
     participantId: string;
@@ -221,7 +234,15 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
               participant.role.toUpperCase() === "ADMIN" &&
               (!currentAdminId || participant.userId === currentAdminId),
           ),
+        )
+        .filter(
+          (conversation) =>
+            !(
+              conversation.latestMessage == null &&
+              conversation.uniqueKey.startsWith("admin-seller:")
+            ),
         );
+
       console.log("[Admin Messages] Fetch success", {
         count: conversations.length,
         conversationIds: conversations.map((conversation) => conversation.id),
@@ -305,17 +326,22 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
     }
   },
 
-  sendMessage: async (conversationId, body) => {
+  sendMessage: async (conversationId, body, attachments = []) => {
     const token = useAdminAuthStore.getState().token;
     const currentUser = useAdminAuthStore.getState().user;
     if (!token || !currentUser) {
       throw new Error("Admin session not found");
     }
 
+    const trimmedBody = body.trim();
+    if (!trimmedBody && attachments.length === 0) {
+      throw new Error("Message cannot be empty");
+    }
+
     const optimisticMessage: AdminConversationMessageRecord = {
       id: `optimistic-${Date.now()}`,
-      type: "TEXT",
-      body,
+      type: attachments.length > 0 && !trimmedBody ? "IMAGE" : "TEXT",
+      body: trimmedBody || null,
       relatedParentOrderId: null,
       sender: {
         id: String(currentUser.id),
@@ -323,7 +349,13 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
         email: String(currentUser.email),
         role: String(currentUser.role),
       },
-      attachments: [],
+      attachments: attachments.map((attachment, index) => ({
+        id: `temp-attachment-${conversationId}-${index}`,
+        secureUrl: attachment.secureUrl,
+        publicId: attachment.publicId,
+        mimeType: attachment.mimeType ?? null,
+        createdAt: new Date().toISOString(),
+      })),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       optimistic: true,
@@ -349,7 +381,11 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
       }>(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
         token,
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({
+          body: trimmedBody || null,
+          type: optimisticMessage.type,
+          attachments,
+        }),
       });
 
       const saved = normalizeMessage(response.message);
@@ -365,7 +401,10 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
       }));
 
       await get().fetchConversations({ force: true });
-      console.log("[Admin Messages] Send success", { conversationId, messageId: saved.id });
+      console.log("[Admin Messages] Send success", {
+        conversationId,
+        messageId: saved.id,
+      });
     } catch (error) {
       console.error("[Admin Messages] Send failed", {
         conversationId,
@@ -442,4 +481,3 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
-

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:agritec_mobile/core/api/mobile_api.dart';
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
@@ -10,6 +10,41 @@ enum ChatChannelType { seller, support }
 
 enum ChatParticipantRole { buyer, seller, support }
 
+class ChatAttachment {
+  const ChatAttachment({
+    required this.id,
+    required this.secureUrl,
+    required this.publicId,
+    this.mimeType,
+    this.createdAt,
+  });
+
+  final String id;
+  final String secureUrl;
+  final String publicId;
+  final String? mimeType;
+  final DateTime? createdAt;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'secureUrl': secureUrl,
+        'publicId': publicId,
+        'mimeType': mimeType,
+        'createdAt': createdAt?.toIso8601String(),
+      };
+
+  factory ChatAttachment.fromJson(Map<String, dynamic> json) {
+    return ChatAttachment(
+      id: '${json['id'] ?? ''}',
+      secureUrl: '${json['secureUrl'] ?? ''}',
+      publicId: '${json['publicId'] ?? ''}',
+      mimeType: json['mimeType'] as String?,
+      createdAt: json['createdAt'] is String
+          ? DateTime.tryParse(json['createdAt'] as String)
+          : null,
+    );
+  }
+}
 class ChatMessage {
   const ChatMessage({
     required this.id,
@@ -21,6 +56,7 @@ class ChatMessage {
     required this.isMine,
     this.relatedOrderId,
     this.readAt,
+    this.attachments = const [],
     this.isSending = false,
     this.hasFailed = false,
   });
@@ -34,6 +70,7 @@ class ChatMessage {
   final bool isMine;
   final String? relatedOrderId;
   final DateTime? readAt;
+  final List<ChatAttachment> attachments;
   final bool isSending;
   final bool hasFailed;
 
@@ -47,6 +84,7 @@ class ChatMessage {
     bool? isMine,
     String? relatedOrderId,
     DateTime? readAt,
+    List<ChatAttachment>? attachments,
     bool? isSending,
     bool? hasFailed,
   }) {
@@ -60,6 +98,7 @@ class ChatMessage {
       isMine: isMine ?? this.isMine,
       relatedOrderId: relatedOrderId ?? this.relatedOrderId,
       readAt: readAt ?? this.readAt,
+      attachments: attachments ?? this.attachments,
       isSending: isSending ?? this.isSending,
       hasFailed: hasFailed ?? this.hasFailed,
     );
@@ -75,6 +114,7 @@ class ChatMessage {
         'isMine': isMine,
         'relatedOrderId': relatedOrderId,
         'readAt': readAt?.toIso8601String(),
+        'attachments': attachments.map((attachment) => attachment.toJson()).toList(),
         'isSending': isSending,
         'hasFailed': hasFailed,
       };
@@ -95,6 +135,10 @@ class ChatMessage {
       readAt: json['readAt'] is String
           ? DateTime.tryParse(json['readAt'] as String)
           : null,
+      attachments: (json['attachments'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ChatAttachment.fromJson)
+          .toList(),
       isSending: json['isSending'] as bool? ?? false,
       hasFailed: json['hasFailed'] as bool? ?? false,
     );
@@ -318,7 +362,6 @@ class ChatNotifier extends Notifier<ChatState> {
     _didPrime = true;
     await _hydrate();
     await refreshConversations();
-    await ensureSupportConversation(selectIfCreated: false);
     _startConversationPolling();
   }
 
@@ -406,6 +449,14 @@ class ChatNotifier extends Notifier<ChatState> {
               currentUserId: currentUserId,
               previous: previousById[item['id']?.toString()],
             ))
+        .where(
+          (conversation) =>
+              !(
+                conversation.channelType == ChatChannelType.support &&
+                conversation.latestMessage == null &&
+                state.selectedConversationId != conversation.id
+              ),
+        )
         .toList()
       ..sort((a, b) {
         final aTime = a.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -564,12 +615,12 @@ class ChatNotifier extends Notifier<ChatState> {
     _upsertConversation(nextConversation, select: true, persist: !silent);
   }
 
-  Future<void> sendMessage(String text) async {
+  Future<void> sendMessage(String text, {List<ChatAttachment> attachments = const []}) async {
     final trimmed = text.trim();
     final conversationId = state.selectedConversationId;
     final currentUser = ref.read(currentBuyerUserProvider);
     final token = ref.read(buyerAuthTokenProvider);
-    if (trimmed.isEmpty || conversationId == null || currentUser == null || token == null || token.trim().isEmpty) {
+    if ((trimmed.isEmpty && attachments.isEmpty) || conversationId == null || currentUser == null || token == null || token.trim().isEmpty) {
       return;
     }
 
@@ -589,6 +640,7 @@ class ChatNotifier extends Notifier<ChatState> {
       sentAt: DateTime.now(),
       isMine: true,
       relatedOrderId: existing.relatedOrderId,
+      attachments: attachments,
       isSending: true,
     );
 
@@ -596,7 +648,9 @@ class ChatNotifier extends Notifier<ChatState> {
     _upsertConversation(
       existing.copyWith(
         messages: updatedMessages,
-        latestMessage: optimistic,
+        latestMessage: optimistic.copyWith(
+          text: trimmed.isEmpty ? 'Sent an attachment' : trimmed,
+        ),
         lastMessageAt: optimistic.sentAt,
       ),
       select: true,
@@ -610,8 +664,15 @@ class ChatNotifier extends Notifier<ChatState> {
         '/api/conversations/$conversationId/messages',
         token: token,
         data: {
-          'body': trimmed,
-          'type': 'TEXT',
+          'body': trimmed.isEmpty ? null : trimmed,
+          'type': attachments.isNotEmpty && trimmed.isEmpty ? 'IMAGE' : 'TEXT',
+          'attachments': attachments
+              .map((attachment) => {
+                    'secureUrl': attachment.secureUrl,
+                    'publicId': attachment.publicId,
+                    'mimeType': attachment.mimeType,
+                  })
+              .toList(),
         },
       );
       final messageJson = response['message'];
@@ -631,7 +692,9 @@ class ChatNotifier extends Notifier<ChatState> {
         _upsertConversation(
           refreshedConversation.copyWith(
             messages: replaced,
-            latestMessage: saved,
+            latestMessage: saved.copyWith(
+              text: saved.text.isEmpty ? 'Sent an attachment' : saved.text,
+            ),
             lastMessageAt: saved.sentAt,
           ),
           select: true,
@@ -758,6 +821,10 @@ ChatMessage _messageFromConversationPreview(
     sentAt: DateTime.tryParse('${json['createdAt'] ?? ''}') ?? DateTime.now(),
     isMine: senderId == currentUserId,
     relatedOrderId: json['relatedParentOrderId']?.toString(),
+    attachments: (json['attachments'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(ChatAttachment.fromJson)
+        .toList(),
   );
 }
 
@@ -778,6 +845,10 @@ ChatMessage _messageFromApiJson(
     sentAt: DateTime.tryParse('${json['createdAt'] ?? ''}') ?? DateTime.now(),
     isMine: senderId == currentUserId,
     relatedOrderId: json['relatedParentOrderId']?.toString(),
+    attachments: (json['attachments'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(ChatAttachment.fromJson)
+        .toList(),
   );
 }
 
@@ -808,3 +879,10 @@ final chatProvider = NotifierProvider<ChatNotifier, ChatState>(
   ChatNotifier.new,
 );
 
+final unreadChatCountProvider = Provider<int>((ref) {
+  final conversations = ref.watch(chatProvider).conversations;
+  return conversations.fold<int>(
+    0,
+    (sum, conversation) => sum + conversation.unreadCount,
+  );
+});
