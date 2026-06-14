@@ -6,7 +6,7 @@ import { requireAuthenticatedUser } from "@/lib/auth";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const admin = await requireAuthenticatedUser(request, [UserRole.ADMIN]);
@@ -19,7 +19,12 @@ export async function GET(
       where: { id },
       include: {
         addressSnapshot: true,
-        payment: true,
+        refunds: true,
+        payment: {
+          include: {
+            refunds: true,
+          },
+        },
         buyer: {
           include: {
             user: {
@@ -37,6 +42,7 @@ export async function GET(
         sellerGroups: {
           include: {
             items: true,
+            refunds: true,
             seller: {
               include: {
                 user: {

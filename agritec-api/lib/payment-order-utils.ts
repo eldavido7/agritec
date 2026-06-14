@@ -19,10 +19,16 @@ import {
 
 const parentOrderInclude = {
   addressSnapshot: true,
-  payment: true,
+  refunds: true,
+  payment: {
+    include: {
+      refunds: true,
+    },
+  },
   sellerGroups: {
     include: {
       items: true,
+      refunds: true,
     },
   },
 } satisfies Prisma.ParentOrderInclude;

@@ -6,14 +6,14 @@ import { serializeOrder } from "@/lib/marketplace-serializers";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await requireAuthenticatedUser(request, [UserRole.BUYER, UserRole.SELLER, UserRole.ADMIN]);
     if (!user) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -23,9 +23,13 @@ export async function GET(
       where: { id },
       include: {
         addressSnapshot: true,
-        payment: true,
+        refunds: true,
+        payment: { include: { refunds: true } },
         sellerGroups: {
-          include: { items: true },
+          include: {
+            items: true,
+            refunds: true,
+          },
         },
       },
     });
@@ -33,14 +37,14 @@ export async function GET(
     if (!order) {
       return NextResponse.json(
         { success: false, message: "Order not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (user.role === UserRole.BUYER && user.buyerProfile && order.buyerId !== user.buyerProfile.id) {
       return NextResponse.json(
         { success: false, message: "Forbidden" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -55,7 +59,7 @@ export async function GET(
     if (user.role === UserRole.SELLER && (!visibleOrder.sellerGroups || visibleOrder.sellerGroups.length === 0)) {
       return NextResponse.json(
         { success: false, message: "Forbidden" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -67,7 +71,7 @@ export async function GET(
     console.error("[ORDER_GET_ERROR]", error);
     return NextResponse.json(
       { success: false, message: "Failed to fetch order" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -78,6 +82,6 @@ export async function PATCH() {
       success: false,
       message: "Order updates will be handled by dedicated buyer, seller, and admin order workflows and are not implemented on this legacy endpoint.",
     },
-    { status: 501 }
+    { status: 501 },
   );
 }

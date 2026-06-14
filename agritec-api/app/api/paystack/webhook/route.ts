@@ -4,13 +4,19 @@ import {
   completeWithdrawalTransferByReference,
   failWithdrawalTransferByReference,
 } from "@/lib/payout-utils";
+import { processPaystackRefundWebhook } from "@/lib/refund-utils";
 import { verifyPaystackWebhookSignature } from "@/lib/paystack";
 
 type PaystackWebhookPayload = {
   event?: string;
   data?: {
+    id?: number | string;
     reference?: string;
+    transaction_reference?: string;
+    refund_reference?: string;
     transfer_code?: string | null;
+    merchant_note?: string | null;
+    customer_note?: string | null;
     status?: string;
     amount?: number;
     currency?: string | null;
@@ -18,9 +24,18 @@ type PaystackWebhookPayload = {
     customer?: { email?: string | null } | null;
     gateway_response?: string | null;
     reason?: string | null;
+    message?: string | null;
     [key: string]: unknown;
   };
 };
+
+const REFUND_EVENTS = [
+  "refund.pending",
+  "refund.processing",
+  "refund.needs-attention",
+  "refund.failed",
+  "refund.processed",
+];
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -58,6 +73,20 @@ export async function POST(request: Request) {
         alreadyProcessed: result.alreadyProcessed,
         parentOrderId: result.order.id,
         paymentReference: reference,
+      });
+    }
+
+    if (REFUND_EVENTS.includes(payload.event ?? "")) {
+      const refund = await processPaystackRefundWebhook({
+        event: payload.event,
+        data: payload.data,
+      });
+
+      return NextResponse.json({
+        success: true,
+        processed: true,
+        refundId: refund.id,
+        refundStatus: refund.status,
       });
     }
 

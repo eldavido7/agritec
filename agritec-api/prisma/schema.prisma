@@ -89,6 +89,14 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  NEEDS_ATTENTION
+  PROCESSED
+  FAILED
+}
+
 enum WalletTransactionType {
   ORDER_PENDING_CREDIT
   ORDER_AVAILABLE_RELEASE
@@ -385,6 +393,7 @@ model ParentOrder {
   payment            Payment?
   addressSnapshot    OrderAddressSnapshot?
   sellerGroups       SellerOrderGroup[]
+  refunds            Refund[]
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
   paidAt             DateTime?
@@ -410,6 +419,7 @@ model Payment {
   rawInitializeResponse Json?
   rawVerifyResponse     Json?
   metadata              Json?
+  refunds               Refund[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 
@@ -443,6 +453,7 @@ model SellerOrderGroup {
   discountValueSnapshot       Int?
   discountDescriptionSnapshot String?
   items                       OrderItem[]
+  refunds                     Refund[]
   createdAt                   DateTime               @default(now())
   updatedAt                   DateTime               @updatedAt
 
@@ -482,6 +493,36 @@ model OrderItem {
   @@index([sellerOrderGroupId])
   @@index([productId])
   @@index([variantId])
+}
+
+model Refund {
+  id                           String            @id
+  paymentId                    String
+  payment                      Payment           @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  parentOrderId                String
+  parentOrder                  ParentOrder       @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
+  sellerOrderGroupId           String?
+  sellerOrderGroup             SellerOrderGroup? @relation(fields: [sellerOrderGroupId], references: [id], onDelete: SetNull)
+  amount                       Int
+  currencyCode                 String            @default("NGN")
+  status                       RefundStatus      @default(PENDING)
+  paystackRefundId             String?           @unique
+  paystackTransactionReference String
+  customerNote                 String?
+  merchantNote                 String?
+  failureReason                String?
+  initiatedByAdminId           String?
+  rawCreateResponse            Json?
+  rawWebhookPayload            Json?
+  idempotencyKey               String            @unique
+  processedAt                  DateTime?
+  failedAt                     DateTime?
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime          @updatedAt
+
+  @@index([paymentId, status, createdAt])
+  @@index([parentOrderId, createdAt])
+  @@index([sellerOrderGroupId, createdAt])
 }
 
 model OrderAddressSnapshot {
@@ -672,8 +713,8 @@ model DeviceToken {
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
-  @@index([userId, isActive, updatedAt])
   @@unique([userId, deviceId])
+  @@index([userId, isActive, updatedAt])
 }
 
 model AuditLog {
@@ -746,6 +787,3 @@ model PayoutSettings {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
-
-
-

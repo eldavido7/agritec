@@ -55,8 +55,14 @@ export async function GET(request: Request) {
         where,
         include: {
           addressSnapshot: true,
-          payment: true,
-          sellerGroups: { include: { items: true } },
+          refunds: true,
+          payment: { include: { refunds: true } },
+          sellerGroups: {
+            include: {
+              items: true,
+              refunds: true,
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,

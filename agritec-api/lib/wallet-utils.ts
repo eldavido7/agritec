@@ -1,4 +1,4 @@
-﻿import {
+import {
   NotificationType,
   ParentOrderStatus,
   Prisma,
@@ -143,11 +143,22 @@ export async function syncParentOrderStatusFromGroups(tx: TxClient, parentOrderI
   const statuses = groups.map((group) => group.status);
   let nextStatus: ParentOrderStatus | null = null;
 
-  if (statuses.every((status) => status === SellerOrderGroupStatus.CANCELLED || status === SellerOrderGroupStatus.REFUNDED)) {
+  if (statuses.every((status) => status === SellerOrderGroupStatus.REFUNDED)) {
+    nextStatus = ParentOrderStatus.REFUNDED;
+  } else if (
+    statuses.every(
+      (status) =>
+        status === SellerOrderGroupStatus.CANCELLED || status === SellerOrderGroupStatus.REFUNDED,
+    )
+  ) {
     nextStatus = ParentOrderStatus.CANCELLED;
   } else if (statuses.every((status) => status === SellerOrderGroupStatus.DELIVERED)) {
     nextStatus = ParentOrderStatus.FULFILLED;
-  } else if (statuses.some((status) => status === SellerOrderGroupStatus.DELIVERED || status === SellerOrderGroupStatus.SHIPPED)) {
+  } else if (
+    statuses.some(
+      (status) => status === SellerOrderGroupStatus.DELIVERED || status === SellerOrderGroupStatus.SHIPPED,
+    )
+  ) {
     nextStatus = ParentOrderStatus.PARTIALLY_FULFILLED;
   }
 
@@ -158,4 +169,3 @@ export async function syncParentOrderStatusFromGroups(tx: TxClient, parentOrderI
     });
   }
 }
-

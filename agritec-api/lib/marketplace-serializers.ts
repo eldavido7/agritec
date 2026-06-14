@@ -14,6 +14,16 @@ function withInventoryState<T extends { inventory?: number | null; reservedInven
   };
 }
 
+function serializeRefund(refund: any) {
+  return {
+    ...refund,
+    createdAt: refund.createdAt,
+    updatedAt: refund.updatedAt,
+    processedAt: refund.processedAt ?? null,
+    failedAt: refund.failedAt ?? null,
+  };
+}
+
 export function serializePublicSeller(seller: any) {
   return {
     ...seller,
@@ -53,11 +63,21 @@ export function serializeShippingSettings(settings: any) {
 export function serializeOrder(order: any) {
   return {
     ...order,
+    refunds: Array.isArray(order.refunds) ? order.refunds.map(serializeRefund) : [],
+    payment: order.payment
+      ? {
+          ...order.payment,
+          refunds: Array.isArray(order.payment.refunds)
+            ? order.payment.refunds.map(serializeRefund)
+            : [],
+        }
+      : null,
     sellerGroups: Array.isArray(order.sellerGroups)
       ? order.sellerGroups.map((group: any) => ({
           ...group,
           totalChargeableWeightKg: decimalToNumber(group.totalChargeableWeightKg),
           weightUnitSizeKg: decimalToNumber(group.weightUnitSizeKg),
+          refunds: Array.isArray(group.refunds) ? group.refunds.map(serializeRefund) : [],
           items: Array.isArray(group.items)
             ? group.items.map((item: any) => ({
                 ...item,

@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server";
-import { SellerOrderGroupStatus, UserRole } from "@prisma/client";
+import { PaymentStatus, SellerOrderGroupStatus, UserRole } from "@prisma/client";
 import { z } from "zod";
+import { NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/auth";
+import prisma from "@/lib/prisma";
 import { sendBuyerOrderGroupStatusEmail } from "@/lib/email";
+import { initiateSellerOrderGroupRefund } from "@/lib/refund-utils";
 import { updateSellerOrderGroupStatus } from "@/lib/seller-order-group-utils";
 
 const statusSchema = z.object({
@@ -11,7 +13,7 @@ const statusSchema = z.object({
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await requireAuthenticatedUser(request, [UserRole.ADMIN]);
@@ -21,6 +23,14 @@ export async function PATCH(
 
     const { id } = await params;
     const payload = statusSchema.parse(await request.json());
+
+    if (payload.status === SellerOrderGroupStatus.REFUNDED) {
+      return NextResponse.json(
+        { success: false, message: "Refunded status is system-managed and cannot be set manually." },
+        { status: 400 },
+      );
+    }
+
     const sellerOrderGroup = await updateSellerOrderGroupStatus({
       sellerOrderGroupId: id,
       nextStatus: payload.status,
@@ -28,21 +38,54 @@ export async function PATCH(
       actorAdminId: user.id,
     });
 
-    const buyerUser = sellerOrderGroup.parentOrder?.buyer?.user;
-    const addressSnapshot = sellerOrderGroup.parentOrder?.addressSnapshot;
+    let refund = null;
+    if (
+      payload.status === SellerOrderGroupStatus.CANCELLED &&
+      sellerOrderGroup.parentOrder?.payment?.status === PaymentStatus.PAID
+    ) {
+      try {
+        refund = await initiateSellerOrderGroupRefund({
+          sellerOrderGroupId: sellerOrderGroup.id,
+          adminId: user.id,
+        });
+      } catch (refundError) {
+        console.error("[ADMIN_ORDER_GROUP_REFUND_INIT_ERROR]", refundError);
+      }
+    }
+
+    const refreshedOrderGroup = await prisma.sellerOrderGroup.findUnique({
+      where: { id: sellerOrderGroup.id },
+      include: {
+        items: true,
+        refunds: true,
+        seller: { include: { user: true } },
+        parentOrder: {
+          include: {
+            addressSnapshot: true,
+            refunds: true,
+            payment: { include: { refunds: true } },
+            buyer: { include: { user: true } },
+          },
+        },
+      },
+    });
+
+    const result = refreshedOrderGroup ?? sellerOrderGroup;
+    const buyerUser = result.parentOrder?.buyer?.user;
+    const addressSnapshot = result.parentOrder?.addressSnapshot;
 
     if (buyerUser?.email) {
       sendBuyerOrderGroupStatusEmail({
         toEmail: buyerUser.email,
         buyerName: buyerUser.fullName,
-        parentOrderId: sellerOrderGroup.parentOrderId,
-        sellerOrderGroupId: sellerOrderGroup.id,
-        farmName: sellerOrderGroup.farmNameSnapshot,
-        status: sellerOrderGroup.status,
-        productSubtotal: sellerOrderGroup.productSubtotal,
-        shippingFee: sellerOrderGroup.shippingFee,
-        groupTotal: sellerOrderGroup.groupTotal,
-        deliveryRegion: sellerOrderGroup.deliveryRegion,
+        parentOrderId: result.parentOrderId,
+        sellerOrderGroupId: result.id,
+        farmName: result.farmNameSnapshot,
+        status: result.status,
+        productSubtotal: result.productSubtotal,
+        shippingFee: result.shippingFee,
+        groupTotal: result.groupTotal,
+        deliveryRegion: result.deliveryRegion,
         addressLine: addressSnapshot?.addressLine ?? null,
         fullAddress: addressSnapshot?.fullAddress ?? null,
       }).catch((error) => {
@@ -52,8 +95,13 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: "Order group status updated successfully",
-      sellerOrderGroup,
+      message: payload.status === SellerOrderGroupStatus.CANCELLED
+        ? refund
+          ? "Order group cancelled and refund initiated successfully"
+          : "Order group cancelled successfully"
+        : "Order group status updated successfully",
+      sellerOrderGroup: result,
+      refund,
     });
   } catch (error) {
     console.error("[ADMIN_ORDER_GROUP_STATUS_PATCH_ERROR]", error);
@@ -61,7 +109,7 @@ export async function PATCH(
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, message: error.issues[0]?.message ?? "Invalid status" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -71,6 +119,8 @@ export async function PATCH(
         return NextResponse.json({ success: false, message: "Order group not found" }, { status: 404 });
       case "ORDER_GROUP_ALREADY_CLOSED":
       case "DELIVERED_GROUP_CANNOT_BE_CANCELLED_HERE":
+      case "SELLER_ORDER_GROUP_MUST_BE_CANCELLED_BEFORE_REFUND":
+      case "SELLER_ORDER_GROUP_PAYMENT_NOT_ELIGIBLE_FOR_REFUND":
         return NextResponse.json({ success: false, message }, { status: 400 });
       default:
         return NextResponse.json({ success: false, message: "Failed to update order group status" }, { status: 500 });

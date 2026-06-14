@@ -95,6 +95,20 @@ export type PaystackTransfer = {
   failures?: unknown;
 };
 
+export type PaystackRefund = {
+  id?: number | string;
+  transaction_reference?: string | null;
+  refund_reference?: string | null;
+  amount?: number;
+  currency?: string | null;
+  status: string;
+  customer_note?: string | null;
+  merchant_note?: string | null;
+  reason?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 function getPaystackSecretKey() {
   const secret = process.env.PAYSTACK_SECRET_KEY;
   if (!secret) {
@@ -229,6 +243,55 @@ export async function verifyPaystackTransfer(reference: string) {
     method: "GET",
   });
 
+  return result.data;
+}
+
+const createRefundSchema = z.object({
+  transaction: z.union([z.string().trim().min(1), z.number().int().positive()]),
+  amount: z.number().int().positive().optional(),
+  currency: z.string().trim().min(3).default("NGN"),
+  customer_note: z.string().trim().min(1).max(500).optional(),
+  merchant_note: z.string().trim().min(1).max(500).optional(),
+});
+
+export async function createPaystackRefund(input: {
+  transaction: string | number;
+  amountInSubunit?: number;
+  currencyCode?: string;
+  customerNote?: string;
+  merchantNote?: string;
+}) {
+  const payload = createRefundSchema.parse({
+    transaction: input.transaction,
+    amount: input.amountInSubunit,
+    currency: input.currencyCode ?? "NGN",
+    customer_note: input.customerNote,
+    merchant_note: input.merchantNote,
+  });
+
+  const body: Record<string, unknown> = {
+    transaction: payload.transaction,
+    currency: payload.currency,
+    customer_note: payload.customer_note,
+    merchant_note: payload.merchant_note,
+  };
+
+  if (typeof payload.amount === "number") {
+    body.amount = payload.amount;
+  }
+
+  const result = await paystackRequest<PaystackRefund>("/refund", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+  return result.data;
+}
+
+export async function fetchPaystackRefund(refundId: string | number) {
+  const result = await paystackRequest<PaystackRefund>(`/refund/${encodeURIComponent(String(refundId))}`, {
+    method: "GET",
+  });
   return result.data;
 }
 
