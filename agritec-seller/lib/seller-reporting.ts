@@ -100,6 +100,19 @@ function customerName(parentOrder: SellerParentOrderSnapshot) {
   return parentOrder.buyerNameSnapshot || "Marketplace buyer";
 }
 
+function getGroupNetRevenue(group: SellerOrderGroupRecord) {
+  if (typeof group.sellerEarningsAmount === "number") {
+    return group.sellerEarningsAmount;
+  }
+
+  const grossNetSales = Math.max(0, group.productSubtotal - group.discountTotal);
+  const platformCommission = typeof group.platformCommissionAmount === "number"
+    ? group.platformCommissionAmount
+    : 0;
+
+  return Math.max(0, grossNetSales - platformCommission);
+}
+
 function buildCustomerRecords(orderGroups: SellerOrderGroupRecord[]) {
   const customerMap = new Map<string, SellerCustomerRecord>();
 
@@ -117,14 +130,14 @@ function buildCustomerRecords(orderGroups: SellerOrderGroupRecord[]) {
         phone: parentOrder.buyerPhoneSnapshot || null,
         location: locationFromSnapshot(parentOrder),
         totalOrders: 1,
-        totalSpent: group.groupTotal,
+        totalSpent: getGroupNetRevenue(group),
         lastOrder: orderDate,
       });
       continue;
     }
 
     current.totalOrders += 1;
-    current.totalSpent += group.groupTotal;
+    current.totalSpent += getGroupNetRevenue(group);
     current.location = current.location || locationFromSnapshot(parentOrder);
     if (!current.email && parentOrder.buyerEmailSnapshot) {
       current.email = parentOrder.buyerEmailSnapshot;
@@ -148,6 +161,9 @@ function buildProductSales(orderGroups: SellerOrderGroupRecord[]) {
   const salesMap = new Map<string, ProductAggregate>();
 
   for (const group of orderGroups) {
+    const groupRevenue = getGroupNetRevenue(group);
+    const lineTotalBase = group.items.reduce((sum, item) => sum + item.lineTotal, 0);
+
     for (const item of group.items) {
       const key = item.productTitleSnapshot || item.productId || item.id;
       const current = salesMap.get(key) || {
@@ -157,7 +173,11 @@ function buildProductSales(orderGroups: SellerOrderGroupRecord[]) {
         units: 0,
       };
 
-      current.sales += item.lineTotal;
+      const revenueShare = lineTotalBase > 0
+        ? Math.round((item.lineTotal / lineTotalBase) * groupRevenue)
+        : 0;
+
+      current.sales += revenueShare;
       current.units += item.quantity;
       current.orders.add(group.id);
       salesMap.set(key, current);
@@ -198,7 +218,7 @@ function buildMonthlyRevenue(orderGroups: SellerOrderGroupRecord[]) {
     const key = monthLabel.format(createdAt);
     const index = bucketIndex.get(key);
     if (index == null) continue;
-    buckets[index].revenue += group.groupTotal;
+    buckets[index].revenue += getGroupNetRevenue(group);
   }
 
   return buckets;
@@ -255,7 +275,7 @@ export function buildSellerDashboardSummary(
   const productSales = buildProductSales(orderGroups);
   const monthlyRevenue = buildMonthlyRevenue(orderGroups);
   const lowStockItems = buildLowStockItems(products);
-  const totalRevenue = orderGroups.reduce((sum, group) => sum + group.groupTotal, 0);
+  const totalRevenue = orderGroups.reduce((sum, group) => sum + getGroupNetRevenue(group), 0);
   const totalOrders = orderGroups.length;
   const totalProducts = products.length;
   const activeProducts = products.filter((product) => product.status === "Active").length;

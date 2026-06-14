@@ -1,4 +1,4 @@
-﻿import { DevicePlatform, NotificationType, Prisma } from "@prisma/client";
+import { DevicePlatform, NotificationType, Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getFirebaseMessagingClient } from "@/lib/firebase-admin";
 
@@ -59,7 +59,7 @@ async function markTokensInactive(tokens: string[]) {
 export async function deliverPushForNotification(notificationId: string) {
   const messaging = getFirebaseMessagingClient();
   if (!messaging) {
-    return;
+    return { delivered: false, reason: "messaging_not_configured" as const };
   }
 
   const notification = await prisma.notification.findUnique({
@@ -83,8 +83,12 @@ export async function deliverPushForNotification(notificationId: string) {
     },
   });
 
-  if (!notification || notification.user.deviceTokens.length === 0) {
-    return;
+  if (!notification) {
+    return { delivered: false, reason: "notification_not_found" as const };
+  }
+
+  if (notification.user.deviceTokens.length === 0) {
+    return { delivered: false, reason: "no_active_device_tokens" as const };
   }
 
   const tokens = notification.user.deviceTokens
@@ -93,7 +97,7 @@ export async function deliverPushForNotification(notificationId: string) {
     .filter((item) => item.trim().length > 0);
 
   if (tokens.length === 0) {
-    return;
+    return { delivered: false, reason: "no_mobile_device_tokens" as const };
   }
 
   const response = await messaging.sendEachForMulticast({
@@ -131,17 +135,44 @@ export async function deliverPushForNotification(notificationId: string) {
   if (invalidTokens.length > 0) {
     await markTokensInactive(invalidTokens);
   }
+
+  return {
+    delivered: response.successCount > 0,
+    reason: response.successCount > 0 ? ("sent" as const) : ("no_successful_deliveries" as const),
+  };
 }
 
 export function queueNotificationPush(notificationId: string) {
-  setTimeout(() => {
-    void deliverPushForNotification(notificationId).catch((error) => {
-      console.error("[FCM_PUSH_DELIVERY_ERROR]", {
-        notificationId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }, 0);
+  const delays = [400, 1200, 2500];
+
+  const attemptDelivery = (attemptIndex: number) => {
+    setTimeout(() => {
+      void deliverPushForNotification(notificationId)
+        .then((result) => {
+          if (result.reason === "notification_not_found" && attemptIndex < delays.length - 1) {
+            attemptDelivery(attemptIndex + 1);
+            return;
+          }
+
+          if (!result.delivered && result.reason !== "no_active_device_tokens" && result.reason !== "no_mobile_device_tokens") {
+            console.warn("[FCM_PUSH_NOT_DELIVERED]", {
+              notificationId,
+              reason: result.reason,
+              attempt: attemptIndex + 1,
+            });
+          }
+        })
+        .catch((error) => {
+          console.error("[FCM_PUSH_DELIVERY_ERROR]", {
+            notificationId,
+            attempt: attemptIndex + 1,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+    }, delays[attemptIndex]);
+  };
+
+  attemptDelivery(0);
 }
 
 export function shouldSendPushForNotificationType(type: NotificationType) {

@@ -1,6 +1,7 @@
 import {
   NotificationType,
   Prisma,
+  UserRole,
   WalletTransactionType,
   WithdrawalStatus,
 } from "@prisma/client";
@@ -12,6 +13,7 @@ import {
   createWalletTransaction,
   getOrCreateSellerWallet,
 } from "@/lib/wallet-utils";
+import { sendAdminPayoutRequestAlertEmail } from "@/lib/email";
 import {
   finalizePaystackTransfer,
   initiatePaystackTransfer,
@@ -47,6 +49,49 @@ function isTransferFailedStatus(status: string) {
 
 function isTransferOtpStatus(status: string) {
   return status.toLowerCase() === "otp";
+}
+
+async function sendAdminPayoutRequestEmails(args: {
+  withdrawalId: string;
+  sellerName: string;
+  farmName: string;
+  amount: number;
+  trigger: "manual" | "auto";
+}) {
+  const admins = await prisma.user.findMany({
+    where: {
+      role: UserRole.ADMIN,
+      isActive: true,
+    },
+    select: {
+      email: true,
+      fullName: true,
+    },
+  });
+
+  await Promise.all(
+    admins
+      .filter((admin) => Boolean(admin.email))
+      .map(async (admin) => {
+        try {
+          await sendAdminPayoutRequestAlertEmail({
+            toEmail: admin.email,
+            adminName: admin.fullName,
+            sellerName: args.sellerName,
+            farmName: args.farmName,
+            amount: args.amount,
+            withdrawalRequestId: args.withdrawalId,
+            trigger: args.trigger,
+          });
+        } catch (error) {
+          console.error("[PAYOUT_REQUEST_ADMIN_EMAIL_ERROR]", {
+            withdrawalId: args.withdrawalId,
+            adminEmail: admin.email,
+            error,
+          });
+        }
+      })
+  );
 }
 
 async function restoreFailedWithdrawalInTx(
@@ -217,6 +262,59 @@ export async function requestSellerFullPayout(args: {
       withdrawalRequestId: withdrawal.id,
       idempotencyKey: `withdrawal:${withdrawal.id}:requested`,
       metadata: toJsonValue({ trigger: args.trigger }),
+    });
+
+    await createNotification(tx, {
+      userId: seller.userId,
+      type: NotificationType.PAYOUT,
+      title: "Payout request submitted",
+      body:
+        args.trigger === "auto"
+          ? `An automatic payout request for NGN ${withdrawal.amount.toLocaleString()} has been submitted and is awaiting admin review.`
+          : `Your payout request for NGN ${withdrawal.amount.toLocaleString()} has been submitted and is awaiting admin review.`,
+      targetType: "withdrawalRequest",
+      targetId: withdrawal.id,
+      metadata: toJsonValue({
+        withdrawalRequestId: withdrawal.id,
+        amount: withdrawal.amount,
+        trigger: args.trigger,
+      }),
+    });
+
+    const admins = await tx.user.findMany({
+      where: {
+        role: UserRole.ADMIN,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    for (const admin of admins) {
+      await createNotification(tx, {
+        userId: admin.id,
+        type: NotificationType.PAYOUT,
+        title: args.trigger === "auto" ? "Automatic payout request" : "New payout request",
+        body: `${seller.farmName} requested payout of NGN ${withdrawal.amount.toLocaleString()}.`,
+        targetType: "withdrawalRequest",
+        targetId: withdrawal.id,
+        metadata: toJsonValue({
+          withdrawalRequestId: withdrawal.id,
+          sellerId: seller.id,
+          sellerUserId: seller.userId,
+          amount: withdrawal.amount,
+          trigger: args.trigger,
+        }),
+      });
+    }
+
+    return withdrawal;
+  }).then(async (withdrawal) => {
+    await sendAdminPayoutRequestEmails({
+      withdrawalId: withdrawal.id,
+      sellerName: withdrawal.seller.user.fullName,
+      farmName: withdrawal.seller.farmName,
+      amount: withdrawal.amount,
+      trigger: args.trigger,
     });
 
     return withdrawal;

@@ -1,5 +1,6 @@
 import {
   InventoryMovementType,
+  NotificationType,
   ParentOrderStatus,
   PaymentStatus,
   Prisma,
@@ -12,6 +13,7 @@ import { buildAdminAssistedQuote } from "@/lib/admin-assisted-order-utils";
 import { reserveSequentialId, reserveSequentialIds } from "@/lib/id-sequence";
 import {
   computeSellerEarnings,
+  createNotification,
   createWalletTransaction,
   getCommissionRateBps,
   getOrCreateSellerWallet,
@@ -599,6 +601,27 @@ export async function finalizeSuccessfulPayment(args: {
     });
 
     for (const group of payment.parentOrder.sellerGroups) {
+      const sellerProfile = await tx.sellerProfile.findUnique({
+        where: { id: group.sellerId },
+        select: { userId: true },
+      });
+
+      if (sellerProfile?.userId) {
+        await createNotification(tx, {
+          userId: sellerProfile.userId,
+          type: NotificationType.ORDER,
+          title: "New confirmed order",
+          body: `A new paid order for ${group.farmNameSnapshot} has been confirmed and is ready for fulfillment.`,
+          targetType: "sellerOrderGroup",
+          targetId: group.id,
+          metadata: toJsonValue({
+            parentOrderId: payment.parentOrderId,
+            sellerOrderGroupId: group.id,
+            status: SellerOrderGroupStatus.CONFIRMED,
+          }),
+        });
+      }
+
       const wallet = await getOrCreateSellerWallet(tx, group.sellerId);
       const pendingCreditAmount = group.sellerEarningsAmount;
       const pendingWallet = await tx.sellerWallet.update({

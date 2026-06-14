@@ -87,6 +87,15 @@ function getDashboardChatUrl(role: UserRole, conversationId: string) {
   return `${base.replace(/\/+$/, "")}/dashboard/messages?conversationId=${encodeURIComponent(conversationId)}`;
 }
 
+function getAdminPayoutsUrl(withdrawalRequestId: string) {
+  const adminBase =
+    process.env.ADMIN_APP_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    "http://localhost:3001";
+
+  return `${adminBase.replace(/\/+$/, "")}/dashboard/payouts?withdrawalId=${encodeURIComponent(withdrawalRequestId)}`;
+}
+
 export async function sendBuyerOrderGroupStatusEmail(args: {
   toEmail: string;
   buyerName: string;
@@ -235,3 +244,50 @@ export async function sendChatMessageAlertEmail(args: {
   });
 }
 
+
+export async function sendAdminPayoutRequestAlertEmail(args: {
+  toEmail: string;
+  adminName: string;
+  sellerName: string;
+  farmName: string;
+  amount: number;
+  withdrawalRequestId: string;
+  trigger: "manual" | "auto";
+}) {
+  const transporter = getTransporter();
+  const from = process.env.GMAIL_USER as string;
+  const brand = process.env.MARKETPLACE_NAME || process.env.STORE_NAME || "Agritec";
+  const payoutsUrl = getAdminPayoutsUrl(args.withdrawalRequestId);
+  const requestLabel = args.trigger === "auto" ? "Automatic payout request" : "New payout request";
+
+  await transporter.sendMail({
+    from: `"${brand}" <${from}>`,
+    to: args.toEmail,
+    subject: `${requestLabel} from ${args.farmName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; background: #f4f7f4; color: #1f2937;">
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid #e5e7eb;">
+          <h1 style="margin: 0 0 8px; font-size: 24px; color: #14532d;">${requestLabel}</h1>
+          <p style="margin: 0; font-size: 15px; color: #4b5563;">Hi ${args.adminName}, a seller payout request is awaiting review.</p>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid #e5e7eb;">
+          <div style="display: grid; gap: 8px; font-size: 14px; color: #374151;">
+            <div><strong>Seller:</strong> ${args.sellerName}</div>
+            <div><strong>Farm:</strong> ${args.farmName}</div>
+            <div><strong>Amount:</strong> ${currency(args.amount)}</div>
+            <div><strong>Withdrawal ID:</strong> ${args.withdrawalRequestId}</div>
+            <div><strong>Trigger:</strong> ${args.trigger === "auto" ? "Automatic weekly payout" : "Manual seller request"}</div>
+          </div>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #e5e7eb;">
+          <a href="${payoutsUrl}" style="display: inline-block; background: #166534; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 10px; font-weight: 600;">
+            Review payout
+          </a>
+          <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; word-break: break-all;">${payoutsUrl}</p>
+        </div>
+      </div>
+    `,
+  });
+}

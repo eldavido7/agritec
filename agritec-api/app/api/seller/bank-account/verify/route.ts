@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { UserRole } from "@prisma/client";
 import { requireAuthenticatedUser } from "@/lib/auth";
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, message: error.issues[0]?.message ?? "Invalid bank account details" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -53,19 +53,27 @@ export async function POST(request: Request) {
       if (error.message === "PAYSTACK_SECRET_KEY_NOT_CONFIGURED") {
         return NextResponse.json(
           { success: false, message: "Paystack is not configured" },
-          { status: 500 }
+          { status: 500 },
         );
       }
 
+      const errorWithStatus = error as Error & { status?: number };
+      const status = typeof errorWithStatus.status === "number" ? errorWithStatus.status : 400;
+
       return NextResponse.json(
-        { success: false, message: "Bank account verification failed. Please confirm the bank and account number." },
-        { status: 400 }
+        {
+          success: false,
+          message:
+            error.message ||
+            "Bank account verification failed. Please confirm the bank and account number.",
+        },
+        { status },
       );
     }
 
     return NextResponse.json(
       { success: false, message: "Bank account verification failed" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 }
