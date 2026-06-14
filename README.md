@@ -129,6 +129,10 @@ Chat is REST-based for MVP:
 - UI uses optimistic send plus polling for near-real-time updates.
 - Push notification delivery uses Firebase Cloud Messaging where a device token exists.
 - Web users also receive backend-driven email alerts for new chat messages when the recipient is a seller or admin/support user, throttled to at most one email per recipient per conversation every 30 minutes.
+- Chat attachments support images and PDF documents only.
+- Chat attachments are local-first in the UI and upload only when the message is actually sent.
+- Chat media is uploaded to the Cloudinary `agritec/chats` folder.
+- Unread chat badges and notification-driven refresh keep chat state current across the dashboards and mobile app.
 
 Conversation visibility is participant-scoped. Buyer-seller messages are only visible to the buyer and seller involved. Admins see only admin/support conversations where an admin is a participant.
 
@@ -436,6 +440,7 @@ A typical MVP test pass:
 16. Confirm buyer receives notification/email for order status changes.
 17. Confirm wallet pending/available/payout behavior after status changes.
 18. Confirm buyer-seller and buyer/admin-support chat notifications work.
+19. Confirm chat attachments accept images/PDFs only, show local preview first, and upload only on send.
 
 ## Git and Secret Hygiene
 
