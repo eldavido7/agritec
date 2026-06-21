@@ -1,5 +1,3 @@
-﻿import 'dart:ui' as ui;
-
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
@@ -149,7 +147,11 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
             ),
             const SizedBox(height: 10),
             for (final group in order.sellerGroups) ...[
-              if (buyerPoint != null)
+              if (buyerPoint != null &&
+                  _hasValidCoordinates(
+                    group.sellerLatitude,
+                    group.sellerLongitude,
+                  ))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: ClipRRect(
@@ -160,10 +162,6 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
                         sellerPoint:
                             LatLng(group.sellerLatitude, group.sellerLongitude),
                         buyerPoint: buyerPoint,
-                        riderPoint: LatLng(
-                          (group.sellerLatitude + buyerPoint.latitude) / 2,
-                          (group.sellerLongitude + buyerPoint.longitude) / 2,
-                        ),
                         farmName: group.farmName,
                         sellerAddress:
                             ref.watch(homeSellerByIdProvider(group.sellerId)).location,
@@ -172,7 +170,11 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
                     ),
                   ),
                 ),
-              if (!hasBuyerCoords)
+              if (!hasBuyerCoords ||
+                  !_hasValidCoordinates(
+                    group.sellerLatitude,
+                    group.sellerLongitude,
+                  ))
                 Card(
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -220,6 +222,12 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
       ),
     );
   }
+}
+
+bool _hasValidCoordinates(double? latitude, double? longitude) {
+  if (latitude == null || longitude == null) return false;
+  if (latitude.abs() < 0.000001 && longitude.abs() < 0.000001) return false;
+  return true;
 }
 
 class _SellerGroupCard extends ConsumerWidget {
@@ -358,7 +366,6 @@ class _RouteMap extends StatefulWidget {
   const _RouteMap({
     required this.sellerPoint,
     required this.buyerPoint,
-    required this.riderPoint,
     required this.farmName,
     required this.sellerAddress,
     required this.buyerAddress,
@@ -366,7 +373,6 @@ class _RouteMap extends StatefulWidget {
 
   final LatLng sellerPoint;
   final LatLng buyerPoint;
-  final LatLng riderPoint;
   final String farmName;
   final String sellerAddress;
   final String buyerAddress;
@@ -377,13 +383,6 @@ class _RouteMap extends StatefulWidget {
 
 class _RouteMapState extends State<_RouteMap> {
   GoogleMapController? _controller;
-  BitmapDescriptor? _riderIcon;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRiderIcon();
-  }
 
   @override
   void dispose() {
@@ -435,16 +434,6 @@ class _RouteMapState extends State<_RouteMap> {
             snippet: widget.buyerAddress,
           ),
         ),
-        Marker(
-          markerId: const MarkerId('rider'),
-          position: widget.riderPoint,
-          anchor: const Offset(0.5, 0.5),
-          icon: _riderIcon ??
-              BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueOrange,
-              ),
-          infoWindow: const InfoWindow(title: 'Rider'),
-        ),
       },
       polylines: {
         Polyline(
@@ -452,6 +441,8 @@ class _RouteMapState extends State<_RouteMap> {
           points: [widget.sellerPoint, widget.buyerPoint],
           color: const Color(0xFF0D8A66),
           width: 5,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
         ),
       },
     );
@@ -483,60 +474,7 @@ class _RouteMapState extends State<_RouteMap> {
     );
     await controller.animateCamera(CameraUpdate.zoomBy(0.5));
   }
-
-  Future<void> _loadRiderIcon() async {
-    final marker = await _createMarkerFromIcon(
-      icon: Icons.delivery_dining_rounded,
-      color: const Color(0xFFB15F00),
-      background: const Color(0xFFFFF1DE),
-    );
-    if (!mounted) return;
-    setState(() => _riderIcon = marker);
-  }
-
-  Future<BitmapDescriptor> _createMarkerFromIcon({
-    required IconData icon,
-    required Color color,
-    required Color background,
-  }) async {
-    const size = 60.0;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final center = const Offset(size / 2, size / 2);
-    final paint = Paint()..color = background;
-    canvas.drawCircle(center, size / 2, paint);
-    canvas.drawCircle(
-      center,
-      size / 2,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4
-        ..color = const Color(0xFFD8C8A9),
-    );
-
-    final painter = TextPainter(textDirection: ui.TextDirection.ltr);
-    painter.text = TextSpan(
-      text: String.fromCharCode(icon.codePoint),
-      style: TextStyle(
-        fontSize: 28,
-        fontFamily: icon.fontFamily,
-        package: icon.fontPackage,
-        color: color,
-      ),
-    );
-    painter.layout();
-    painter.paint(
-      canvas,
-      Offset((size - painter.width) / 2, (size - painter.height) / 2),
-    );
-
-    final image =
-        await recorder.endRecording().toImage(size.toInt(), size.toInt());
-    final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    return BitmapDescriptor.bytes(data!.buffer.asUint8List());
-  }
 }
-
 class _TimelineRow extends StatelessWidget {
   const _TimelineRow({
     required this.label,
@@ -596,3 +534,6 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
+
+
+

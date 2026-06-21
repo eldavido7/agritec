@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:agritec_mobile/core/catalog/platform_categories.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/domain/home_models.dart';
@@ -42,8 +44,25 @@ final catalogSortProvider =
 
 final catalogCategoriesProvider = Provider<List<PlatformCategory>>((ref) {
   final homeCategories = ref.watch(homeCategoriesProvider);
-  return homeCategories
-      .map((category) => PlatformCategory(slug: category.slug, label: category.name))
+  final products = ref.watch(homeFeaturedProductsProvider);
+  final labelsBySlug = <String, String>{
+    for (final category in homeCategories) category.slug: category.name,
+  };
+  final usedSlugs = LinkedHashSet<String>.from(
+    products.map((product) => product.categorySlug),
+  );
+
+  return usedSlugs
+      .map(
+        (slug) => PlatformCategory(
+          slug: slug,
+          label:
+              labelsBySlug[slug] ??
+              products
+                  .firstWhere((product) => product.categorySlug == slug)
+                  .category,
+        ),
+      )
       .toList();
 });
 

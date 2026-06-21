@@ -316,6 +316,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         order = orderFromApiJson(
           orderJson,
           fallbackProducts: ref.read(homeFeaturedProductsProvider),
+          fallbackSellers: ref.read(homeSellersProvider),
         );
       }
       final result = CheckoutVerificationResult(
@@ -374,6 +375,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         order = orderFromApiJson(
           orderJson,
           fallbackProducts: ref.read(homeFeaturedProductsProvider),
+          fallbackSellers: ref.read(homeSellersProvider),
         );
       }
 

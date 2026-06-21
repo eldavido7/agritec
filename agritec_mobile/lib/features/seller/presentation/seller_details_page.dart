@@ -68,6 +68,13 @@ class SellerDetailsPage extends ConsumerWidget {
                     seller.location,
                     style: const TextStyle(color: Color(0xFF65706B)),
                   ),
+                  if ((seller.state ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      seller.state!.trim(),
+                      style: const TextStyle(color: Color(0xFF9AB8A5)),
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -39,7 +39,7 @@ class HomeDataSnapshot {
 class HomeRepository {
   HomeRepository(this._cacheService, this._apiClient);
 
-  static const cacheKey = 'cache_home_snapshot_v3';
+  static const cacheKey = 'cache_home_snapshot_v4';
   final LocalCacheService _cacheService;
   final MobileApiClient _apiClient;
 
@@ -120,19 +120,30 @@ class HomeRepository {
   }
 
   HomeSeller _mapSeller(Map<String, dynamic> seller) {
-    final location = [
-      (seller['locationLabel'] as String?)?.trim(),
-      (seller['city'] as String?)?.trim(),
-      (seller['state'] as String?)?.trim(),
-    ].whereType<String>().where((value) => value.isNotEmpty).toList();
+    final fullAddress = (seller['fullAddress'] as String?)?.trim();
+    final savedLocationLabel = (seller['locationLabel'] as String?)?.trim();
+    final city = (seller['city'] as String?)?.trim();
+    final state = (seller['state'] as String?)?.trim();
+    final location = fullAddress != null && fullAddress.isNotEmpty
+        ? fullAddress
+        : savedLocationLabel != null && savedLocationLabel.isNotEmpty
+        ? savedLocationLabel
+        : [city, state]
+            .whereType<String>()
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .join(', ');
 
     return HomeSeller(
       id: seller['id'] as String,
       name: (seller['ownerName'] as String?) ?? 'Seller',
       farmName: (seller['farmName'] as String?) ?? 'Farm',
-      location: location.isEmpty ? 'Nigeria' : location.join(', '),
-      rating: 4.8,
-      isVerified: true,
+      location: location.isEmpty ? 'Nigeria' : location,
+      state: state,
+      latitude: (seller['latitude'] as num?)?.toDouble(),
+      longitude: (seller['longitude'] as num?)?.toDouble(),
+      rating: (seller['rating'] as num?)?.toDouble() ?? 0,
+      isVerified: seller['isVerified'] as bool? ?? false,
     );
   }
 

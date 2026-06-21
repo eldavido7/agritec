@@ -52,23 +52,27 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: _handleBack,
-          ),
-          title: Text(ref.tr('orders.title')),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.home_rounded),
-              onPressed: () {
-                ref.read(shellTabProvider.notifier).setTab(0);
-                context.go(MainShellPage.routePath);
-              },
+        backgroundColor: const Color(0xFFDDE8E1),
+        body: SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F5F1),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: const Color(0xFFC4D4C9), width: 1.4),
             ),
-          ],
-        ),
-        body: orders.isEmpty
+            child: Column(
+              children: [
+                _OrdersTopBar(
+                  title: ref.tr('orders.title'),
+                  onBack: _handleBack,
+                  onHome: () {
+                    ref.read(shellTabProvider.notifier).setTab(0);
+                    context.go(MainShellPage.routePath);
+                  },
+                ),
+                Expanded(
+                  child: orders.isEmpty
             ? Center(child: Text(ref.tr('orders.empty')))
             : Builder(
                 builder: (context) {
@@ -81,46 +85,119 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                     children: [
                       Expanded(
                         child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
                           itemCount: pageItems.length,
                           itemBuilder: (context, index) {
                             final order = pageItems[index];
-                            return Card(
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.all(14),
-                                title: Text('Order ${order.id}'),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 4),
-                                    Text('${ref.tr('orders.paymentRef')}: ${order.paymentReference}'),
-                                    Text('${order.sellerGroups.length} seller group${order.sellerGroups.length == 1 ? '' : 's'} • ${order.itemCount} item${order.itemCount == 1 ? '' : 's'}'),
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: [
-                                        for (final group in order.sellerGroups)
-                                          Chip(
-                                            label: Text('${group.farmName}: ${group.status}'),
-                                            visualDensity: VisualDensity.compact,
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                trailing: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(money.format(order.grandTotal), style: const TextStyle(fontWeight: FontWeight.w700)),
-                                    const SizedBox(height: 4),
-                                    Text(order.statusSummary, style: const TextStyle(color: Color(0xFF65706B), fontSize: 12)),
-                                  ],
-                                ),
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
                                 onTap: () => context.pushNamed(
                                   OrderDetailsPage.routeName,
                                   pathParameters: {'orderId': order.id},
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: const Color(0xFFE2EDE6)),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Order ${order.id}',
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Color(0xFF1A2E22),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 3),
+                                                Text(
+                                                  order.paymentReference,
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 10,
+                                                    color: Color(0xFF9AB8A5),
+                                                    fontFamily: 'Courier',
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '${order.sellerGroups.length} seller group${order.sellerGroups.length == 1 ? '' : 's'} • ${order.itemCount} item${order.itemCount == 1 ? '' : 's'}',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: Color(0xFF7AAD8E),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                money.format(order.grandTotal),
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Color(0xFF1A5C38),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              _OrderStatusPill(status: order.statusSummary),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 10),
+                                        child: Divider(height: 1, color: Color(0xFFEEF4F0)),
+                                      ),
+                                      ...order.sellerGroups.map(
+                                        (group) => Padding(
+                                          padding: const EdgeInsets.only(bottom: 6),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 6,
+                                                height: 6,
+                                                decoration: BoxDecoration(
+                                                  color: _groupDotColor(group.farmName),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  group.farmName,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: Color(0xFF5F5E5A),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              _OrderStatusPill(status: group.status, compact: true),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             );
@@ -130,25 +207,152 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                       if (orders.length > OrdersPage._pageSize)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                          child: Row(
-                            children: [
-                              Text('${ref.tr('orders.page')} $safePage/$totalPages'),
-                              const Spacer(),
-                              IconButton(
-                                onPressed: safePage > 1 ? () => setState(() => _page = safePage - 1) : null,
-                                icon: const Icon(Icons.chevron_left_rounded),
-                              ),
-                              IconButton(
-                                onPressed: safePage < totalPages ? () => setState(() => _page = safePage + 1) : null,
-                                icon: const Icon(Icons.chevron_right_rounded),
-                              ),
-                            ],
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              children: [
+                                Text('${ref.tr('orders.page')} $safePage/$totalPages'),
+                                const Spacer(),
+                                IconButton(
+                                  onPressed: safePage > 1 ? () => setState(() => _page = safePage - 1) : null,
+                                  icon: const Icon(Icons.chevron_left_rounded),
+                                ),
+                                IconButton(
+                                  onPressed: safePage < totalPages ? () => setState(() => _page = safePage + 1) : null,
+                                  icon: const Icon(Icons.chevron_right_rounded),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                     ],
                   );
                 },
               ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _groupDotColor(String farmName) {
+    switch (farmName.hashCode.abs() % 3) {
+      case 0:
+        return const Color(0xFFCECbf6);
+      case 1:
+        return const Color(0xFFC0DD97);
+      default:
+        return const Color(0xFFF5C4B3);
+    }
+  }
+}
+
+class _OrdersTopBar extends StatelessWidget {
+  const _OrdersTopBar({
+    required this.title,
+    required this.onBack,
+    required this.onHome,
+  });
+
+  final String title;
+  final VoidCallback onBack;
+  final VoidCallback onHome;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A5C38),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Row(
+        children: [
+          _TopBarIconButton(icon: Icons.arrow_back_rounded, onTap: onBack),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          _TopBarIconButton(icon: Icons.home_rounded, onTap: onHome),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopBarIconButton extends StatelessWidget {
+  const _TopBarIconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: Colors.white, size: 17),
+      ),
+    );
+  }
+}
+
+class _OrderStatusPill extends StatelessWidget {
+  const _OrderStatusPill({required this.status, this.compact = false});
+
+  final String status;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = status.toLowerCase();
+    final isDelivered = normalized.contains('delivered');
+    final bgColor = isDelivered
+        ? const Color(0xFFEAF3DE)
+        : const Color(0xFFFAEEDA);
+    final textColor = isDelivered
+        ? const Color(0xFF3B6D11)
+        : const Color(0xFF854F0B);
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 2 : 3,
+      ),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        status,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: compact ? 10 : 10,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+        ),
       ),
     );
   }

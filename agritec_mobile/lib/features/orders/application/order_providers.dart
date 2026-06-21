@@ -186,6 +186,7 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
     final payload = await api.get('/api/orders', token: token);
     final rawOrders = payload['orders'];
     final fallbackProducts = ref.read(homeFeaturedProductsProvider);
+    final fallbackSellers = ref.read(homeSellersProvider);
     if (rawOrders is! List<dynamic>) {
       state = const [];
       return;
@@ -193,7 +194,11 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
 
     state = rawOrders
         .whereType<Map<String, dynamic>>()
-        .map((json) => orderFromApiJson(json, fallbackProducts: fallbackProducts))
+        .map((json) => orderFromApiJson(
+              json,
+              fallbackProducts: fallbackProducts,
+              fallbackSellers: fallbackSellers,
+            ))
         .toList();
     await _persist();
   }
@@ -208,8 +213,10 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
     final order = orderFromApiJson(
       orderJson,
       fallbackProducts: ref.read(homeFeaturedProductsProvider),
+      fallbackSellers: ref.read(homeSellersProvider),
     );
     upsert(order);
+    await refresh();
     return order;
   }
 
@@ -229,6 +236,7 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
     final order = orderFromApiJson(
       json,
       fallbackProducts: ref.read(homeFeaturedProductsProvider),
+      fallbackSellers: ref.read(homeSellersProvider),
     );
     upsert(order);
   }
@@ -285,6 +293,7 @@ MarketplaceOrder _marketplaceOrderFromJson(Map<String, dynamic> json) {
 MarketplaceOrder orderFromApiJson(
   Map<String, dynamic> json, {
   required List<HomeProduct> fallbackProducts,
+  required List<HomeSeller> fallbackSellers,
 }) {
   final addressJson = json['addressSnapshot'] as Map<String, dynamic>?;
   final paymentJson = json['payment'] as Map<String, dynamic>?;
@@ -306,8 +315,8 @@ MarketplaceOrder orderFromApiJson(
           '',
       fullAddress: (addressJson?['fullAddress'] as String?) ?? '',
       addressLine: (addressJson?['addressLine'] as String?) ?? '',
-      latitude: (addressJson?['latitude'] as num?)?.toDouble(),
-      longitude: (addressJson?['longitude'] as num?)?.toDouble(),
+      latitude: _parseDouble(addressJson?['latitude']),
+      longitude: _parseDouble(addressJson?['longitude']),
       city: (addressJson?['city'] as String?) ?? '',
       state: (addressJson?['state'] as String?) ?? '',
       landmark: addressJson?['landmark'] as String?,
@@ -324,7 +333,6 @@ MarketplaceOrder orderFromApiJson(
     paymentStatus: (json['paymentStatus'] as String?) ?? 'PENDING',
     sellerGroups: sellerGroupsJson.map((groupJson) {
       final sellerId = groupJson['sellerId'] as String? ?? 'unknown';
-      final coordinates = _sellerCoordinates[sellerId] ?? (0.0, 0.0);
       final rawStatus = (groupJson['status'] as String?) ?? 'PENDING';
       final status = _groupStatusLabel(rawStatus);
       final timelineStep = _timelineStepForStatus(rawStatus);
@@ -374,13 +382,25 @@ MarketplaceOrder orderFromApiJson(
         );
       }).toList();
 
+      final liveSeller = fallbackSellers
+          .where((item) => item.id == sellerId)
+          .firstOrNull;
+      final parsedSellerLat = _parseDouble(groupJson['sellerLatitude']);
+      final parsedSellerLng = _parseDouble(groupJson['sellerLongitude']);
+      final sellerLatitude = parsedSellerLat ??
+          liveSeller?.latitude ??
+          0;
+      final sellerLongitude = parsedSellerLng ??
+          liveSeller?.longitude ??
+          0;
+
       return SellerOrderGroup(
         id: groupJson['id'] as String,
         sellerId: sellerId,
         sellerName: (groupJson['sellerNameSnapshot'] as String?) ?? 'Seller',
         farmName: (groupJson['farmNameSnapshot'] as String?) ?? 'Farm',
-        sellerLatitude: coordinates.$1,
-        sellerLongitude: coordinates.$2,
+        sellerLatitude: sellerLatitude,
+        sellerLongitude: sellerLongitude,
         status: status,
         items: items,
         shippingQuote: ShippingQuote(
@@ -404,6 +424,12 @@ MarketplaceOrder orderFromApiJson(
       );
     }).toList(),
   );
+}
+
+double? _parseDouble(Object? value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value.trim());
+  return null;
 }
 
 String _creatorRoleFromAddress(Map<String, dynamic>? addressJson) {
@@ -451,11 +477,6 @@ const _defaultTimeline = <String>[
   'Out for delivery',
   'Delivered',
 ];
-
-const _sellerCoordinates = <String, (double, double)>{
-  'seller-kingsley': (6.4474, 3.4722),
-  'seller-amina': (12.0022, 8.5920),
-};
 
 final ordersProvider = NotifierProvider<OrdersNotifier, List<MarketplaceOrder>>(
   OrdersNotifier.new,

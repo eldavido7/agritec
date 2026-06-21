@@ -148,7 +148,10 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                Row(
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Text(
                                       '${money.format(product.price)} per ${product.salesUnitLabel}',
@@ -320,54 +323,72 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
       builder: (_) {
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                ref.tr('products.filterByCategory'),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                ),
+          child: SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
               ),
-              const SizedBox(height: 8),
-              ListTile(
-                onTap: () {
-                  ref.read(catalogCategoryProvider.notifier).setCategory(null);
-                  Navigator.of(context).pop();
-                },
-                leading: Icon(
-                  selectedCategory == null
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: selectedCategory == null
-                      ? const Color(0xFF0D8A66)
-                      : const Color(0xFF7A8580),
-                ),
-                title: Text(ref.tr('products.allCategories')),
-              ),
-              ...categories.map((category) {
-                final isSelected = selectedCategory == category.slug;
-                return ListTile(
-                  onTap: () {
-                    ref
-                        .read(catalogCategoryProvider.notifier)
-                        .setCategory(category.slug);
-                    Navigator.of(context).pop();
-                  },
-                  leading: Icon(
-                    isSelected
-                        ? Icons.radio_button_checked_rounded
-                        : Icons.radio_button_unchecked_rounded,
-                    color: isSelected
-                        ? const Color(0xFF0D8A66)
-                        : const Color(0xFF7A8580),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ref.tr('products.filterByCategory'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                    ),
                   ),
-                  title: Text(trCategory(ref, category.slug, category.label)),
-                );
-              }),
-            ],
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        ListTile(
+                          onTap: () {
+                            ref
+                                .read(catalogCategoryProvider.notifier)
+                                .setCategory(null);
+                            Navigator.of(context).pop();
+                          },
+                          leading: Icon(
+                            selectedCategory == null
+                                ? Icons.radio_button_checked_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            color: selectedCategory == null
+                                ? const Color(0xFF0D8A66)
+                                : const Color(0xFF7A8580),
+                          ),
+                          title: Text(ref.tr('products.allCategories')),
+                        ),
+                        ...categories.map((category) {
+                          final isSelected = selectedCategory == category.slug;
+                          return ListTile(
+                            onTap: () {
+                              ref
+                                  .read(catalogCategoryProvider.notifier)
+                                  .setCategory(category.slug);
+                              Navigator.of(context).pop();
+                            },
+                            leading: Icon(
+                              isSelected
+                                  ? Icons.radio_button_checked_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              color: isSelected
+                                  ? const Color(0xFF0D8A66)
+                                  : const Color(0xFF7A8580),
+                            ),
+                            title: Text(
+                              trCategory(ref, category.slug, category.label),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },
