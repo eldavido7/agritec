@@ -188,7 +188,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${seller.farmName} â€¢ ${product.category}',
+                        '${seller.farmName} . ${product.category}',
                         style: const TextStyle(color: Color(0xFF5C6862)),
                       ),
                       const SizedBox(height: 10),
@@ -277,21 +277,10 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       ),
                     ),
                     title: Text(seller.farmName),
-                    subtitle: Text('${seller.name} â€¢ ${seller.location}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.star_rounded,
-                          size: 16,
-                          color: Color(0xFFFFB649),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          seller.rating.toStringAsFixed(1),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ],
+                    subtitle: Text('${seller.name} . ${seller.location}'),
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(0xFF1A5C38),
                     ),
                   ),
                 ),

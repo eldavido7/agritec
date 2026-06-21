@@ -76,6 +76,7 @@ class HomeProduct {
   const HomeProduct({
     required this.id,
     required this.sellerId,
+    required this.createdAt,
     required this.name,
     required this.categorySlug,
     required this.category,
@@ -90,6 +91,7 @@ class HomeProduct {
 
   final int id;
   final String sellerId;
+  final DateTime createdAt;
   final String name;
   final String categorySlug;
   final String category;
@@ -104,9 +106,10 @@ class HomeProduct {
   String get imageUrl => images.isEmpty ? '' : images.first;
   String get salesUnitLabel => logistics.salesUnit.label;
 
-  Map<String, dynamic> toJson() => {
+      Map<String, dynamic> toJson() => {
         'id': id,
         'sellerId': sellerId,
+        'createdAt': createdAt.toIso8601String(),
         'name': name,
         'categorySlug': categorySlug,
         'category': category,
@@ -123,6 +126,8 @@ class HomeProduct {
     return HomeProduct(
       id: (json['id'] as num).toInt(),
       sellerId: json['sellerId'] as String,
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
       name: json['name'] as String,
       categorySlug: json['categorySlug'] as String,
       category: json['category'] as String,

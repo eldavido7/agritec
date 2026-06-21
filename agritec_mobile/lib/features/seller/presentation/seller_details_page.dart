@@ -68,21 +68,6 @@ class SellerDetailsPage extends ConsumerWidget {
                     seller.location,
                     style: const TextStyle(color: Color(0xFF65706B)),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.star_rounded,
-                        color: Color(0xFFFFB649),
-                        size: 18,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        seller.rating.toStringAsFixed(1),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),

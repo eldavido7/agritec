@@ -42,13 +42,7 @@ class HomePage extends ConsumerWidget {
     final products = ref.watch(homeFeaturedProductsProvider);
     final sellers = ref.watch(homeSellersProvider);
     final featuredProducts = [...products]
-      ..sort((a, b) {
-        final discountRank = (b.hasDiscount ? 1 : 0) - (a.hasDiscount ? 1 : 0);
-        if (discountRank != 0) return discountRank;
-        return b.inventory.compareTo(a.inventory);
-      });
-    final topSellers = [...sellers]
-      ..sort((a, b) => b.rating.compareTo(a.rating));
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final money = NumberFormat.currency(
       locale: 'en_NG',
       symbol: 'NGN ',
@@ -164,7 +158,7 @@ class HomePage extends ConsumerWidget {
                         },
                       ),
                       const SizedBox(height: 8),
-                      _SellersGrid(sellers: topSellers.take(5).toList()),
+                      _SellersGrid(sellers: sellers.take(5).toList()),
                       const SizedBox(height: 12),
                     ],
                   ),
@@ -720,40 +714,21 @@ class _SellersGrid extends StatelessWidget {
                 ],
               ),
               const Spacer(),
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 11,
-                    backgroundColor: index.isEven
-                        ? const Color(0xFFC0DD97)
-                        : const Color(0xFFF5C4B3),
-                    child: Text(
-                      _initials(seller.name),
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: index.isEven
-                            ? const Color(0xFF27500A)
-                            : const Color(0xFF712B13),
-                      ),
-                    ),
+              CircleAvatar(
+                radius: 11,
+                backgroundColor: index.isEven
+                    ? const Color(0xFFC0DD97)
+                    : const Color(0xFFF5C4B3),
+                child: Text(
+                  _initials(seller.name),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: index.isEven
+                        ? const Color(0xFF27500A)
+                        : const Color(0xFF712B13),
                   ),
-                  const SizedBox(width: 8),
-                  const Icon(
-                    Icons.star_rounded,
-                    size: 14,
-                    color: Color(0xFFEF9F27),
-                  ),
-                  const SizedBox(width: 3),
-                  Text(
-                    seller.rating.toStringAsFixed(1),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A2E22),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),

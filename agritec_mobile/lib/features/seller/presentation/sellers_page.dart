@@ -63,6 +63,7 @@ class _SellersPageState extends ConsumerState<SellersPage> {
             child: Row(
               children: [
                 Expanded(
+                  flex: 3,
                   child: TextField(
                     decoration: InputDecoration(
                       hintText: ref.tr('sellers.searchHint'),
@@ -75,23 +76,36 @@ class _SellersPageState extends ConsumerState<SellersPage> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                DropdownButton<String>(
-                  value: _locationFilter,
-                  items: locations
-                      .map(
-                        (location) => DropdownMenuItem(
-                          value: location,
-                          child: Text(location),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _locationFilter = value;
-                      _page = 0;
-                    });
-                  },
+                Expanded(
+                  flex: 2,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _locationFilter,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    items: locations
+                        .map(
+                          (location) => DropdownMenuItem(
+                            value: location,
+                            child: Text(
+                              location,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _locationFilter = value;
+                        _page = 0;
+                      });
+                    },
+                  ),
                 ),
               ],
             ),
@@ -118,22 +132,9 @@ class _SellersPageState extends ConsumerState<SellersPage> {
                           ),
                           title: Text(seller.farmName),
                           subtitle: Text('${seller.name} * ${seller.location}'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.star_rounded,
-                                size: 16,
-                                color: Color(0xFFFFB649),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                seller.rating.toStringAsFixed(1),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
+                          trailing: const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Color(0xFF1A5C38),
                           ),
                         ),
                       );

@@ -338,6 +338,7 @@ MarketplaceOrder orderFromApiJson(
         final product = HomeProduct(
           id: productId,
           sellerId: sellerId,
+          createdAt: fallback?.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
           name: (itemJson['variantTitleSnapshot'] as String?)?.trim().isNotEmpty == true
               ? '${itemJson['productTitleSnapshot']} - ${itemJson['variantTitleSnapshot']}'
               : (itemJson['productTitleSnapshot'] as String?) ?? fallback?.name ?? 'Product',

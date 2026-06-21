@@ -39,7 +39,7 @@ class HomeDataSnapshot {
 class HomeRepository {
   HomeRepository(this._cacheService, this._apiClient);
 
-  static const cacheKey = 'cache_home_snapshot_v2';
+  static const cacheKey = 'cache_home_snapshot_v3';
   final LocalCacheService _cacheService;
   final MobileApiClient _apiClient;
 
@@ -160,6 +160,8 @@ class HomeRepository {
     return HomeProduct(
       id: productId,
       sellerId: product['sellerId'] as String,
+      createdAt: DateTime.tryParse((product['createdAt'] as String?) ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
       name: (product['title'] as String?) ?? 'Product',
       categorySlug: (product['categorySlug'] as String?) ?? 'other',
       category: (product['category']?['label'] as String?) ?? 'Other',

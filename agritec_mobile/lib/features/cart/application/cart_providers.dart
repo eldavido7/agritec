@@ -128,6 +128,9 @@ HomeProduct buildHomeProductFromApi({
   return HomeProduct(
     id: productId,
     sellerId: (apiProduct['sellerId'] as String?) ?? fallback?.sellerId ?? 'unknown',
+    createdAt: DateTime.tryParse((apiProduct['createdAt'] as String?) ?? '') ??
+        fallback?.createdAt ??
+        DateTime.fromMillisecondsSinceEpoch(0),
     name: hasVariant
         ? '${(apiProduct['title'] as String?) ?? fallback?.name ?? 'Product'} - ${apiVariant['name'] ?? ''}'.trim()
         : (apiProduct['title'] as String?) ?? fallback?.name ?? 'Product',
@@ -321,6 +324,7 @@ class CartNotifier extends Notifier<CartState> {
         : HomeProduct(
             id: product.id,
             sellerId: product.sellerId,
+            createdAt: product.createdAt,
             name: '${product.name} - ${variant.name}',
             categorySlug: product.categorySlug,
             category: product.category,
