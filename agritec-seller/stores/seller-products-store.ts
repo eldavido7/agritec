@@ -512,7 +512,7 @@ export const useSellerProductsStore = create<SellerProductsState>((set, get) => 
       set({
         isSaving: false,
         error:
-          error instanceof Error ? error.message : "Unable to archive product",
+          error instanceof Error ? error.message : "Unable to delete product",
       });
       throw error;
     }

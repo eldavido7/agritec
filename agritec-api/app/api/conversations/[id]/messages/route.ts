@@ -1,4 +1,4 @@
-import { MessageType, UserRole } from "@prisma/client";
+import { ConversationType, MessageType, UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth";
@@ -59,7 +59,47 @@ export async function GET(
     }
 
     const { id } = await params;
-    const conversation = await getConversationForUser(id, user.id);
+    const conversation =
+      user.role === UserRole.ADMIN
+        ? await prisma.conversation.findFirst({
+            where: {
+              id,
+              OR: [
+                { participants: { some: { userId: user.id } } },
+                { type: { in: [ConversationType.BUYER_SUPPORT, ConversationType.SELLER_SUPPORT] } },
+              ],
+            },
+            include: {
+              participants: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                      email: true,
+                      role: true,
+                      phone: true,
+                    },
+                  },
+                },
+              },
+              messages: {
+                include: {
+                  sender: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                      email: true,
+                      role: true,
+                    },
+                  },
+                  attachments: true,
+                },
+                orderBy: { createdAt: "asc" },
+              },
+            },
+          })
+        : await getConversationForUser(id, user.id);
     if (!conversation) {
       return NextResponse.json({ success: false, message: "Conversation not found" }, { status: 404 });
     }
@@ -108,7 +148,22 @@ export async function POST(
     const { id } = await params;
     const payload = createMessageSchema.parse(await request.json());
 
-    const conversation = await getConversationForUser(id, user.id);
+    const conversation =
+      user.role === UserRole.ADMIN
+        ? await prisma.conversation.findFirst({
+            where: {
+              id,
+              OR: [
+                { participants: { some: { userId: user.id } } },
+                { type: { in: [ConversationType.BUYER_SUPPORT, ConversationType.SELLER_SUPPORT] } },
+              ],
+            },
+            select: {
+              id: true,
+              type: true,
+            },
+          })
+        : await getConversationForUser(id, user.id);
     if (!conversation) {
       return NextResponse.json({ success: false, message: "Conversation not found" }, { status: 404 });
     }
@@ -137,6 +192,19 @@ export async function POST(
     console.error("[CONVERSATION_MESSAGES_POST_ERROR]", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, message: error.issues[0]?.message ?? "Invalid message payload" }, { status: 400 });
+    }
+    if (
+      error instanceof Error &&
+      error.message === "SUPPORT_CONVERSATION_ASSIGNED_TO_OTHER_ADMIN"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "This support conversation is assigned to another admin. Reassign it or add an internal comment instead.",
+        },
+        { status: 403 },
+      );
     }
     return NextResponse.json({ success: false, message: "Failed to send message" }, { status: 500 });
   }

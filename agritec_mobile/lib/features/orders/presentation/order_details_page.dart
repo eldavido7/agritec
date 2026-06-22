@@ -236,6 +236,10 @@ class _SellerGroupCard extends ConsumerWidget {
   final SellerOrderGroup group;
   final NumberFormat currency;
 
+  String _formatStatusDate(DateTime value) {
+    return DateFormat('d MMM, y • h:mm a', 'en_NG').format(value);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Card(
@@ -263,6 +267,11 @@ class _SellerGroupCard extends ConsumerWidget {
                         '${ref.tr('orderDetails.sellerLabel')}: ${group.sellerName}',
                         style: const TextStyle(color: Color(0xFF65706B)),
                       ),
+                      if ((group.logisticsCompanyName ?? '').isNotEmpty)
+                        Text(
+                          '${ref.tr('orderDetails.logisticsCompany')}: ${group.logisticsCompanyName}',
+                          style: const TextStyle(color: Color(0xFF65706B)),
+                        ),
                     ],
                   ),
                 ),
@@ -270,12 +279,34 @@ class _SellerGroupCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 10),
-            for (var i = 0; i < group.timeline.length; i++)
-              _TimelineRow(
-                label: group.timeline[i],
-                isDone: i <= group.currentTimelineStep,
-                showConnector: i < group.timeline.length - 1,
-              ),
+            Text(
+              ref.tr('orderDetails.timeline'),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            if (group.statusHistory.isNotEmpty)
+              for (var i = 0; i < group.statusHistory.length; i++)
+                _TimelineRow(
+                  label: group.timeline.length > i
+                      ? group.timeline[i]
+                      : group.statusHistory[i].status,
+                  caption: [
+                    if ((group.statusHistory[i].updatedByUserName ?? '').isNotEmpty)
+                      group.statusHistory[i].updatedByUserName!,
+                    if ((group.statusHistory[i].description ?? '').isNotEmpty)
+                      group.statusHistory[i].description!,
+                    _formatStatusDate(group.statusHistory[i].createdAt),
+                  ].join(' • '),
+                  isDone: true,
+                  showConnector: i < group.statusHistory.length - 1,
+                )
+            else
+              for (var i = 0; i < group.timeline.length; i++)
+                _TimelineRow(
+                  label: group.timeline[i],
+                  isDone: i <= group.currentTimelineStep,
+                  showConnector: i < group.timeline.length - 1,
+                ),
             const SizedBox(height: 10),
             Text(
               ref.tr('orderDetails.itemsLabel'),
@@ -480,11 +511,13 @@ class _TimelineRow extends StatelessWidget {
     required this.label,
     required this.isDone,
     required this.showConnector,
+    this.caption,
   });
 
   final String label;
   final bool isDone;
   final bool showConnector;
+  final String? caption;
 
   @override
   Widget build(BuildContext context) {
@@ -519,14 +552,30 @@ class _TimelineRow extends StatelessWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: 1),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: isDone
-                    ? const Color(0xFF1F2D27)
-                    : const Color(0xFF6C7872),
-                fontWeight: isDone ? FontWeight.w600 : FontWeight.w400,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: isDone
+                        ? const Color(0xFF1F2D27)
+                        : const Color(0xFF6C7872),
+                    fontWeight: isDone ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+                if ((caption ?? '').isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      caption!,
+                      style: const TextStyle(
+                        color: Color(0xFF6C7872),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -534,6 +583,3 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
-
-
-

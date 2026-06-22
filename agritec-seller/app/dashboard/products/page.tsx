@@ -228,7 +228,7 @@ export default function ProductsPage() {
         toast.error(
           archiveError instanceof Error
             ? archiveError.message
-            : "Unable to archive product",
+            : "Unable to delete product",
         ),
       );
   };
@@ -557,7 +557,7 @@ export default function ProductsPage() {
             className="bg-card rounded-lg max-w-sm w-full p-6"
           >
             <h3 className="text-lg font-bold text-foreground mb-2">
-              Archive Product?
+              Delete Product?
             </h3>
             <p className="text-muted-foreground mb-6">
               Are you sure you want to delete this product? This action cannot

@@ -72,6 +72,27 @@ export async function GET(request: Request) {
           },
           orderBy: { createdAt: "asc" },
         },
+        assignments: {
+          include: {
+            assignedAdmin: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                isActive: true,
+                lastActiveAt: true,
+              },
+            },
+            assignedByUser: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        },
       },
       orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
     });
@@ -179,6 +200,27 @@ export async function POST(request: Request) {
             attachments: true,
           },
           orderBy: { createdAt: "asc" },
+        },
+        assignments: {
+          include: {
+            assignedAdmin: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                isActive: true,
+                lastActiveAt: true,
+              },
+            },
+            assignedByUser: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         },
       },
     });

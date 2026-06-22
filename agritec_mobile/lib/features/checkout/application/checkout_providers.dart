@@ -20,6 +20,9 @@ class CheckoutSellerGroupQuote {
     required this.shippingFee,
     required this.discountTotal,
     required this.groupTotal,
+    required this.eligibleLogisticsCompanies,
+    this.logisticsCompanyId,
+    this.logisticsCompanyName,
     this.discountCode,
     required this.discountApplied,
   });
@@ -33,8 +36,31 @@ class CheckoutSellerGroupQuote {
   final int shippingFee;
   final int discountTotal;
   final int groupTotal;
+  final List<CheckoutEligibleLogisticsCompany> eligibleLogisticsCompanies;
+  final String? logisticsCompanyId;
+  final String? logisticsCompanyName;
   final String? discountCode;
   final bool discountApplied;
+}
+
+class CheckoutEligibleLogisticsCompany {
+  const CheckoutEligibleLogisticsCompany({
+    required this.id,
+    required this.companyName,
+    required this.coverageType,
+    required this.coveredStates,
+    required this.pricingScope,
+    required this.pricingState,
+  });
+
+  final String id;
+  final String companyName;
+  final String coverageType;
+  final List<String> coveredStates;
+  final String pricingScope;
+  final String? pricingState;
+
+  bool get isNationwide => coverageType.toUpperCase() == 'NATIONWIDE';
 }
 
 class CheckoutQuoteData {
@@ -45,6 +71,7 @@ class CheckoutQuoteData {
     required this.discountTotal,
     required this.grandTotal,
     required this.sellerGroups,
+    this.allGroupsLogisticsCompanyId,
   });
 
   final BuyerAddress address;
@@ -53,6 +80,7 @@ class CheckoutQuoteData {
   final int discountTotal;
   final int grandTotal;
   final List<CheckoutSellerGroupQuote> sellerGroups;
+  final String? allGroupsLogisticsCompanyId;
 }
 
 class CheckoutPaymentSession {
@@ -214,6 +242,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   Future<CheckoutQuoteData> refreshQuote({
     required String addressId,
     String? discountCode,
+    Map<String, String> logisticsSelections = const <String, String>{},
+    String? allGroupsLogisticsCompanyId,
   }) async {
     final token = ref.read(buyerAuthTokenProvider);
     if (token == null || token.trim().isEmpty) {
@@ -229,6 +259,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         data: {
           'addressId': addressId,
           'discountCodes': _discountMap(discountCode),
+          'logisticsSelections': logisticsSelections,
+          'allGroupsLogisticsCompanyId': allGroupsLogisticsCompanyId,
         },
       );
       final quoteJson = payload['quote'] as Map<String, dynamic>;
@@ -248,6 +280,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   Future<CheckoutPaymentSession> initializePayment({
     required String addressId,
     String? discountCode,
+    Map<String, String> logisticsSelections = const <String, String>{},
+    String? allGroupsLogisticsCompanyId,
   }) async {
     final token = ref.read(buyerAuthTokenProvider);
     if (token == null || token.trim().isEmpty) {
@@ -263,6 +297,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         data: {
           'addressId': addressId,
           'discountCodes': _discountMap(discountCode),
+          'logisticsSelections': logisticsSelections,
+          'allGroupsLogisticsCompanyId': allGroupsLogisticsCompanyId,
         },
       );
 
@@ -461,6 +497,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       totalShippingFee: (quoteJson['totalShippingFee'] as num?)?.toInt() ?? 0,
       discountTotal: (quoteJson['discountTotal'] as num?)?.toInt() ?? 0,
       grandTotal: (quoteJson['grandTotal'] as num?)?.toInt() ?? 0,
+      allGroupsLogisticsCompanyId:
+          quoteJson['allGroupsLogisticsCompanyId'] as String?,
       sellerGroups: rawGroups.map((groupJson) {
         final rawItems = (groupJson['items'] as List<dynamic>? ?? const <dynamic>[])
             .whereType<Map<String, dynamic>>()
@@ -504,6 +542,39 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
           shippingFee: (groupJson['shippingFee'] as num?)?.toInt() ?? 0,
           discountTotal: (groupJson['discountTotal'] as num?)?.toInt() ?? 0,
           groupTotal: (groupJson['groupTotal'] as num?)?.toInt() ?? 0,
+          eligibleLogisticsCompanies:
+              (groupJson['eligibleLogisticsCompanies'] as List<dynamic>? ??
+                      const <dynamic>[])
+                  .whereType<Map<String, dynamic>>()
+                  .map(
+                    (companyJson) => CheckoutEligibleLogisticsCompany(
+                      id: companyJson['id'] as String? ?? '',
+                      companyName: companyJson['companyName'] as String? ?? 'Logistics',
+                      coverageType:
+                          companyJson['coverageType'] as String? ??
+                              (companyJson['coverageSummary']
+                                      as Map<String, dynamic>? ??
+                                  const {})['coverageType'] as String? ??
+                              'REGIONAL',
+                      coveredStates: (companyJson['coveredStates'] as List<dynamic>? ??
+                              (companyJson['coverageSummary']
+                                      as Map<String, dynamic>? ??
+                                  const {})['coveredStates'] as List<dynamic>? ??
+                              const <dynamic>[])
+                          .map((item) => '$item')
+                          .toList(),
+                      pricingScope:
+                          (companyJson['pricing'] as Map<String, dynamic>? ?? const {})
+                                  ['pricingScope'] as String? ??
+                              '',
+                      pricingState:
+                          (companyJson['pricing'] as Map<String, dynamic>? ?? const {})
+                              ['state'] as String?,
+                    ),
+                  )
+                  .toList(),
+          logisticsCompanyId: groupJson['logisticsCompanyId'] as String?,
+          logisticsCompanyName: groupJson['logisticsCompanyName'] as String?,
           discountCode: groupJson['discountCode'] as String?,
           discountApplied: groupJson['discountApplied'] as bool? ?? false,
         );

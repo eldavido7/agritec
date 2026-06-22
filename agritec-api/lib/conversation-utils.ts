@@ -1,8 +1,22 @@
 import { ConversationType, MessageType, NotificationType, Prisma, UserRole } from "@prisma/client";
 import { reserveSequentialId } from "@/lib/id-sequence";
-import { sendChatMessageAlertEmail } from "@/lib/email";
+import {
+  sendChatMessageAlertEmail,
+  sendSupportAssignmentAlertEmail,
+} from "@/lib/email";
 import prisma from "@/lib/prisma";
 import { createNotification } from "@/lib/wallet-utils";
+import {
+  assignSupportConversation,
+  autoAssignSupportConversation,
+  deriveCurrentSupportAssignment,
+  isSupportConversationType,
+  listActiveAdminUsers,
+  refreshSupportResponseDeadline,
+  reopenSupportConversation,
+  serializeSupportConversationSummary,
+  toSupportJsonValue,
+} from "@/lib/support-utils";
 
 export function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
@@ -66,6 +80,27 @@ export async function getConversationForUser(conversationId: string, userId: str
         },
         orderBy: { createdAt: "asc" },
       },
+      assignments: {
+        include: {
+          assignedAdmin: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              isActive: true,
+              lastActiveAt: true,
+            },
+          },
+          assignedByUser: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      },
     },
   });
 }
@@ -110,6 +145,13 @@ export function serializeConversation(conversation: any, currentUserId: string, 
           createdAt: latestMessage.createdAt,
         }
       : null,
+    support: serializeSupportConversationSummary({
+      type: conversation.type,
+      supportStatus: conversation.supportStatus,
+      assignments: Array.isArray(conversation.assignments)
+        ? conversation.assignments
+        : [],
+    }),
   };
 }
 
@@ -190,6 +232,7 @@ export async function ensureBuyerSupportConversation(tx: TxClient, args: {
       id: conversationId,
       type: ConversationType.BUYER_SUPPORT,
       uniqueKey,
+      supportStatus: "ACTIVE",
       subject: args.subject ?? null,
       participants: {
         create: [
@@ -208,8 +251,19 @@ export async function ensureSellerSupportConversation(tx: TxClient, args: {
   supportUserId: string;
   subject?: string | null;
 }) {
-  const uniqueKey = `admin-seller:${args.supportUserId}:${args.sellerUserId}`;
-  const existing = await tx.conversation.findUnique({ where: { uniqueKey } });
+  const uniqueKey = `seller-support:${args.sellerUserId}`;
+  const existing = await tx.conversation.findFirst({
+    where: {
+      OR: [
+        { uniqueKey },
+        {
+          uniqueKey: { startsWith: "admin-seller:" },
+          participants: { some: { userId: args.sellerUserId } },
+        },
+      ],
+      type: { in: [ConversationType.BUYER_SUPPORT, ConversationType.SELLER_SUPPORT] },
+    },
+  });
   if (existing) return existing;
 
   const conversationId = await reserveSequentialId(tx, "conversation");
@@ -219,8 +273,9 @@ export async function ensureSellerSupportConversation(tx: TxClient, args: {
   await tx.conversation.create({
     data: {
       id: conversationId,
-      type: ConversationType.BUYER_SUPPORT,
+      type: ConversationType.SELLER_SUPPORT,
       uniqueKey,
+      supportStatus: "ACTIVE",
       subject: args.subject ?? "Seller support",
       participants: {
         create: [
@@ -245,7 +300,106 @@ export async function createConversationMessage(tx: TxClient, args: {
     publicId: string;
     mimeType?: string | null;
   }>;
+  skipSupportAssignmentAutomation?: boolean;
 }) {
+  const conversation = await tx.conversation.findUnique({
+    where: { id: args.conversationId },
+    include: {
+      participants: {
+        include: {
+          user: true,
+        },
+      },
+      assignments: {
+        include: {
+          assignedAdmin: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+              isActive: true,
+              lastActiveAt: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      },
+    },
+  });
+  if (!conversation) {
+    throw new Error("CONVERSATION_NOT_FOUND");
+  }
+
+  const sender = await tx.user.findUnique({
+    where: { id: args.senderId },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+      isActive: true,
+      lastActiveAt: true,
+    },
+  });
+  if (!sender) {
+    throw new Error("SENDER_NOT_FOUND");
+  }
+
+  if (
+    isSupportConversationType(conversation.type) &&
+    !args.skipSupportAssignmentAutomation
+  ) {
+    const currentAssignment = deriveCurrentSupportAssignment(
+      conversation.assignments as any[],
+    );
+
+    if (sender.role === UserRole.ADMIN) {
+      if (
+        currentAssignment.assignedAdminId &&
+        currentAssignment.assignedAdminId !== sender.id
+      ) {
+        throw new Error("SUPPORT_CONVERSATION_ASSIGNED_TO_OTHER_ADMIN");
+      }
+
+      if (conversation.supportStatus === "RESOLVED") {
+        await reopenSupportConversation(tx, {
+          conversationId: conversation.id,
+          assignedByUserId: sender.id,
+          note: "Reopened by support reply.",
+        });
+      }
+
+      if (!currentAssignment.assignedAdminId) {
+        await assignSupportConversation(tx, {
+          conversationId: conversation.id,
+          assignedAdminId: sender.id,
+          assignedByUserId: sender.id,
+          eventType: "CLAIM",
+          note: "Claimed automatically on public reply.",
+        });
+      }
+    } else {
+      if (conversation.supportStatus === "RESOLVED") {
+        await reopenSupportConversation(tx, {
+          conversationId: conversation.id,
+          note: "Reopened by customer message.",
+        });
+      }
+
+      if (!currentAssignment.assignedAdminId) {
+        await autoAssignSupportConversation(tx, {
+          conversationId: conversation.id,
+          note: "Assigned automatically after inbound support message.",
+        });
+      } else {
+        await refreshSupportResponseDeadline(tx, {
+          conversationId: conversation.id,
+        });
+      }
+    }
+  }
+
   const messageId = await reserveSequentialId(tx, "message");
   const attachments = args.attachments ?? [];
   const message = await tx.message.create({
@@ -308,15 +462,56 @@ export async function createConversationMessage(tx: TxClient, args: {
 
   const notificationBody = args.body?.trim() || (attachments.length > 0 ? "Sent an attachment" : "New message");
 
-  for (const recipient of recipients) {
+  let notificationRecipients = recipients.map((recipient) => recipient.user);
+
+  if (isSupportConversationType(conversation.type)) {
+    if (sender.role === UserRole.ADMIN) {
+      notificationRecipients = conversation.participants
+        .map((participant) => participant.user)
+        .filter(
+          (participant) =>
+            participant.id !== sender.id && participant.role !== UserRole.ADMIN,
+        );
+    } else {
+      const refreshedConversation = await tx.conversation.findUnique({
+        where: { id: conversation.id },
+        include: {
+          assignments: {
+            include: {
+              assignedAdmin: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  email: true,
+                  role: true,
+                  isActive: true,
+                  lastActiveAt: true,
+                },
+              },
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          },
+        },
+      });
+      const refreshedAssignment = deriveCurrentSupportAssignment(
+        (refreshedConversation?.assignments ?? []) as any[],
+      );
+
+      notificationRecipients = refreshedAssignment.assignedAdmin
+        ? [refreshedAssignment.assignedAdmin as any]
+        : await listActiveAdminUsers(tx, { excludeUserIds: [sender.id] });
+    }
+  }
+
+  for (const recipient of notificationRecipients) {
     await createNotification(tx, {
-      userId: recipient.userId,
+      userId: recipient.id,
       type: NotificationType.MESSAGE,
       title: `New message from ${message.sender.fullName}`,
       body: notificationBody,
       targetType: "conversation",
       targetId: args.conversationId,
-      metadata: toJsonValue({
+      metadata: toSupportJsonValue({
         conversationId: args.conversationId,
         messageId: message.id,
         senderId: args.senderId,
@@ -333,14 +528,18 @@ const CHAT_EMAIL_THROTTLE_MINUTES = 30;
 function shouldEmailWebRecipient(args: {
   senderRole: UserRole;
   recipientRole: UserRole;
+  conversationType?: ConversationType | string;
 }) {
   void args.senderRole;
 
-  if (args.recipientRole !== UserRole.SELLER && args.recipientRole !== UserRole.ADMIN) {
-    return false;
+  if (args.recipientRole === UserRole.ADMIN || args.recipientRole === UserRole.SELLER) {
+    return true;
   }
 
-  return true;
+  return (
+    args.recipientRole === UserRole.BUYER &&
+    isSupportConversationType(args.conversationType)
+  );
 }
 
 export function queueConversationMessageEmailAlerts(messageId: string) {
@@ -358,6 +557,20 @@ export function queueConversationMessageEmailAlerts(messageId: string) {
           },
           conversation: {
             include: {
+              assignments: {
+                include: {
+                  assignedAdmin: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                      email: true,
+                      isActive: true,
+                      lastActiveAt: true,
+                    },
+                  },
+                },
+                orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              },
               participants: {
                 include: {
                   user: {
@@ -380,19 +593,48 @@ export function queueConversationMessageEmailAlerts(messageId: string) {
       }
 
       const cutoff = new Date(Date.now() - CHAT_EMAIL_THROTTLE_MINUTES * 60 * 1000);
-      const recipients = message.conversation.participants.filter(
-        (participant) => participant.userId !== message.senderId,
-      );
+      const currentSupportAssignment = isSupportConversationType(
+        message.conversation.type,
+      )
+        ? deriveCurrentSupportAssignment(
+            (message.conversation.assignments ?? []) as any[],
+          )
+        : null;
+      const recipients =
+        currentSupportAssignment?.assignedAdmin && message.sender.role !== UserRole.ADMIN
+        ? [
+            {
+              userId: currentSupportAssignment.assignedAdmin.id,
+              user: {
+                id: currentSupportAssignment.assignedAdmin.id,
+                email: currentSupportAssignment.assignedAdmin.email,
+                fullName: currentSupportAssignment.assignedAdmin.fullName,
+                role: UserRole.ADMIN,
+              },
+            },
+          ]
+        : message.conversation.participants.filter(
+            (participant) => participant.userId !== message.senderId,
+          );
 
       await Promise.all(
         recipients.map(async (participant) => {
           const recipient = participant.user;
 
           if (
+            currentSupportAssignment &&
+            recipient.role === UserRole.ADMIN &&
+            recipient.id !== currentSupportAssignment.assignedAdminId
+          ) {
+            return;
+          }
+
+          if (
             !recipient.email ||
             !shouldEmailWebRecipient({
               senderRole: message.sender.role,
               recipientRole: recipient.role,
+              conversationType: message.conversation.type,
             })
           ) {
             return;
@@ -415,7 +657,7 @@ export function queueConversationMessageEmailAlerts(messageId: string) {
           await sendChatMessageAlertEmail({
             toEmail: recipient.email,
             recipientName: recipient.fullName,
-            recipientRole: recipient.role as "SELLER" | "ADMIN",
+            recipientRole: recipient.role as "BUYER" | "SELLER" | "ADMIN",
             senderName: message.sender.fullName,
             messagePreview: message.body?.trim() || "You have a new chat message.",
             conversationType: message.conversation.type,
@@ -426,6 +668,100 @@ export function queueConversationMessageEmailAlerts(messageId: string) {
     } catch (error) {
       console.error("[CHAT_MESSAGE_EMAIL_ALERT_ERROR]", {
         messageId,
+        error,
+      });
+    }
+  });
+}
+
+export function queueSupportAssignmentAlertEmail(args: {
+  conversationId: string;
+  assignmentId: string;
+}) {
+  queueMicrotask(async () => {
+    try {
+      const assignment = await prisma.supportConversationAssignment.findUnique({
+        where: { id: args.assignmentId },
+        include: {
+          conversation: {
+            select: {
+              id: true,
+              type: true,
+            },
+          },
+          assignedAdmin: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          assignedByUser: {
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
+        },
+      });
+
+      if (
+        !assignment ||
+        !assignment.assignedAdmin ||
+        !assignment.assignedAdmin.email
+      ) {
+        return;
+      }
+
+      if (
+        ![
+          "AUTO_ASSIGN",
+          "MANUAL_ASSIGN",
+          "CLAIM",
+          "REASSIGN",
+        ].includes(assignment.eventType)
+      ) {
+        return;
+      }
+
+      const latestAssignment =
+        await prisma.supportConversationAssignment.findFirst({
+          where: { conversationId: assignment.conversationId },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: {
+            id: true,
+            assignedAdminId: true,
+          },
+        });
+
+      if (
+        !latestAssignment ||
+        latestAssignment.id !== assignment.id ||
+        latestAssignment.assignedAdminId !== assignment.assignedAdminId
+      ) {
+        return;
+      }
+
+      const subjectLabel =
+        assignment.eventType === "REASSIGN"
+          ? "Support conversation reassigned to you"
+          : assignment.eventType === "AUTO_ASSIGN"
+            ? "New support conversation assigned to you"
+            : "Support conversation assigned to you";
+
+      await sendSupportAssignmentAlertEmail({
+        toEmail: assignment.assignedAdmin.email,
+        adminName: assignment.assignedAdmin.fullName,
+        conversationId: assignment.conversationId,
+        conversationType: assignment.conversation.type,
+        assignedByName: assignment.assignedByUser?.fullName ?? null,
+        note: assignment.note ?? null,
+        subjectLabel,
+      });
+    } catch (error) {
+      console.error("[SUPPORT_ASSIGNMENT_EMAIL_ALERT_ERROR]", {
+        assignmentId: args.assignmentId,
+        conversationId: args.conversationId,
         error,
       });
     }

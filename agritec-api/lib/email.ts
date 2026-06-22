@@ -74,6 +74,10 @@ function chatConversationLabel(value: string) {
 }
 
 function getDashboardChatUrl(role: UserRole, conversationId: string) {
+  const buyerBase =
+    process.env.BUYER_APP_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    "http://localhost:3000";
   const sellerBase =
     process.env.SELLER_APP_URL?.trim() ||
     process.env.APP_URL?.trim() ||
@@ -82,6 +86,10 @@ function getDashboardChatUrl(role: UserRole, conversationId: string) {
     process.env.ADMIN_APP_URL?.trim() ||
     process.env.APP_URL?.trim() ||
     "http://localhost:3001";
+
+  if (role === UserRole.BUYER) {
+    return `${buyerBase.replace(/\/+$/, "")}/account/messages?conversationId=${encodeURIComponent(conversationId)}`;
+  }
 
   const base = role === UserRole.SELLER ? sellerBase : adminBase;
   return `${base.replace(/\/+$/, "")}/dashboard/messages?conversationId=${encodeURIComponent(conversationId)}`;
@@ -208,7 +216,7 @@ export async function sendPasswordResetEmail(args: {
 export async function sendChatMessageAlertEmail(args: {
   toEmail: string;
   recipientName: string;
-  recipientRole: "SELLER" | "ADMIN";
+  recipientRole: "BUYER" | "SELLER" | "ADMIN";
   senderName: string;
   messagePreview: string;
   conversationType: string;
@@ -242,6 +250,50 @@ export async function sendChatMessageAlertEmail(args: {
         <div style="background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #e5e7eb;">
           <a href="${chatUrl}" style="display: inline-block; background: #166534; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 10px; font-weight: 600;">
             Open chat
+          </a>
+          <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; word-break: break-all;">${chatUrl}</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
+export async function sendSupportAssignmentAlertEmail(args: {
+  toEmail: string;
+  adminName: string;
+  conversationId: string;
+  conversationType: string;
+  assignedByName?: string | null;
+  note?: string | null;
+  subjectLabel: string;
+}) {
+  const transporter = getTransporter();
+  const from = process.env.GMAIL_USER as string;
+  const brand = process.env.MARKETPLACE_NAME || process.env.STORE_NAME || "Agritec";
+  const chatUrl = getDashboardChatUrl(UserRole.ADMIN, args.conversationId);
+
+  await transporter.sendMail({
+    from: `"${brand}" <${from}>`,
+    to: args.toEmail,
+    subject: args.subjectLabel,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; background: #f4f7f4; color: #1f2937;">
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid #e5e7eb;">
+          <h1 style="margin: 0 0 8px; font-size: 24px; color: #14532d;">Support conversation assigned</h1>
+          <p style="margin: 0; font-size: 15px; color: #4b5563;">Hi ${args.adminName}, a support conversation has been assigned to you on ${brand}.</p>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid #e5e7eb;">
+          <div style="display: grid; gap: 8px; font-size: 14px; color: #374151;">
+            <div><strong>Conversation:</strong> ${chatConversationLabel(args.conversationType)}</div>
+            ${args.assignedByName ? `<div><strong>Assigned by:</strong> ${args.assignedByName}</div>` : ""}
+            ${args.note?.trim() ? `<div><strong>Note:</strong> ${args.note.trim()}</div>` : ""}
+          </div>
+        </div>
+
+        <div style="background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #e5e7eb;">
+          <a href="${chatUrl}" style="display: inline-block; background: #166534; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 10px; font-weight: 600;">
+            Open support workspace
           </a>
           <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280; word-break: break-all;">${chatUrl}</p>
         </div>

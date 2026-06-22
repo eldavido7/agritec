@@ -5,11 +5,13 @@ import { requireAuthenticatedUser } from "@/lib/auth";
 import {
   createConversationMessage,
   ensureBuyerSupportConversation,
+  ensureSellerSupportConversation,
   findSupportAdminUser,
   queueConversationMessageEmailAlerts,
   serializeConversation,
 } from "@/lib/conversation-utils";
 import prisma from "@/lib/prisma";
+import { assignSupportConversation } from "@/lib/support-utils";
 
 const createSchema = z.object({
   participantType: z.enum(["buyer", "seller"]),
@@ -32,30 +34,36 @@ export async function GET(request: Request) {
 
     const conversations = await prisma.conversation.findMany({
       where: {
-        AND: [
-          {
-            participants: {
-              some: {
-                userId: admin.id,
+        ...(participantId
+          ? {
+              participants: {
+                some: {
+                  userId: participantId,
+                },
+              },
+            }
+          : {}),
+        ...(type === "buyer-support"
+          ? { type: ConversationType.BUYER_SUPPORT }
+          : type === "seller-support"
+            ? { type: ConversationType.SELLER_SUPPORT }
+            : { type: { in: [ConversationType.BUYER_SUPPORT, ConversationType.SELLER_SUPPORT] } }),
+      },
+      include: {
+        assignments: {
+          include: {
+            assignedAdmin: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                isActive: true,
+                lastActiveAt: true,
               },
             },
           },
-          ...(participantId
-            ? [
-                {
-                  participants: {
-                    some: {
-                      userId: participantId,
-                    },
-                  },
-                },
-              ]
-            : []),
-        ],
-        ...(type === "buyer-seller" ? { type: ConversationType.BUYER_SELLER } : {}),
-        ...(type === "buyer-support" ? { type: ConversationType.BUYER_SUPPORT } : {}),
-      },
-      include: {
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        },
         participants: {
           include: {
             user: {
@@ -82,29 +90,15 @@ export async function GET(request: Request) {
       orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
     });
 
-    const currentParticipants = await prisma.conversationParticipant.findMany({
-      where: {
-        userId: admin.id,
-        conversationId: { in: conversations.map((conversation) => conversation.id) },
-      },
-      select: {
-        conversationId: true,
-        lastReadAt: true,
-      },
-    });
-    const lastReadMap = new Map(
-      currentParticipants.map((participant) => [participant.conversationId, participant.lastReadAt]),
-    );
-
     const unreadCounts = await Promise.all(
       conversations.map((conversation) =>
-        prisma.message.count({
+        prisma.notification.count({
           where: {
-            conversationId: conversation.id,
-            senderId: { not: admin.id },
-            ...(lastReadMap.get(conversation.id)
-              ? { createdAt: { gt: lastReadMap.get(conversation.id)! } }
-              : {}),
+            userId: admin.id,
+            type: "MESSAGE",
+            targetType: "conversation",
+            targetId: conversation.id,
+            isRead: false,
           },
         }),
       ),
@@ -149,6 +143,14 @@ export async function POST(request: Request) {
           subject: payload.subject ?? null,
         });
 
+        await assignSupportConversation(tx, {
+          conversationId: supportConversation.id,
+          assignedAdminId: admin.id,
+          assignedByUserId: admin.id,
+          eventType: "CLAIM",
+          note: "Claimed on conversation creation.",
+        });
+
         if (payload.initialMessage) {
           const message = await createConversationMessage(tx, {
             conversationId: supportConversation.id,
@@ -170,34 +172,23 @@ export async function POST(request: Request) {
         throw new Error("SELLER_NOT_FOUND");
       }
 
-      const uniqueKey = `admin-seller:${admin.id}:${seller.userId}`;
-      let existing = await tx.conversation.findUnique({ where: { uniqueKey } });
-      if (!existing) {
-        const { reserveSequentialId } = await import("@/lib/id-sequence");
-        const conversationId = await reserveSequentialId(tx, "conversation");
-        const participantId1 = await reserveSequentialId(tx, "conversation_participant");
-        const participantId2 = await reserveSequentialId(tx, "conversation_participant");
-        await tx.conversation.create({
-          data: {
-            id: conversationId,
-            type: ConversationType.BUYER_SUPPORT,
-            uniqueKey,
-            subject: payload.subject ?? null,
-            relatedParentOrderId: payload.relatedParentOrderId ?? null,
-            participants: {
-              create: [
-                { id: participantId1, userId: admin.id },
-                { id: participantId2, userId: seller.userId },
-              ],
-            },
-          },
-        });
-        existing = await tx.conversation.findUniqueOrThrow({ where: { id: conversationId } });
-      }
+      const supportConversation = await ensureSellerSupportConversation(tx, {
+        sellerUserId: seller.userId,
+        supportUserId: admin.id,
+        subject: payload.subject ?? null,
+      });
+
+      await assignSupportConversation(tx, {
+        conversationId: supportConversation.id,
+        assignedAdminId: admin.id,
+        assignedByUserId: admin.id,
+        eventType: "CLAIM",
+        note: "Claimed on conversation creation.",
+      });
 
       if (payload.initialMessage) {
         const message = await createConversationMessage(tx, {
-          conversationId: existing.id,
+          conversationId: supportConversation.id,
           senderId: admin.id,
           body: payload.initialMessage,
           relatedParentOrderId: payload.relatedParentOrderId ?? null,
@@ -205,7 +196,7 @@ export async function POST(request: Request) {
         createdMessageId = message.id;
       }
 
-      return { conversation: existing, createdMessageId };
+      return { conversation: supportConversation, createdMessageId };
     });
 
     if (created.createdMessageId) {
@@ -215,6 +206,20 @@ export async function POST(request: Request) {
     const hydrated = await prisma.conversation.findUniqueOrThrow({
       where: { id: created.conversation.id },
       include: {
+        assignments: {
+          include: {
+            assignedAdmin: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                isActive: true,
+                lastActiveAt: true,
+              },
+            },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        },
         participants: {
           include: {
             user: {

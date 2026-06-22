@@ -25,6 +25,9 @@ class SellerOrderGroup {
     required this.groupTotal,
     required this.timeline,
     required this.currentTimelineStep,
+    required this.statusHistory,
+    this.logisticsCompanyId,
+    this.logisticsCompanyName,
   });
 
   final String id;
@@ -42,6 +45,9 @@ class SellerOrderGroup {
   final int groupTotal;
   final List<String> timeline;
   final int currentTimelineStep;
+  final List<OrderStatusHistoryEntry> statusHistory;
+  final String? logisticsCompanyId;
+  final String? logisticsCompanyName;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -59,7 +65,49 @@ class SellerOrderGroup {
         'groupTotal': groupTotal,
         'timeline': timeline,
         'currentTimelineStep': currentTimelineStep,
+        'statusHistory': statusHistory.map((entry) => entry.toJson()).toList(),
+        'logisticsCompanyId': logisticsCompanyId,
+        'logisticsCompanyName': logisticsCompanyName,
       };
+}
+
+class OrderStatusHistoryEntry {
+  const OrderStatusHistoryEntry({
+    required this.id,
+    required this.status,
+    required this.createdAt,
+    this.description,
+    this.updatedByRole,
+    this.updatedByUserName,
+  });
+
+  final String id;
+  final String status;
+  final DateTime createdAt;
+  final String? description;
+  final String? updatedByRole;
+  final String? updatedByUserName;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'status': status,
+        'createdAt': createdAt.toIso8601String(),
+        'description': description,
+        'updatedByRole': updatedByRole,
+        'updatedByUserName': updatedByUserName,
+      };
+
+  factory OrderStatusHistoryEntry.fromJson(Map<String, dynamic> json) {
+    return OrderStatusHistoryEntry(
+      id: json['id'] as String? ?? '',
+      status: json['status'] as String? ?? 'PENDING',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      description: json['description'] as String?,
+      updatedByRole: json['updatedByRole'] as String?,
+      updatedByUserName: json['updatedByUserName'] as String?,
+    );
+  }
 }
 
 class MarketplaceOrder {
@@ -289,6 +337,13 @@ MarketplaceOrder _marketplaceOrderFromJson(Map<String, dynamic> json) {
             groupTotal: (group['groupTotal'] as num).toInt(),
             timeline: (group['timeline'] as List<dynamic>).map((item) => '$item').toList(),
             currentTimelineStep: (group['currentTimelineStep'] as num).toInt(),
+            statusHistory:
+                (group['statusHistory'] as List<dynamic>? ?? const <dynamic>[])
+                    .whereType<Map<String, dynamic>>()
+                    .map(OrderStatusHistoryEntry.fromJson)
+                    .toList(),
+            logisticsCompanyId: group['logisticsCompanyId'] as String?,
+            logisticsCompanyName: group['logisticsCompanyName'] as String?,
           ),
         )
         .toList(),
@@ -340,7 +395,31 @@ MarketplaceOrder orderFromApiJson(
       final sellerId = groupJson['sellerId'] as String? ?? 'unknown';
       final rawStatus = (groupJson['status'] as String?) ?? 'PENDING';
       final status = _groupStatusLabel(rawStatus);
-      final timelineStep = _timelineStepForStatus(rawStatus);
+      final statusHistory = (groupJson['statusHistory'] as List<dynamic>? ??
+              const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (entryJson) => OrderStatusHistoryEntry(
+              id: entryJson['id'] as String? ?? '',
+              status: (entryJson['status'] as String?) ?? 'PENDING',
+              createdAt: DateTime.tryParse(
+                    entryJson['createdAt'] as String? ?? '',
+                  ) ??
+                  DateTime.fromMillisecondsSinceEpoch(0),
+              description: entryJson['description'] as String?,
+              updatedByRole: entryJson['updatedByRole'] as String?,
+              updatedByUserName:
+                  (entryJson['updatedByUser'] as Map<String, dynamic>?)?['fullName']
+                      as String?,
+            ),
+          )
+          .toList();
+      final timelineLabels = statusHistory.isNotEmpty
+          ? statusHistory.map((entry) => _timelineLabelForStatus(entry.status)).toList()
+          : _defaultTimeline;
+      final timelineStep = statusHistory.isNotEmpty
+          ? statusHistory.length - 1
+          : _timelineStepForStatus(rawStatus);
       final rawItems = (groupJson['items'] as List<dynamic>? ?? const <dynamic>[])
           .whereType<Map<String, dynamic>>()
           .toList();
@@ -424,8 +503,15 @@ MarketplaceOrder orderFromApiJson(
         shippingFee: (groupJson['shippingFee'] as num?)?.toInt() ?? 0,
         discountTotal: (groupJson['discountTotal'] as num?)?.toInt() ?? 0,
         groupTotal: (groupJson['groupTotal'] as num?)?.toInt() ?? 0,
-        timeline: _defaultTimeline,
+        timeline: timelineLabels,
         currentTimelineStep: timelineStep,
+        statusHistory: statusHistory,
+        logisticsCompanyId: groupJson['logisticsCompanyId'] as String?,
+        logisticsCompanyName: (groupJson['logisticsCompanyNameSnapshot']
+                as String?) ??
+            (groupJson['logisticsCompanyName'] as String?) ??
+            (groupJson['logisticsCompany'] as Map<String, dynamic>?)?['companyName']
+                as String?,
       );
     }).toList(),
   );
@@ -472,6 +558,27 @@ int _timelineStepForStatus(String rawStatus) {
       return 4;
     default:
       return 0;
+  }
+}
+
+String _timelineLabelForStatus(String rawStatus) {
+  switch (rawStatus.toUpperCase()) {
+    case 'PENDING':
+      return 'Order placed';
+    case 'CONFIRMED':
+      return 'Payment confirmed';
+    case 'PROCESSING':
+      return 'Seller processing';
+    case 'SHIPPED':
+      return 'Out for delivery';
+    case 'DELIVERED':
+      return 'Delivered';
+    case 'CANCELLED':
+      return 'Cancelled';
+    case 'REFUNDED':
+      return 'Refund completed';
+    default:
+      return rawStatus;
   }
 }
 

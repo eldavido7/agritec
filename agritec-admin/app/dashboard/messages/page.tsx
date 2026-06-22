@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlertCircle,
-  ChevronDown,
   ExternalLink,
   FileImage,
   FileText,
@@ -15,28 +14,42 @@ import {
   RefreshCw,
   Search,
   Send,
+  UserCheck,
+  UserPlus,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import { toast } from "sonner";
 import { adminUploadRequest } from "@/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { useAdminAdminsStore } from "@/stores/admin-admins-store";
 import { useAdminAuthStore } from "@/stores/admin-auth-store";
 import { useAdminBuyersStore } from "@/stores/admin-buyers-store";
 import {
+  AdminConversationRecord,
   AdminMessageAttachmentInput,
   useAdminMessagesStore,
 } from "@/stores/admin-messages-store";
 import { useAdminSellersStore } from "@/stores/admin-sellers-store";
-import Image from "next/image";
 
 const CHAT_ATTACHMENT_LIMIT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_CHAT_ATTACHMENT_MIME_TYPES = ["application/pdf"] as const;
 
+type QueueTab = "all" | "assigned" | "unassigned" | "resolved";
+
+type PendingAttachment = Partial<AdminMessageAttachmentInput> & {
+  id: string;
+  file?: File;
+  previewUrl?: string;
+  isLocalDraft?: boolean;
+  originalFilename: string;
+};
+
 function formatTimestamp(value: string | null) {
-  if (!value) return "No messages yet";
+  if (!value) return "No activity yet";
   return new Intl.DateTimeFormat("en-NG", {
     month: "short",
     day: "numeric",
@@ -48,14 +61,6 @@ function formatTimestamp(value: string | null) {
 function isImageMimeType(mimeType: string | null | undefined) {
   return Boolean(mimeType && mimeType.toLowerCase().startsWith("image/"));
 }
-
-type PendingAttachment = Partial<AdminMessageAttachmentInput> & {
-  id: string;
-  file?: File;
-  previewUrl?: string;
-  isLocalDraft?: boolean;
-  originalFilename: string;
-};
 
 function isAllowedChatAttachment(file: File) {
   return (
@@ -70,14 +75,45 @@ function formatFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function getConversationCounterparty(conversation: AdminConversationRecord) {
+  const nonAdmins = conversation.participants.filter(
+    (participant) => participant.role.toUpperCase() !== "ADMIN",
+  );
+  return nonAdmins[0] ?? conversation.participants[0] ?? null;
+}
+
+function getConversationTitle(conversation: AdminConversationRecord) {
+  const participant = getConversationCounterparty(conversation);
+  return participant?.fullName || conversation.subject || "Support conversation";
+}
+
+function getQueueLabel(conversation: AdminConversationRecord, currentAdminId: string | null) {
+  if (!conversation.support) return "support";
+  if (conversation.support.lifecycleStatus === "RESOLVED") return "resolved";
+  if (
+    conversation.support.queueState === "ASSIGNED" &&
+    conversation.support.currentAssignedAdmin?.id === currentAdminId
+  ) {
+    return "assigned to you";
+  }
+  if (conversation.support.queueState === "ASSIGNED") return "assigned";
+  return "unassigned";
+}
+
 export default function MessagesPage() {
   const searchParams = useSearchParams();
   const adminToken = useAdminAuthStore((state) => state.token);
+  const currentAdmin = useAdminAuthStore((state) => state.user);
   const buyers = useAdminBuyersStore((state) => state.buyers);
   const sellers = useAdminSellersStore((state) => state.sellers);
+  const admins = useAdminAdminsStore((state) => state.admins);
   const fetchBuyers = useAdminBuyersStore((state) => state.fetchBuyers);
   const fetchSellers = useAdminSellersStore((state) => state.fetchSellers);
+  const fetchAdmins = useAdminAdminsStore((state) => state.fetchAdmins);
   const conversations = useAdminMessagesStore((state) => state.conversations);
+  const detailsByConversationId = useAdminMessagesStore(
+    (state) => state.detailsByConversationId,
+  );
   const messagesByConversationId = useAdminMessagesStore(
     (state) => state.messagesByConversationId,
   );
@@ -87,36 +123,43 @@ export default function MessagesPage() {
   );
   const isSending = useAdminMessagesStore((state) => state.isSending);
   const isCreating = useAdminMessagesStore((state) => state.isCreating);
+  const isUpdatingSupport = useAdminMessagesStore(
+    (state) => state.isUpdatingSupport,
+  );
   const fetchConversations = useAdminMessagesStore(
     (state) => state.fetchConversations,
   );
-  const fetchMessages = useAdminMessagesStore((state) => state.fetchMessages);
+  const fetchConversationDetail = useAdminMessagesStore(
+    (state) => state.fetchConversationDetail,
+  );
   const sendMessage = useAdminMessagesStore((state) => state.sendMessage);
   const createConversation = useAdminMessagesStore(
     (state) => state.createConversation,
   );
+  const addInternalComment = useAdminMessagesStore(
+    (state) => state.addInternalComment,
+  );
+  const updateSupportConversation = useAdminMessagesStore(
+    (state) => state.updateSupportConversation,
+  );
 
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [queueTab, setQueueTab] = useState<QueueTab>("assigned");
   const [searchTerm, setSearchTerm] = useState("");
   const [participantSearch, setParticipantSearch] = useState("");
   const [newChatMode, setNewChatMode] = useState(false);
-  const [selectedConversationId, setSelectedConversationId] = useState<
-    string | null
-  >(null);
   const [messageInput, setMessageInput] = useState("");
-  const [conversationPage, setConversationPage] = useState(1);
-  const [pendingAttachments, setPendingAttachments] = useState<
-    PendingAttachment[]
-  >([]);
+  const [internalCommentInput, setInternalCommentInput] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
-  const [showNewMessageJump, setShowNewMessageJump] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [assignmentTargetAdminId, setAssignmentTargetAdminId] = useState<string>("");
 
-  const conversationsPerPage = 10;
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
-  const previousMessageCountRef = useRef(0);
-  const previousConversationRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingAttachmentsRef = useRef<PendingAttachment[]>([]);
+
+  const currentAdminId = currentAdmin?.id ?? null;
 
   function cleanupPendingAttachments(attachments: PendingAttachment[]) {
     for (const attachment of attachments) {
@@ -129,66 +172,64 @@ export default function MessagesPage() {
   function scrollMessagesToBottom(behavior: ScrollBehavior = "smooth") {
     const node = messagesScrollRef.current;
     if (!node) return;
-
-    node.scrollTo({
-      top: node.scrollHeight,
-      behavior,
-    });
+    node.scrollTo({ top: node.scrollHeight, behavior });
   }
 
-  function isNearMessagesBottom() {
-    const node = messagesScrollRef.current;
-    if (!node) return true;
+  useEffect(() => {
+    pendingAttachmentsRef.current = pendingAttachments;
+  }, [pendingAttachments]);
 
-    return node.scrollHeight - node.scrollTop - node.clientHeight < 120;
-  }
+  useEffect(() => {
+    return () => {
+      cleanupPendingAttachments(pendingAttachmentsRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     void fetchConversations();
     void fetchBuyers();
     void fetchSellers();
-  }, [fetchBuyers, fetchConversations, fetchSellers]);
+    void fetchAdmins();
+  }, [fetchAdmins, fetchBuyers, fetchConversations, fetchSellers]);
 
   useEffect(() => {
-    const refreshConversations = () => {
+    const refresh = () => {
       if (document.visibilityState === "visible") {
         void fetchConversations({ force: true });
+        if (selectedConversationId) {
+          void fetchConversationDetail(selectedConversationId, { force: true });
+        }
       }
     };
 
-    const interval = window.setInterval(refreshConversations, 12000);
-    window.addEventListener("focus", refreshConversations);
-    document.addEventListener("visibilitychange", refreshConversations);
+    const interval = window.setInterval(refresh, 12000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
 
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener("focus", refreshConversations);
-      document.removeEventListener("visibilitychange", refreshConversations);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
     };
-  }, [fetchConversations]);
+  }, [fetchConversationDetail, fetchConversations, selectedConversationId]);
 
   useEffect(() => {
-    if (!selectedConversationId) return;
+    const conversationId = searchParams.get("conversationId");
+    if (conversationId) {
+      setSelectedConversationId(conversationId);
+      void fetchConversationDetail(conversationId, { force: true });
+    }
+  }, [fetchConversationDetail, searchParams]);
 
-    void fetchMessages(selectedConversationId, { force: true });
-
-    const refreshMessages = () => {
-      if (document.visibilityState === "visible") {
-        void fetchMessages(selectedConversationId, { force: true });
-        void fetchConversations({ force: true });
-      }
-    };
-
-    const interval = window.setInterval(refreshMessages, 4000);
-    window.addEventListener("focus", refreshMessages);
-    document.addEventListener("visibilitychange", refreshMessages);
-
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refreshMessages);
-      document.removeEventListener("visibilitychange", refreshMessages);
-    };
-  }, [fetchConversations, fetchMessages, selectedConversationId]);
+  useEffect(() => {
+    if (!selectedConversationId || !detailsByConversationId[selectedConversationId]) {
+      return;
+    }
+    const assignedAdminId =
+      detailsByConversationId[selectedConversationId].conversation.support
+        ?.currentAssignedAdmin?.id ?? "";
+    setAssignmentTargetAdminId(assignedAdminId);
+  }, [detailsByConversationId, selectedConversationId]);
 
   const participants = useMemo(
     () => [
@@ -212,142 +253,85 @@ export default function MessagesPage() {
     [buyers, sellers],
   );
 
-  useEffect(() => {
-    const participantType = searchParams.get("participantType");
-    const participantId = searchParams.get("participantId");
-    const conversationId = searchParams.get("conversationId");
-
-    if (conversationId) {
-      setSelectedConversationId(conversationId);
-      setNewChatMode(false);
-      return;
-    }
-
-    if (participantType && participantId && conversations.length > 0) {
-      const matchedParticipant = participants.find(
-        (participant) =>
-          participant.id === participantId &&
-          participant.type === participantType,
-      );
-      const conversation = conversations.find((entry) =>
-        entry.participants.some(
-          (participant) =>
-            !participant.isCurrentUser &&
-            participant.userId ===
-              (matchedParticipant?.userId ?? participantId) &&
-            participant.role === participantType.toUpperCase(),
-        ),
-      );
-
-      if (conversation) {
-        setSelectedConversationId(conversation.id);
-        setNewChatMode(false);
-      }
-    }
-  }, [searchParams, conversations, participants]);
-
-  useEffect(() => {
-    setPendingAttachments((current) => {
-      cleanupPendingAttachments(current);
-      return [];
-    });
-  }, [selectedConversationId]);
-
-  useEffect(() => {
-    pendingAttachmentsRef.current = pendingAttachments;
-  }, [pendingAttachments]);
-
-  useEffect(() => {
-    return () => {
-      cleanupPendingAttachments(pendingAttachmentsRef.current);
-    };
-  }, []);
-
   const filteredParticipants = participants.filter((participant) =>
     `${participant.name} ${participant.email} ${participant.phone}`
       .toLowerCase()
       .includes(participantSearch.toLowerCase()),
   );
 
-  const filteredConversations = conversations.filter((conversation) => {
-    const otherParticipant = conversation.participants.find(
-      (participant) => !participant.isCurrentUser,
-    );
-    const searchBase = `${otherParticipant?.fullName || ""} ${
-      conversation.subject || ""
-    } ${conversation.latestMessage?.body || ""}`;
-    return searchBase.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const filteredConversations = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
 
-  const totalConversationPages = Math.max(
-    1,
-    Math.ceil(filteredConversations.length / conversationsPerPage),
-  );
+    return conversations
+      .filter((conversation) => {
+        const support = conversation.support;
+        if (!support) return false;
 
-  const paginatedConversations = filteredConversations.slice(
-    (conversationPage - 1) * conversationsPerPage,
-    conversationPage * conversationsPerPage,
-  );
+        if (queueTab === "assigned") {
+          return (
+            support.lifecycleStatus === "ACTIVE" &&
+            support.queueState === "ASSIGNED" &&
+            support.currentAssignedAdmin?.id === currentAdminId
+          );
+        }
+        if (queueTab === "unassigned") {
+          return (
+            support.lifecycleStatus === "ACTIVE" &&
+            support.queueState === "UNASSIGNED"
+          );
+        }
+        if (queueTab === "resolved") {
+          return support.lifecycleStatus === "RESOLVED";
+        }
+        return true;
+      })
+      .filter((conversation) => {
+        if (!query) return true;
+        const searchBase = `${getConversationTitle(conversation)} ${
+          conversation.subject || ""
+        } ${conversation.latestMessage?.body || ""}`;
+        return searchBase.toLowerCase().includes(query);
+      });
+  }, [conversations, currentAdminId, queueTab, searchTerm]);
 
-  useEffect(() => {
-    setConversationPage(1);
-  }, [searchTerm, newChatMode]);
-
-  const currentConversation = selectedConversationId
-    ? conversations.find(
-        (conversation) => conversation.id === selectedConversationId,
-      ) || null
+  const currentDetail = selectedConversationId
+    ? detailsByConversationId[selectedConversationId] ?? null
+    : null;
+  const currentConversation = currentDetail?.conversation ?? null;
+  const currentMessages = selectedConversationId
+    ? messagesByConversationId[selectedConversationId] ?? []
+    : [];
+  const currentCounterparty = currentConversation
+    ? getConversationCounterparty(currentConversation)
     : null;
 
-  const currentMessages = selectedConversationId
-    ? messagesByConversationId[selectedConversationId] || []
-    : [];
-
-  const currentParticipant = currentConversation?.participants.find(
-    (participant) => !participant.isCurrentUser,
+  const canReplyPublicly = Boolean(
+    currentConversation &&
+      currentConversation.support &&
+      (currentConversation.support.lifecycleStatus === "RESOLVED" ||
+        currentConversation.support.queueState === "UNASSIGNED" ||
+        currentConversation.support.currentAssignedAdmin?.id === currentAdminId),
   );
 
-  useEffect(() => {
-    const count = currentMessages.length;
-    const conversationChanged =
-      previousConversationRef.current !== selectedConversationId;
-
-    if (conversationChanged) {
-      previousConversationRef.current = selectedConversationId;
-      previousMessageCountRef.current = count;
-      setShowNewMessageJump(false);
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => scrollMessagesToBottom("auto"));
-      });
-      return;
-    }
-
-    if (count > previousMessageCountRef.current && !isNearMessagesBottom()) {
-      setShowNewMessageJump(true);
-    }
-
-    previousMessageCountRef.current = count;
-  }, [selectedConversationId, currentMessages.length]);
-
-  const handleOpenConversation = async (conversationId: string) => {
+  async function handleOpenConversation(conversationId: string) {
     setSelectedConversationId(conversationId);
     setNewChatMode(false);
-
+    cleanupPendingAttachments(pendingAttachments);
+    setPendingAttachments([]);
     try {
-      await fetchMessages(conversationId, { force: true });
-      await fetchConversations({ force: true });
+      await fetchConversationDetail(conversationId, { force: true });
+      window.setTimeout(() => scrollMessagesToBottom("auto"), 0);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to load messages",
+        error instanceof Error ? error.message : "Failed to load conversation",
       );
     }
-  };
+  }
 
-  const handleCreateConversation = async (
+  async function handleCreateConversation(
     participantId: string,
     participantType: "buyer" | "seller",
-  ) => {
+  ) {
     try {
       const conversation = await createConversation({
         participantId,
@@ -356,15 +340,46 @@ export default function MessagesPage() {
       setSelectedConversationId(conversation.id);
       setNewChatMode(false);
       setParticipantSearch("");
-      await fetchMessages(conversation.id, { force: true });
+      await fetchConversationDetail(conversation.id, { force: true });
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Failed to create conversation",
+          : "Failed to create support conversation",
       );
     }
-  };
+  }
+
+  async function handleSupportAction(
+    action: "claim" | "assign" | "reassign" | "unassign" | "resolve" | "reopen",
+  ) {
+    if (!selectedConversationId) return;
+    try {
+      await updateSupportConversation(selectedConversationId, {
+        action,
+        assignedAdminId:
+          action === "assign" || action === "reassign"
+            ? assignmentTargetAdminId || null
+            : null,
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update support queue",
+      );
+    }
+  }
+
+  async function handleAddInternalComment() {
+    if (!selectedConversationId || !internalCommentInput.trim()) return;
+    try {
+      await addInternalComment(selectedConversationId, internalCommentInput);
+      setInternalCommentInput("");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to add internal note",
+      );
+    }
+  }
 
   async function handleAttachmentSelection(
     event: React.ChangeEvent<HTMLInputElement>,
@@ -408,13 +423,7 @@ export default function MessagesPage() {
     }
 
     if (nextDrafts.length === 0) return;
-
     setPendingAttachments((current) => [...current, ...nextDrafts]);
-    toast.success(
-      nextDrafts.length === 1
-        ? "Attachment added. It will upload when you send the message."
-        : `${nextDrafts.length} attachments added. They will upload when you send the message.`,
-    );
   }
 
   function handleRemovePendingAttachment(attachmentId: string) {
@@ -427,26 +436,18 @@ export default function MessagesPage() {
     });
   }
 
-  const handleSendMessage = async () => {
+  async function handleSendMessage() {
     if (!selectedConversationId) return;
-
     const body = messageInput.trim();
     if (!body && pendingAttachments.length === 0) return;
-
     if (!adminToken) {
       toast.error("Admin session not found");
       return;
     }
 
-    const originalBody = messageInput;
-    setMessageInput("");
-
     try {
       setIsUploadingAttachment(true);
-
-      await sendMessage(
-        selectedConversationId,
-        body,
+      const uploadedAttachments: AdminMessageAttachmentInput[] =
         await Promise.all(
           pendingAttachments.map(async (attachment) => {
             if (attachment.file) {
@@ -455,23 +456,22 @@ export default function MessagesPage() {
                 "chat",
                 adminToken,
               );
-
               return {
                 secureUrl: result.asset.secureUrl,
                 publicId: result.asset.publicId,
                 mimeType: result.asset.mimeType ?? attachment.file.type,
               };
             }
-
             return {
               secureUrl: attachment.secureUrl ?? "",
               publicId: attachment.publicId ?? "",
               mimeType: attachment.mimeType ?? null,
             };
           }),
-        ),
-      );
+        );
 
+      await sendMessage(selectedConversationId, body, uploadedAttachments);
+      setMessageInput("");
       cleanupPendingAttachments(pendingAttachments);
       setPendingAttachments([]);
       window.setTimeout(() => scrollMessagesToBottom("smooth"), 0);
@@ -479,91 +479,89 @@ export default function MessagesPage() {
       toast.error(
         error instanceof Error ? error.message : "Failed to send message",
       );
-      setMessageInput(originalBody);
     } finally {
       setIsUploadingAttachment(false);
     }
-  };
+  }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] min-h-0 flex-col overflow-hidden">
-      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex h-[calc(100vh-7rem)] min-h-0 flex-col overflow-hidden gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-muted-foreground">
-            Communicate with sellers and buyers
+            Support queue for buyer and seller conversations handled by admins.
           </p>
         </div>
 
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setNewChatMode((current) => !current)}
           className="gap-2"
+          onClick={() => setNewChatMode((current) => !current)}
         >
-          {isCreating ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Plus className="h-4 w-4" />
-          )}
-          {newChatMode ? "Close" : "New Chat"}
+          <Plus className="h-4 w-4" />
+          {newChatMode ? "Close" : "New Support Thread"}
         </Button>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden lg:grid-cols-3">
-        <Card className="flex min-h-0 flex-col border-border/50 lg:col-span-1">
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden lg:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="flex min-h-0 flex-col overflow-hidden">
           <CardHeader className="border-b border-border/50 pb-4">
-            <CardTitle className="text-base">Conversations</CardTitle>
+            <CardTitle className="text-base">Support Queue</CardTitle>
           </CardHeader>
 
           <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden pt-4">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {(["assigned", "unassigned", "resolved", "all"] as QueueTab[]).map(
+                (tab) => (
+                  <Button
+                    key={tab}
+                    type="button"
+                    size="sm"
+                    variant={queueTab === tab ? "default" : "outline"}
+                    onClick={() => setQueueTab(tab)}
+                  >
+                    {tab}
+                  </Button>
+                ),
+              )}
+            </div>
+
             {newChatMode ? (
               <div className="space-y-3 pb-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search buyers or sellers..."
-                    value={participantSearch}
-                    onChange={(event) =>
-                      setParticipantSearch(event.target.value)
-                    }
-                    className="pl-10"
-                  />
-                </div>
-
+                <Input
+                  placeholder="Search buyers or sellers..."
+                  value={participantSearch}
+                  onChange={(event) => setParticipantSearch(event.target.value)}
+                />
                 <div className="max-h-64 overflow-y-auto rounded-lg border border-border/50 bg-background p-2">
-                  {filteredParticipants.length > 0 ? (
-                    filteredParticipants.map((participant) => (
-                      <button
-                        key={`${participant.type}-${participant.id}`}
-                        type="button"
-                        onClick={() =>
-                          void handleCreateConversation(
-                            participant.id,
-                            participant.type,
-                          )
-                        }
-                        className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {participant.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {participant.type}
-                            </p>
-                          </div>
-
-                          <span className="rounded-full bg-secondary/10 px-2 py-1 text-[11px] uppercase tracking-[0.08em] text-secondary-foreground">
+                  {filteredParticipants.map((participant) => (
+                    <button
+                      key={`${participant.type}-${participant.id}`}
+                      type="button"
+                      onClick={() =>
+                        void handleCreateConversation(
+                          participant.id,
+                          participant.type,
+                        )
+                      }
+                      className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-foreground">
+                            {participant.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
                             {participant.type}
-                          </span>
+                          </p>
                         </div>
-                      </button>
-                    ))
-                  ) : (
-                    <p className="px-3 py-4 text-sm text-muted-foreground">
-                      No participants found.
-                    </p>
-                  )}
+                        <span className="rounded-full bg-secondary/10 px-2 py-1 text-[11px] uppercase tracking-[0.08em] text-secondary-foreground">
+                          {participant.type}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
             ) : (
@@ -571,7 +569,7 @@ export default function MessagesPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Search conversations..."
+                    placeholder="Search support conversations..."
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     className="pl-10"
@@ -581,64 +579,48 @@ export default function MessagesPage() {
             )}
 
             <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-              {paginatedConversations.length > 0 ? (
-                paginatedConversations.map((conversation) => {
-                  const participant = conversation.participants.find(
-                    (entry) => !entry.isCurrentUser,
-                  );
-                  const title =
-                    participant?.fullName ||
-                    conversation.subject ||
-                    "Conversation";
-
-                  return (
-                    <button
-                      key={conversation.id}
-                      onClick={() =>
-                        void handleOpenConversation(conversation.id)
-                      }
-                      className={`min-h-24 w-full rounded-md p-3 text-left transition-colors ${
-                        selectedConversationId === conversation.id
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-muted/50"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-sm font-semibold">
-                          {title.slice(0, 1).toUpperCase()}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="truncate font-medium">{title}</p>
-
-                            {conversation.unreadCount > 0 ? (
-                              <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
-                                {conversation.unreadCount}
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <p className="mt-1 line-clamp-2 text-xs opacity-80">
-                            {conversation.latestMessage?.body ||
-                              "No messages yet"}
-                          </p>
-
-                          <p className="mt-2 text-xs opacity-70">
+              {filteredConversations.length > 0 ? (
+                filteredConversations.map((conversation) => (
+                  <button
+                    key={conversation.id}
+                    type="button"
+                    onClick={() => void handleOpenConversation(conversation.id)}
+                    className={`w-full rounded-md border p-3 text-left transition-colors ${
+                      selectedConversationId === conversation.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border/50 hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">
+                          {getConversationTitle(conversation)}
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {conversation.latestMessage?.body || "No messages yet"}
+                        </p>
+                        <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                          <span>{getQueueLabel(conversation, currentAdminId)}</span>
+                          <span>•</span>
+                          <span>
                             {formatTimestamp(
-                              conversation.lastMessageAt ||
-                                conversation.updatedAt,
+                              conversation.lastMessageAt || conversation.updatedAt,
                             )}
-                          </p>
+                          </span>
                         </div>
                       </div>
-                    </button>
-                  );
-                })
+                      {conversation.unreadCount > 0 ? (
+                        <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+                          {conversation.unreadCount}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                ))
               ) : isLoading ? (
                 <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
                   <Spinner className="size-4" />
-                  <span>Loading conversations...</span>
+                  <span>Loading support queue...</span>
                 </div>
               ) : (
                 <div className="rounded-xl border border-dashed border-border/60 bg-background px-4 py-8 text-center text-sm text-muted-foreground">
@@ -646,318 +628,406 @@ export default function MessagesPage() {
                 </div>
               )}
             </div>
-
-            {filteredConversations.length > conversationsPerPage ? (
-              <div className="flex items-center justify-between border-t border-border/50 px-4 py-3">
-                <p className="text-xs text-muted-foreground">
-                  Page {conversationPage} of {totalConversationPages}
-                </p>
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={conversationPage === 1}
-                    onClick={() =>
-                      setConversationPage((prev) => Math.max(1, prev - 1))
-                    }
-                  >
-                    Previous
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={conversationPage === totalConversationPages}
-                    onClick={() =>
-                      setConversationPage((prev) =>
-                        Math.min(totalConversationPages, prev + 1),
-                      )
-                    }
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            ) : null}
           </CardContent>
         </Card>
+
         {currentConversation ? (
-          <Card className="flex min-h-0 flex-col overflow-hidden border-border/50 lg:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/50 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10 text-sm font-semibold">
-                  {(currentParticipant?.fullName || "C")
-                    .slice(0, 1)
-                    .toUpperCase()}
+          <Card className="flex min-h-0 flex-col overflow-hidden">
+            <CardHeader className="border-b border-border/50 pb-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <CardTitle className="text-base">
+                    {getConversationTitle(currentConversation)}
+                  </CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {currentCounterparty?.role?.toLowerCase() || "support"} •{" "}
+                    {getQueueLabel(currentConversation, currentAdminId)}
+                  </p>
                 </div>
 
-                <div>
-                  <p className="font-medium text-foreground">
-                    {currentParticipant?.fullName ||
-                      currentConversation.subject ||
-                      "Conversation"}
-                  </p>
-                  <p className="text-xs capitalize text-muted-foreground">
-                    {currentParticipant?.role?.toLowerCase() ||
-                      currentConversation.type.toLowerCase()}
-                  </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() =>
+                      selectedConversationId &&
+                      void fetchConversationDetail(selectedConversationId, {
+                        force: true,
+                      })
+                    }
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </Button>
+                  {currentConversation.support?.queueState === "UNASSIGNED" &&
+                  currentConversation.support.lifecycleStatus === "ACTIVE" ? (
+                    <Button
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => void handleSupportAction("claim")}
+                      disabled={isUpdatingSupport}
+                    >
+                      <UserCheck className="h-4 w-4" />
+                      Claim
+                    </Button>
+                  ) : null}
+                  {currentConversation.support?.lifecycleStatus === "ACTIVE" &&
+                  currentConversation.support.currentAssignedAdmin?.id ===
+                    currentAdminId ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleSupportAction("unassign")}
+                        disabled={isUpdatingSupport}
+                      >
+                        Return to Queue
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => void handleSupportAction("resolve")}
+                        disabled={isUpdatingSupport}
+                      >
+                        Resolve
+                      </Button>
+                    </>
+                  ) : null}
+                  {currentConversation.support?.lifecycleStatus === "RESOLVED" ? (
+                    <Button
+                      size="sm"
+                      onClick={() => void handleSupportAction("reopen")}
+                      disabled={isUpdatingSupport}
+                    >
+                      Reopen
+                    </Button>
+                  ) : null}
                 </div>
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() =>
-                  selectedConversationId &&
-                  void fetchMessages(selectedConversationId, { force: true })
-                }
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </Button>
+              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <select
+                  value={assignmentTargetAdminId}
+                  onChange={(event) =>
+                    setAssignmentTargetAdminId(event.target.value)
+                  }
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Select admin</option>
+                  {admins.map((admin) => (
+                    <option key={admin.id} value={admin.id}>
+                      {admin.fullName}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  disabled={!assignmentTargetAdminId || isUpdatingSupport}
+                  onClick={() =>
+                    void handleSupportAction(
+                      currentConversation.support?.queueState === "ASSIGNED"
+                        ? "reassign"
+                        : "assign",
+                    )
+                  }
+                >
+                  <UserPlus className="h-4 w-4" />
+                  {currentConversation.support?.queueState === "ASSIGNED"
+                    ? "Reassign"
+                    : "Assign"}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent
-              ref={messagesScrollRef}
-              onScroll={() => {
-                if (isNearMessagesBottom()) setShowNewMessageJump(false);
-              }}
-              className="relative min-h-0 flex-1 space-y-4 overflow-y-auto overflow-anchor-none bg-muted/20 p-4"
-            >
-              {isMessagesLoading && currentMessages.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-                  <Spinner className="size-4" />
-                  <span>Loading messages...</span>
-                </div>
-              ) : currentMessages.length > 0 ? (
-                currentMessages.map((message) => {
-                  const isMine = message.sender.role === "ADMIN";
 
-                  return (
-                    <div
-                      key={message.id}
-                      className={`flex ${
-                        isMine ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-[75%] rounded-md px-4 py-2 ${
-                          isMine
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-background text-foreground"
-                        }`}
-                      >
-                        {message.body ? (
-                          <p className="whitespace-pre-wrap text-sm">
-                            {message.body}
-                          </p>
-                        ) : null}
-
-                        {message.attachments.length > 0 ? (
-                          <div className="mt-3 space-y-2">
-                            {message.attachments.map((attachment) => {
-                              const image = isImageMimeType(
-                                attachment.mimeType,
-                              );
-
-                              return image ? (
-                                <button
-                                  key={attachment.id}
-                                  type="button"
-                                  onClick={() =>
-                                    setPreviewImageUrl(attachment.secureUrl)
-                                  }
-                                  className="block overflow-hidden rounded-xl border border-white/15"
-                                >
-                                  <Image
-                                    src={attachment.secureUrl}
-                                    alt="Chat attachment"
-                                    className="max-h-72 w-full object-cover"
-                                    width={400}
-                                    height={400}
-                                  />
-                                </button>
-                              ) : (
-                                <a
-                                  key={attachment.id}
-                                  href={attachment.secureUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
-                                    isMine
-                                      ? "border-white/15 bg-white/10 text-primary-foreground"
-                                      : "border-border bg-background text-foreground"
-                                  }`}
-                                >
-                                  <FileText className="h-4 w-4 shrink-0" />
-                                  <span className="truncate">
-                                    Document attachment
-                                  </span>
-                                  <ExternalLink className="ml-auto h-4 w-4 shrink-0" />
-                                </a>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-
-                        <div className="mt-1 flex items-center gap-2">
-                          <p
-                            className={`text-xs ${
+            <CardContent className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border/50">
+                <div
+                  ref={messagesScrollRef}
+                  className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-muted/20 p-4"
+                >
+                  {isMessagesLoading && currentMessages.length === 0 ? (
+                    <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+                      <Spinner className="size-4" />
+                      <span>Loading messages...</span>
+                    </div>
+                  ) : currentMessages.length > 0 ? (
+                    currentMessages.map((message) => {
+                      const isMine = message.sender.id === currentAdminId;
+                      return (
+                        <div
+                          key={message.id}
+                          className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`max-w-[80%] rounded-md px-4 py-2 ${
                               isMine
-                                ? "text-primary-foreground/70"
-                                : "text-muted-foreground"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-background text-foreground"
                             }`}
                           >
-                            {formatTimestamp(message.createdAt)}
-                          </p>
+                            {message.body ? (
+                              <p className="whitespace-pre-wrap text-sm">
+                                {message.body}
+                              </p>
+                            ) : null}
+                            {message.attachments.length > 0 ? (
+                              <div className="mt-3 space-y-2">
+                                {message.attachments.map((attachment) =>
+                                  isImageMimeType(attachment.mimeType) ? (
+                                    <button
+                                      key={attachment.id}
+                                      type="button"
+                                      onClick={() =>
+                                        setPreviewImageUrl(attachment.secureUrl)
+                                      }
+                                      className="block overflow-hidden rounded-xl border border-white/15"
+                                    >
+                                      <Image
+                                        src={attachment.secureUrl}
+                                        alt="Chat attachment"
+                                        width={400}
+                                        height={400}
+                                        className="max-h-72 w-full object-cover"
+                                      />
+                                    </button>
+                                  ) : (
+                                    <a
+                                      key={attachment.id}
+                                      href={attachment.secureUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"
+                                    >
+                                      <FileText className="h-4 w-4 shrink-0" />
+                                      <span className="truncate">
+                                        Document attachment
+                                      </span>
+                                      <ExternalLink className="ml-auto h-4 w-4 shrink-0" />
+                                    </a>
+                                  ),
+                                )}
+                              </div>
+                            ) : null}
+                            <div className="mt-2 flex items-center gap-2">
+                              <p className="text-xs opacity-75">
+                                {formatTimestamp(message.createdAt)}
+                              </p>
+                              {message.failed ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-red-200">
+                                  <AlertCircle className="h-3 w-3" />
+                                  Failed
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/60 bg-background px-4 py-8 text-center text-sm text-muted-foreground">
+                      No messages yet.
+                    </div>
+                  )}
+                </div>
 
-                          {message.failed ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-red-200">
-                              <AlertCircle className="h-3 w-3" />
-                              Failed
-                            </span>
+                <div className="border-t border-border/50 bg-background p-4">
+                  {!canReplyPublicly ? (
+                    <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700">
+                      This thread is assigned to another admin. Add an internal note
+                      or reassign it before sending a public reply.
+                    </div>
+                  ) : null}
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    accept="image/*,.pdf,application/pdf"
+                    onChange={(event) => void handleAttachmentSelection(event)}
+                  />
+
+                  {pendingAttachments.length > 0 ? (
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {pendingAttachments.map((attachment) => (
+                        <div
+                          key={attachment.id}
+                          className="flex items-center gap-2 rounded-2xl border border-border bg-secondary/20 px-3 py-2 text-xs"
+                        >
+                          {isImageMimeType(attachment.mimeType) &&
+                          attachment.previewUrl ? (
+                            <Image
+                              src={attachment.previewUrl}
+                              alt={attachment.originalFilename}
+                              width={40}
+                              height={40}
+                              className="h-10 w-10 rounded-lg object-cover"
+                            />
+                          ) : isImageMimeType(attachment.mimeType) ? (
+                            <FileImage className="h-3.5 w-3.5" />
+                          ) : (
+                            <FileText className="h-3.5 w-3.5" />
+                          )}
+                          <span className="max-w-44 truncate">
+                            {attachment.originalFilename}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRemovePendingAttachment(attachment.id)
+                            }
+                            className="rounded-full p-0.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Input
+                      placeholder="Type your public reply..."
+                      value={messageInput}
+                      onChange={(event) => setMessageInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void handleSendMessage();
+                        }
+                      }}
+                      disabled={
+                        isSending || isUploadingAttachment || !canReplyPublicly
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={
+                        isUploadingAttachment ||
+                        isSending ||
+                        !canReplyPublicly ||
+                        pendingAttachments.length >= 10
+                      }
+                    >
+                      {isUploadingAttachment ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Paperclip className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => void handleSendMessage()}
+                      disabled={
+                        isSending ||
+                        isUploadingAttachment ||
+                        !canReplyPublicly ||
+                        (!messageInput.trim() && pendingAttachments.length === 0)
+                      }
+                    >
+                      {isSending || isUploadingAttachment ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border/50">
+                <div className="border-b border-border/50 p-4">
+                  <h3 className="font-medium">Internal Notes</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Visible to admins only.
+                  </p>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
+                  {currentDetail?.assignments.length ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Assignment History
+                      </p>
+                      {currentDetail.assignments.map((assignment) => (
+                        <div
+                          key={assignment.id}
+                          className="rounded-md border border-border/50 p-3 text-sm"
+                        >
+                          <p className="font-medium">{assignment.eventType}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {assignment.assignedAdmin?.fullName || "Queue"} •{" "}
+                            {formatTimestamp(assignment.createdAt)}
+                          </p>
+                          {assignment.note ? (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {assignment.note}
+                            </p>
                           ) : null}
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  );
-                })
-              ) : (
-                <div className="rounded-xl border border-dashed border-border/60 bg-background px-4 py-8 text-center text-sm text-muted-foreground">
-                  Start the conversation with{" "}
-                  {currentParticipant?.fullName || "this contact"}.
-                </div>
-              )}
+                  ) : null}
 
-              {showNewMessageJump ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    scrollMessagesToBottom("smooth");
-                    setShowNewMessageJump(false);
-                  }}
-                  className="sticky bottom-3 left-1/2 z-10 mx-auto flex -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-lg"
-                >
-                  New message
-                  <ChevronDown className="h-4 w-4" />
-                </button>
-              ) : null}
-            </CardContent>
-            <div className="border-t border-border/50 bg-background p-4">
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                accept="image/*,.pdf,application/pdf"
-                onChange={(event) => void handleAttachmentSelection(event)}
-              />
-
-              {pendingAttachments.length > 0 ? (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {pendingAttachments.map((attachment) => {
-                    const image = isImageMimeType(attachment.mimeType);
-
-                    return (
-                      <div
-                        key={attachment.id}
-                        className="flex items-center gap-2 rounded-2xl border border-border bg-secondary/20 px-3 py-2 text-xs"
-                      >
-                        {image && attachment.previewUrl ? (
-                          <Image
-                            src={attachment.previewUrl}
-                            alt={attachment.originalFilename}
-                            className="h-10 w-10 rounded-lg object-cover"
-                            width={40}
-                            height={40}
-                          />
-                        ) : image ? (
-                          <FileImage className="h-3.5 w-3.5" />
-                        ) : (
-                          <FileText className="h-3.5 w-3.5" />
-                        )}
-
-                        <span className="max-w-44 truncate">
-                          {attachment.originalFilename}
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleRemovePendingAttachment(attachment.id)
-                          }
-                          className="rounded-full p-0.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Comments
+                    </p>
+                    {currentDetail?.internalComments.length ? (
+                      currentDetail.internalComments.map((comment) => (
+                        <div
+                          key={comment.id}
+                          className="rounded-md border border-border/50 p-3 text-sm"
                         >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
+                          <p className="whitespace-pre-wrap">{comment.body}</p>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {comment.author.fullName} •{" "}
+                            {formatTimestamp(comment.createdAt)}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No internal notes yet.
+                      </p>
+                    )}
+                  </div>
                 </div>
-              ) : null}
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Input
-                  placeholder="Type your message..."
-                  value={messageInput}
-                  onChange={(event) => setMessageInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void handleSendMessage();
-                    }
-                  }}
-                  disabled={isSending || isUploadingAttachment}
-                />
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={
-                    isUploadingAttachment ||
-                    isSending ||
-                    pendingAttachments.length >= 10
-                  }
-                  className="gap-2"
-                >
-                  {isUploadingAttachment ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Paperclip className="h-4 w-4" />
-                  )}
-                </Button>
-
-                <Button
-                  onClick={() => void handleSendMessage()}
-                  className="gap-2"
-                  disabled={
-                    isSending ||
-                    isUploadingAttachment ||
-                    (!messageInput.trim() && pendingAttachments.length === 0)
-                  }
-                >
-                  {isSending || isUploadingAttachment ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </Button>
+                <div className="border-t border-border/50 p-4">
+                  <textarea
+                    rows={3}
+                    value={internalCommentInput}
+                    onChange={(event) => setInternalCommentInput(event.target.value)}
+                    placeholder="Add internal note..."
+                    className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none"
+                  />
+                  <Button
+                    className="mt-3 w-full"
+                    variant="outline"
+                    onClick={() => void handleAddInternalComment()}
+                    disabled={isUpdatingSupport || !internalCommentInput.trim()}
+                  >
+                    Add Note
+                  </Button>
+                </div>
               </div>
-            </div>
+            </CardContent>
           </Card>
         ) : (
-          <Card className="flex min-h-0 items-center justify-center overflow-hidden border-border/50 lg:col-span-2">
+          <Card className="flex min-h-0 items-center justify-center overflow-hidden">
             <CardContent className="text-center">
               <MessageCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
               <p className="text-muted-foreground">
-                Select a conversation or start a new chat
+                Select a support conversation to open the queue workspace.
               </p>
             </CardContent>
           </Card>
         )}
       </div>
+
       {previewImageUrl ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
@@ -970,7 +1040,6 @@ export default function MessagesPage() {
           >
             <X className="h-5 w-5" />
           </button>
-
           <Image
             src={previewImageUrl}
             alt="Chat attachment preview"

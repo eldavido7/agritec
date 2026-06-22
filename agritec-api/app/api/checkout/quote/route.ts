@@ -37,11 +37,6 @@ function quoteErrorResponse(error: unknown) {
         { success: false, message: "Selected logistics company was not found" },
         { status: 404 }
       );
-    case "ALL_GROUPS_LOGISTICS_MUST_BE_NATIONWIDE":
-      return NextResponse.json(
-        { success: false, message: "All-groups logistics selection must be a nationwide company" },
-        { status: 400 }
-      );
     case "NO_ELIGIBLE_LOGISTICS_COMPANIES":
       return NextResponse.json(
         { success: false, message: "No eligible logistics companies are available for this address" },
@@ -98,6 +93,7 @@ export async function POST(request: Request) {
         discountTotal: quote.discountTotal,
         grandTotal: quote.grandTotal,
         currencyCode: quote.currencyCode,
+        allGroupsLogisticsCompanyId: quote.allGroupsLogisticsCompanyId,
         sellerGroups: quote.sellerGroups.map((group) => ({
           sellerId: group.sellerId,
           sellerName: group.sellerName,
@@ -118,7 +114,15 @@ export async function POST(request: Request) {
           discountCode: group.discountCode,
           discountApplied: group.discountApplied,
           discountSummary: group.discountSummary,
-          eligibleLogisticsCompanies: group.eligibleLogisticsCompanies,
+          eligibleLogisticsCompanies: group.eligibleLogisticsCompanies.map((company) => ({
+            id: company.id,
+            companyName: company.companyName,
+            verificationStatus: company.verificationStatus,
+            coverageType: company.coverageSummary.coverageType,
+            coveredStates: company.coverageSummary.coveredStates,
+            pricing: company.pricing,
+            coverageSummary: company.coverageSummary,
+          })),
           items: group.items.map((item) => ({
             id: item.cartItemId,
             lineKey: item.lineKey,

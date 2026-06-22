@@ -173,7 +173,7 @@ export function ViewProductModal({
               className="flex-1 border bg-red-100 border-red-200 text-red-700 hover:bg-red-200 dark:border-red-800 dark:text-red-400 dark:bg-red-900/20 dark:hover:bg-red-900/50"
               onClick={() => onDelete(product.id)}
             >
-              Archive
+              Delete
             </Button>
             <Button
               variant="outline"

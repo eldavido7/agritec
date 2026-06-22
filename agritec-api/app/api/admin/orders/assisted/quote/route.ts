@@ -60,9 +60,6 @@ function errorResponse(error: unknown) {
   if (message === "LOGISTICS_COMPANY_NOT_FOUND") {
     return NextResponse.json({ success: false, message: "Selected logistics company was not found" }, { status: 404 });
   }
-  if (message === "ALL_GROUPS_LOGISTICS_MUST_BE_NATIONWIDE") {
-    return NextResponse.json({ success: false, message: "All-groups logistics selection must be a nationwide company" }, { status: 400 });
-  }
   if (message === "NO_ELIGIBLE_LOGISTICS_COMPANIES") {
     return NextResponse.json({ success: false, message: "No eligible logistics companies are available for this address" }, { status: 400 });
   }

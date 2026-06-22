@@ -46,11 +46,6 @@ function checkoutErrorResponse(error: unknown) {
         { success: false, message: "Selected logistics company was not found" },
         { status: 404 }
       );
-    case "ALL_GROUPS_LOGISTICS_MUST_BE_NATIONWIDE":
-      return NextResponse.json(
-        { success: false, message: "All-groups logistics selection must be a nationwide company" },
-        { status: 400 }
-      );
     case "NO_ELIGIBLE_LOGISTICS_COMPANIES":
       return NextResponse.json(
         { success: false, message: "No eligible logistics companies are available for this address" },

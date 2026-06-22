@@ -13,7 +13,6 @@ import {
   allocateCombinedShippingFees,
   buildEligibleLogisticsCompanies,
   calculateLogisticsShippingBreakdown,
-  isNationwideCompany,
 } from "@/lib/logistics-utils";
 import { serializeProduct } from "@/lib/marketplace-serializers";
 
@@ -249,18 +248,6 @@ export async function buildAdminAssistedQuote(args: {
     })
   );
 
-  if (allGroupsLogisticsCompanyId) {
-    const selectedNationwideCompany = logisticsCompanies.find(
-      (company) => company.id === allGroupsLogisticsCompanyId
-    );
-    if (!selectedNationwideCompany) {
-      throw new Error("LOGISTICS_COMPANY_NOT_FOUND");
-    }
-    if (!isNationwideCompany(selectedNationwideCompany)) {
-      throw new Error("ALL_GROUPS_LOGISTICS_MUST_BE_NATIONWIDE");
-    }
-  }
-
   const computedSellerGroups = initialSellerGroups.map((group) => {
     const selectedLogisticsCompanyId =
       allGroupsLogisticsCompanyId || logisticsSelections[group.sellerId] || null;
@@ -332,13 +319,10 @@ export async function buildAdminAssistedQuote(args: {
   });
 
   if (allGroupsLogisticsCompanyId) {
-    const selectedCompany = logisticsCompanies.find(
+    const combinedSelectedCompany = computedSellerGroups[0]?.eligibleLogisticsCompanies.find(
       (company) => company.id === allGroupsLogisticsCompanyId
     );
-    const nationwidePricing = selectedCompany?.pricingSettings.find(
-      (pricing) => pricing.pricingScope === "NATIONWIDE" && pricing.isActive
-    );
-    if (!selectedCompany || !nationwidePricing) {
+    if (!combinedSelectedCompany) {
       throw new Error("LOGISTICS_COMPANY_NOT_FOUND");
     }
 
@@ -350,9 +334,9 @@ export async function buildAdminAssistedQuote(args: {
       totalChargeableWeightKg: combinedWeight,
       buyerDeliveryRegion: address,
       pricing: {
-        minimumFee: nationwidePricing.minimumFee,
-        additionalUnitFee: nationwidePricing.additionalUnitFee,
-        weightUnitSizeKg: nationwidePricing.weightUnitSizeKg,
+        minimumFee: combinedSelectedCompany.pricing.minimumFee,
+        additionalUnitFee: combinedSelectedCompany.pricing.additionalUnitFee,
+        weightUnitSizeKg: combinedSelectedCompany.pricing.weightUnitSizeKg,
       },
     });
 
