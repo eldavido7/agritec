@@ -48,7 +48,7 @@ export default function LogisticsPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    void fetchLogisticsCompanies({ force: true }).catch(() => undefined);
+    void fetchLogisticsCompanies().catch(() => undefined);
   }, [fetchLogisticsCompanies]);
 
   const filteredCompanies = useMemo(
@@ -74,6 +74,12 @@ export default function LogisticsPage() {
   const suspendedCount = logisticsCompanies.filter(
     (company) => company.verificationStatus === "SUSPENDED"
   ).length;
+  const nationwidePricing = selectedLogistics?.pricingSettings.find(
+    (pricing) => pricing.pricingScope === "NATIONWIDE"
+  );
+  const statePricing = selectedLogistics?.pricingSettings.filter(
+    (pricing) => pricing.pricingScope === "STATE"
+  ) ?? [];
 
   const handleOpenDetail = async (id: string) => {
     try {
@@ -232,7 +238,7 @@ export default function LogisticsPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Metric label="Owner" value={selectedLogistics.fullName} />
                 <Metric label="Status" value={selectedLogistics.verificationStatus.replaceAll("_", " ")} />
-                <Metric label="Coverage Areas" value={String(selectedLogistics.coverageAreas.length)} />
+                <Metric label="Coverage" value={selectedLogistics.coverageType === "NATIONWIDE" ? "Nationwide" : `${selectedLogistics.coveredStates.length} state(s)`} />
                 <Metric label="Assigned Groups" value={String(selectedLogistics.assignedGroupCount)} />
               </div>
 
@@ -254,12 +260,42 @@ export default function LogisticsPage() {
 
               <div className="rounded-md border border-border/50 p-3">
                 <p className="mb-2 text-muted-foreground">Pricing Settings</p>
-                {selectedLogistics.pricingSettings ? (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <p>Abuja minimum fee: NGN {selectedLogistics.pricingSettings.abujaMinimumFee.toLocaleString()}</p>
-                    <p>Abuja additional unit fee: NGN {selectedLogistics.pricingSettings.abujaAdditionalUnitFee.toLocaleString()}</p>
-                    <p>Outside Abuja minimum fee: NGN {selectedLogistics.pricingSettings.outsideMinimumFee.toLocaleString()}</p>
-                    <p>Outside Abuja additional unit fee: NGN {selectedLogistics.pricingSettings.outsideAdditionalUnitFee.toLocaleString()}</p>
+                {selectedLogistics.pricingSettings.length > 0 ? (
+                  <div className="space-y-3">
+                    {nationwidePricing ? (
+                      <div className="rounded-md border border-border/40 p-3">
+                        <p className="mb-2 font-medium text-foreground">Nationwide pricing</p>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          <p>Minimum fee: NGN {nationwidePricing.minimumFee.toLocaleString()}</p>
+                          <p>Additional unit fee: NGN {nationwidePricing.additionalUnitFee.toLocaleString()}</p>
+                          <p>Weight unit size: {nationwidePricing.weightUnitSizeKg ?? 0}kg</p>
+                          <p>Volumetric divisor: {nationwidePricing.volumetricDivisor.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ) : null}
+                    {statePricing.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="font-medium text-foreground">Regional state pricing</p>
+                        <div className="space-y-2">
+                          {statePricing.map((pricing) => (
+                            <div key={pricing.id} className="rounded-md border border-border/40 p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="font-medium text-foreground">{pricing.state || "State pricing"}</p>
+                                <Badge variant="outline">
+                                  {pricing.isActive ? "Active" : "Inactive"}
+                                </Badge>
+                              </div>
+                              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                                <p>Minimum fee: NGN {pricing.minimumFee.toLocaleString()}</p>
+                                <p>Additional unit fee: NGN {pricing.additionalUnitFee.toLocaleString()}</p>
+                                <p>Weight unit size: {pricing.weightUnitSizeKg ?? 0}kg</p>
+                                <p>Volumetric divisor: {pricing.volumetricDivisor.toLocaleString()}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="text-muted-foreground">Pricing has not been configured.</p>
@@ -269,16 +305,22 @@ export default function LogisticsPage() {
               <div className="rounded-md border border-border/50 p-3">
                 <p className="mb-2 text-muted-foreground">Coverage</p>
                 {selectedLogistics.coverageAreas.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedLogistics.coverageAreas.map((area) => (
-                      <Badge key={area.id} variant="secondary">
-                        {area.coverageType === "NATIONWIDE"
-                          ? "Nationwide"
-                          : [area.state, area.lga, area.city, area.area]
-                              .filter(Boolean)
-                              .join(" / ")}
-                      </Badge>
-                    ))}
+                  <div className="space-y-3">
+                    <p className="text-foreground">
+                      Coverage type:{" "}
+                      <span className="font-medium">
+                        {selectedLogistics.coverageType === "NATIONWIDE" ? "Nationwide" : "Regional"}
+                      </span>
+                    </p>
+                    {selectedLogistics.coveredStates.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedLogistics.coveredStates.map((state) => (
+                          <Badge key={state} variant="secondary">
+                            {state}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="text-muted-foreground">No coverage areas configured.</p>

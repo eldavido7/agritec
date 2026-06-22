@@ -2,6 +2,34 @@ import { NextResponse } from "next/server";
 import { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { requireAuthenticatedUser } from "@/lib/auth";
+import { serializeOrder } from "@/lib/marketplace-serializers";
+
+function sanitizeSellerOrderGroup(group: any) {
+  const serialized = serializeOrder({
+    sellerGroups: [group],
+  }).sellerGroups[0];
+
+  return {
+    ...serialized,
+    parentOrder: group.parentOrder
+      ? {
+          id: group.parentOrder.id,
+          buyerId: group.parentOrder.buyerId,
+          buyerNameSnapshot: group.parentOrder.buyerNameSnapshot,
+          status: group.parentOrder.status,
+          paymentReference: group.parentOrder.paymentReference,
+          productSubtotal: group.parentOrder.productSubtotal,
+          totalShippingFee: group.parentOrder.totalShippingFee,
+          discountTotal: group.parentOrder.discountTotal,
+          grandTotal: group.parentOrder.grandTotal,
+          createdAt: group.parentOrder.createdAt,
+          updatedAt: group.parentOrder.updatedAt,
+          addressSnapshot: group.parentOrder.addressSnapshot,
+          payment: group.parentOrder.payment,
+        }
+      : null,
+  };
+}
 
 export async function GET(request: Request) {
   try {
@@ -34,7 +62,10 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ success: true, sellerOrderGroups: groups });
+    return NextResponse.json({
+      success: true,
+      sellerOrderGroups: groups.map(sanitizeSellerOrderGroup),
+    });
   } catch (error) {
     console.error("[SELLER_ORDER_GROUPS_GET_ERROR]", error);
     return NextResponse.json({ success: false, message: "Failed to fetch seller order groups" }, { status: 500 });

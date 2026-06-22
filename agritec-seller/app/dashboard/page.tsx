@@ -97,6 +97,16 @@ export default function DashboardPage() {
   );
 
   const isLoading = isProductsLoading || isOrdersLoading;
+  const formatTimelineDate = (value?: Date) =>
+    value
+      ? value.toLocaleString("en-NG", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : "-";
 
   return (
     <div className="space-y-8">
@@ -428,11 +438,55 @@ export default function DashboardPage() {
                 </p>
               </div>
               <div>
+                <p className="mb-1 text-sm text-muted-foreground">Assigned Logistics</p>
+                <p className="font-semibold text-foreground">
+                  {selectedOrderGroup.logisticsCompany?.companyName || "Not assigned yet"}
+                </p>
+              </div>
+              <div>
                 <p className="mb-1 text-sm text-muted-foreground">Delivery Region</p>
                 <p className="font-semibold text-foreground">
                   {selectedOrderGroup.deliveryRegion || "Not set"}
                 </p>
               </div>
+            </div>
+
+            <div className="mt-6 border-t border-border pt-6">
+              <h3 className="mb-4 font-semibold text-foreground">
+                Delivery Timeline
+              </h3>
+              {selectedOrderGroup.statusHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedOrderGroup.statusHistory.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="rounded-lg bg-muted/30 p-3"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-medium text-foreground">
+                            {entry.status}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {(entry.updatedByUser?.fullName || "System")}{" "}
+                            {entry.updatedByRole ? `(${entry.updatedByRole})` : ""}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {formatTimelineDate(entry.createdAt)}
+                        </p>
+                      </div>
+                      {entry.description ? (
+                        <p className="mt-2 text-sm text-foreground">{entry.description}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No delivery timeline updates recorded yet.
+                </p>
+              )}
             </div>
 
             <div className="mt-6 border-t border-border pt-6">

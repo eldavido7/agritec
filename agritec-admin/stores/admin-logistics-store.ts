@@ -6,13 +6,13 @@ import { useAdminAuthStore } from "@/stores/admin-auth-store";
 
 type LogisticsPricingSettings = {
   id: string;
-  abujaMinimumFee: number;
-  abujaAdditionalUnitFee: number;
-  outsideMinimumFee: number;
-  outsideAdditionalUnitFee: number;
+  pricingScope: "NATIONWIDE" | "STATE";
+  state: string | null;
+  minimumFee: number;
+  additionalUnitFee: number;
   weightUnitSizeKg: number | null;
   volumetricDivisor: number;
-  weeklyAutoPayoutDay: number | null;
+  isActive: boolean;
 };
 
 type LogisticsCoverageArea = {
@@ -51,7 +51,9 @@ export type AdminLogisticsRecord = {
 };
 
 export type AdminLogisticsDetailRecord = AdminLogisticsRecord & {
-  pricingSettings: LogisticsPricingSettings | null;
+  coverageType: "NATIONWIDE" | "REGIONAL";
+  coveredStates: string[];
+  pricingSettings: LogisticsPricingSettings[];
   coverageAreas: LogisticsCoverageArea[];
 };
 
@@ -123,23 +125,29 @@ function normalizeLogisticsDetail(company: any): AdminLogisticsDetailRecord {
   return {
     ...normalizeLogisticsRecord(company),
     pricingSettings: company.pricingSettings
-      ? {
-          id: String(company.pricingSettings.id),
-          abujaMinimumFee: toNumber(company.pricingSettings.abujaMinimumFee),
-          abujaAdditionalUnitFee: toNumber(company.pricingSettings.abujaAdditionalUnitFee),
-          outsideMinimumFee: toNumber(company.pricingSettings.outsideMinimumFee),
-          outsideAdditionalUnitFee: toNumber(company.pricingSettings.outsideAdditionalUnitFee),
+      ? company.pricingSettings.map((pricing: any) => ({
+          id: String(pricing.id),
+          pricingScope: String(pricing.pricingScope || "STATE") as
+            | "NATIONWIDE"
+            | "STATE",
+          state: pricing.state ? String(pricing.state) : null,
+          minimumFee: toNumber(pricing.minimumFee),
+          additionalUnitFee: toNumber(pricing.additionalUnitFee),
           weightUnitSizeKg:
-            company.pricingSettings.weightUnitSizeKg == null
+            pricing.weightUnitSizeKg == null
               ? null
-              : toNumber(company.pricingSettings.weightUnitSizeKg),
-          volumetricDivisor: toNumber(company.pricingSettings.volumetricDivisor),
-          weeklyAutoPayoutDay:
-            company.pricingSettings.weeklyAutoPayoutDay == null
-              ? null
-              : toNumber(company.pricingSettings.weeklyAutoPayoutDay),
-        }
-      : null,
+              : toNumber(pricing.weightUnitSizeKg),
+          volumetricDivisor: toNumber(pricing.volumetricDivisor),
+          isActive: Boolean(pricing.isActive),
+        }))
+      : [],
+    coverageType:
+      String(company.coverageType || "REGIONAL") === "NATIONWIDE"
+        ? "NATIONWIDE"
+        : "REGIONAL",
+    coveredStates: Array.isArray(company.coveredStates)
+      ? company.coveredStates.map((state: unknown) => String(state))
+      : [],
     coverageAreas: Array.isArray(company.coverageAreas)
       ? company.coverageAreas.map((area: any) => ({
           id: String(area.id),

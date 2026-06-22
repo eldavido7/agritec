@@ -14,8 +14,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -37,13 +35,6 @@ const statusOptions = [
 ] as const;
 
 type FilterStatus = "all" | (typeof statusOptions)[number];
-type SellerGroupStatusOption = (typeof statusOptions)[number];
-type PendingStatusUpdate = {
-  groupId: string;
-  farmName: string;
-  currentStatus: string;
-  nextStatus: SellerGroupStatusOption;
-} | null;
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-NG", {
@@ -96,17 +87,14 @@ export default function OrdersPage() {
   const selectedOrderDetail = useAdminOrdersStore((state) => state.selectedOrderDetail);
   const isLoading = useAdminOrdersStore((state) => state.isLoading);
   const isDetailLoading = useAdminOrdersStore((state) => state.isDetailLoading);
-  const isUpdating = useAdminOrdersStore((state) => state.isUpdating);
   const loaded = useAdminOrdersStore((state) => state.loaded);
   const fetchOrders = useAdminOrdersStore((state) => state.fetchOrders);
   const fetchOrderDetail = useAdminOrdersStore((state) => state.fetchOrderDetail);
-  const updateSellerGroupStatus = useAdminOrdersStore((state) => state.updateSellerGroupStatus);
   const clearSelectedOrderDetail = useAdminOrdersStore((state) => state.clearSelectedOrderDetail);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [page, setPage] = useState(1);
   const [assistedOrderOpen, setAssistedOrderOpen] = useState(false);
-  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<PendingStatusUpdate>(null);
 
   useEffect(() => {
     void fetchOrders();
@@ -152,35 +140,6 @@ export default function OrdersPage() {
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to load order details",
-      );
-    }
-  };
-
-  const requestStatusUpdate = (groupId: string, currentStatus: string, nextStatus: SellerGroupStatusOption, farmName: string) => {
-    if (currentStatus === nextStatus || currentStatus === "DELIVERED") {
-      return;
-    }
-
-    setPendingStatusUpdate({
-      groupId,
-      farmName,
-      currentStatus,
-      nextStatus,
-    });
-  };
-
-  const handleStatusUpdate = async () => {
-    if (!pendingStatusUpdate) {
-      return;
-    }
-
-    try {
-      await updateSellerGroupStatus(pendingStatusUpdate.groupId, pendingStatusUpdate.nextStatus);
-      toast.success("Order group status updated successfully");
-      setPendingStatusUpdate(null);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update order group status",
       );
     }
   };
@@ -354,7 +313,6 @@ export default function OrdersPage() {
                 <p className="mb-2 text-muted-foreground">Seller Groups</p>
                 <div className="space-y-3">
                   {selectedOrderDetail.sellerGroups.map((group) => {
-                    const statusLocked = group.status === "DELIVERED";
                     return (
                       <div key={group.id} className="rounded-md border border-border/40 p-3">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -365,24 +323,42 @@ export default function OrdersPage() {
                               {group.deliveryRegion} . {group.totalChargeableWeightKg?.toFixed?.(1) ?? "0.0"}kg chargeable . {group.shippingUnits} unit(s)
                             </p>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            {statusOptions.map((status) => (
-                              <Button
-                                key={status}
-                                size="sm"
-                                variant={group.status === status ? "default" : "outline"}
-                                disabled={isUpdating || statusLocked || group.status === status}
-                                onClick={() => requestStatusUpdate(group.id, group.status, status, group.farmNameSnapshot)}
-                              >
-                                {status.replaceAll("_", " ")}
-                              </Button>
-                            ))}
+                          <div className="flex flex-col items-start gap-2 sm:items-end">
+                            <Badge
+                              variant="outline"
+                              className={getStatusColor(group.status)}
+                            >
+                              {group.status.replaceAll("_", " ")}
+                            </Badge>
+                            <p className="text-xs text-muted-foreground">
+                              Delivery progression is logistics-managed. Admin remains view-only here.
+                            </p>
                           </div>
                         </div>
                         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <div className="rounded-md bg-muted/40 p-3"><p className="text-muted-foreground">Products</p><p className="font-semibold">{formatCurrency(group.productSubtotal)}</p></div>
                           <div className="rounded-md bg-muted/40 p-3"><p className="text-muted-foreground">Shipping</p><p className="font-semibold">{formatCurrency(group.shippingFee)}</p></div>
                           <div className="rounded-md bg-muted/40 p-3"><p className="text-muted-foreground">Group Total</p><p className="font-semibold">{formatCurrency(group.groupTotal)}</p></div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-3">
+                          <div className="rounded-md border border-border/50 p-3">
+                            <p>Assigned logistics</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {group.logisticsCompanyNameSnapshot || "Not assigned"}
+                            </p>
+                          </div>
+                          <div className="rounded-md border border-border/50 p-3">
+                            <p>Shipping source</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {(group.shippingPricedBy || "Unknown").replaceAll("_", " ")}
+                            </p>
+                          </div>
+                          <div className="rounded-md border border-border/50 p-3">
+                            <p>Status events</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {group.statusHistory.length}
+                            </p>
+                          </div>
                         </div>
                         <div className="mt-3 grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-4">
                           <div className="rounded-md border border-border/50 p-3">
@@ -401,6 +377,38 @@ export default function OrdersPage() {
                             <p>Chargeable Weight</p>
                             <p className="mt-1 font-semibold text-foreground">{group.totalChargeableWeightKg?.toFixed?.(1) ?? "0.0"}kg</p>
                           </div>
+                        </div>
+                        <div className="mt-3 rounded-md border border-border/50 p-3">
+                          <p className="mb-3 text-muted-foreground">Delivery timeline</p>
+                          {group.statusHistory.length > 0 ? (
+                            <div className="space-y-3">
+                              {group.statusHistory.map((entry) => (
+                                <div key={entry.id} className="rounded-md border border-border/30 p-3">
+                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                      <p className="font-medium text-foreground">
+                                        {entry.status.replaceAll("_", " ")}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {(entry.updatedByUser?.fullName || "System")}{" "}
+                                        {entry.updatedByRole
+                                          ? `(${entry.updatedByRole.replaceAll("_", " ")})`
+                                          : ""}
+                                      </p>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatDate(entry.createdAt)}
+                                    </p>
+                                  </div>
+                                  {entry.description ? (
+                                    <p className="mt-2 text-sm text-foreground">{entry.description}</p>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground">No status history recorded yet.</p>
+                          )}
                         </div>
                         <div className="mt-3 space-y-2">
                           {group.items.map((item) => (
@@ -422,38 +430,6 @@ export default function OrdersPage() {
               </div>
             </div>
           ) : null}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!pendingStatusUpdate} onOpenChange={(open) => !open && setPendingStatusUpdate(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirm Status Update</DialogTitle>
-            <DialogDescription>
-              {pendingStatusUpdate
-                ? `You are about to change ${pendingStatusUpdate.farmName} from ${pendingStatusUpdate.currentStatus.replaceAll("_", " ")} to ${pendingStatusUpdate.nextStatus.replaceAll("_", " ")}.`
-                : "Confirm this status update before continuing."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPendingStatusUpdate(null)}
-              disabled={isUpdating}
-            >
-              Cancel
-            </Button>
-            <Button onClick={() => void handleStatusUpdate()} disabled={isUpdating}>
-              {isUpdating ? (
-                <span className="flex items-center gap-2">
-                  <Spinner className="size-4" />
-                  Updating...
-                </span>
-              ) : (
-                "Confirm"
-              )}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -33,6 +33,9 @@ export type AdminSellerOrderGroupRecord = {
   parentOrderId: string;
   sellerId: string;
   status: string;
+  logisticsCompanyId: string | null;
+  logisticsCompanyNameSnapshot: string | null;
+  shippingPricedBy: string | null;
   sellerNameSnapshot: string;
   farmNameSnapshot: string;
   productSubtotal: number;
@@ -51,9 +54,39 @@ export type AdminSellerOrderGroupRecord = {
   discountTypeSnapshot: string | null;
   discountValueSnapshot: number | null;
   discountDescriptionSnapshot: string | null;
+  statusHistory: Array<{
+    id: string;
+    status: string;
+    description: string | null;
+    updatedByRole: string | null;
+    updatedByUser: {
+      id: string;
+      fullName: string;
+      role: string;
+    } | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
   items: AdminOrderItemRecord[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type AdminAssistedOrderEligibleLogisticsRecord = {
+  id: string;
+  companyName: string;
+  coverageType: string;
+  coveredStates: string[];
+  pricing: {
+    id: string;
+    pricingScope: string;
+    state: string | null;
+    minimumFee: number;
+    additionalUnitFee: number;
+    weightUnitSizeKg: number;
+    volumetricDivisor: number;
+    isActive: boolean;
+  };
 };
 
 export type AdminOrderRecord = {
@@ -130,6 +163,38 @@ export type AdminAssistedOrderLinePayload = {
   quantity: number;
 };
 
+export type AdminAssistedOrderQuoteRecord = {
+  buyerId: string;
+  productSubtotal: number;
+  totalShippingFee: number;
+  discountTotal: number;
+  grandTotal: number;
+  currencyCode: string;
+  allGroupsLogisticsCompanyId: string | null;
+  sellerGroups: Array<{
+    sellerId: string;
+    sellerName: string;
+    farmName: string;
+    buyerDeliveryState: string;
+    buyerDeliveryCity: string;
+    buyerDeliveryLga: string | null;
+    productSubtotal: number;
+    discountTotal: number;
+    totalChargeableWeightKg: number;
+    shippingFee: number;
+    groupTotal: number;
+    logisticsCompanyId: string | null;
+    logisticsCompanyName: string | null;
+    deliveryRegion: string;
+    weightUnitSizeKg: number;
+    shippingUnits: number;
+    minimumFee: number;
+    additionalUnitFee: number;
+    shippingPricedBy: string;
+    eligibleLogisticsCompanies: AdminAssistedOrderEligibleLogisticsRecord[];
+  }>;
+};
+
 export type AdminAssistedOrderAddressPayload =
   | {
       addressId: string;
@@ -164,12 +229,21 @@ type AdminOrdersState = {
     buyerId: string;
     items: AdminAssistedOrderLinePayload[];
     discountCodes?: Record<string, string>;
+    logisticsSelections?: Record<string, string>;
+    allGroupsLogisticsCompanyId?: string | null;
     callbackUrl?: string;
     channels?: string[];
   } & AdminAssistedOrderAddressPayload) => Promise<{
     order: AdminOrderRecord;
     payment: AdminAssistedOrderPaymentRecord;
   }>;
+  quoteAssistedOrder: (payload: {
+    buyerId: string;
+    items: AdminAssistedOrderLinePayload[];
+    discountCodes?: Record<string, string>;
+    logisticsSelections?: Record<string, string>;
+    allGroupsLogisticsCompanyId?: string | null;
+  } & AdminAssistedOrderAddressPayload) => Promise<AdminAssistedOrderQuoteRecord>;
   clearSelectedOrderDetail: () => void;
   resetOrders: () => void;
   clearError: () => void;
@@ -213,6 +287,11 @@ function normalizeSellerGroup(group: any): AdminSellerOrderGroupRecord {
     parentOrderId: String(group.parentOrderId || ""),
     sellerId: String(group.sellerId || ""),
     status: String(group.status || ""),
+    logisticsCompanyId: group.logisticsCompanyId ? String(group.logisticsCompanyId) : null,
+    logisticsCompanyNameSnapshot: group.logisticsCompanyNameSnapshot
+      ? String(group.logisticsCompanyNameSnapshot)
+      : null,
+    shippingPricedBy: group.shippingPricedBy ? String(group.shippingPricedBy) : null,
     sellerNameSnapshot: String(group.sellerNameSnapshot || ""),
     farmNameSnapshot: String(group.farmNameSnapshot || ""),
     productSubtotal: Number(group.productSubtotal || 0),
@@ -231,6 +310,23 @@ function normalizeSellerGroup(group: any): AdminSellerOrderGroupRecord {
     discountTypeSnapshot: group.discountTypeSnapshot ? String(group.discountTypeSnapshot) : null,
     discountValueSnapshot: group.discountValueSnapshot == null ? null : Number(group.discountValueSnapshot),
     discountDescriptionSnapshot: group.discountDescriptionSnapshot ? String(group.discountDescriptionSnapshot) : null,
+    statusHistory: Array.isArray(group.statusHistory)
+      ? group.statusHistory.map((entry: any) => ({
+          id: String(entry.id),
+          status: String(entry.status || ""),
+          description: entry.description ? String(entry.description) : null,
+          updatedByRole: entry.updatedByRole ? String(entry.updatedByRole) : null,
+          updatedByUser: entry.updatedByUser
+            ? {
+                id: String(entry.updatedByUser.id || ""),
+                fullName: String(entry.updatedByUser.fullName || ""),
+                role: String(entry.updatedByUser.role || ""),
+              }
+            : null,
+          createdAt: String(entry.createdAt || ""),
+          updatedAt: String(entry.updatedAt || ""),
+        }))
+      : [],
     items: Array.isArray(group.items) ? group.items.map(normalizeOrderItem) : [],
     createdAt: String(group.createdAt || ""),
     updatedAt: String(group.updatedAt || ""),
@@ -312,6 +408,63 @@ function describeError(error: unknown) {
   }
 
   return { message: String(error) };
+}
+
+function normalizeAssistedOrderQuote(quote: any): AdminAssistedOrderQuoteRecord {
+  return {
+    buyerId: String(quote.buyerId || ""),
+    productSubtotal: Number(quote.productSubtotal || 0),
+    totalShippingFee: Number(quote.totalShippingFee || 0),
+    discountTotal: Number(quote.discountTotal || 0),
+    grandTotal: Number(quote.grandTotal || 0),
+    currencyCode: String(quote.currencyCode || "NGN"),
+    allGroupsLogisticsCompanyId: quote.allGroupsLogisticsCompanyId
+      ? String(quote.allGroupsLogisticsCompanyId)
+      : null,
+    sellerGroups: Array.isArray(quote.sellerGroups)
+      ? quote.sellerGroups.map((group: any) => ({
+          sellerId: String(group.sellerId || ""),
+          sellerName: String(group.sellerName || ""),
+          farmName: String(group.farmName || ""),
+          buyerDeliveryState: String(group.buyerDeliveryState || ""),
+          buyerDeliveryCity: String(group.buyerDeliveryCity || ""),
+          buyerDeliveryLga: group.buyerDeliveryLga ? String(group.buyerDeliveryLga) : null,
+          productSubtotal: Number(group.productSubtotal || 0),
+          discountTotal: Number(group.discountTotal || 0),
+          totalChargeableWeightKg: Number(group.totalChargeableWeightKg || 0),
+          shippingFee: Number(group.shippingFee || 0),
+          groupTotal: Number(group.groupTotal || 0),
+          logisticsCompanyId: group.logisticsCompanyId ? String(group.logisticsCompanyId) : null,
+          logisticsCompanyName: group.logisticsCompanyName ? String(group.logisticsCompanyName) : null,
+          deliveryRegion: String(group.deliveryRegion || ""),
+          weightUnitSizeKg: Number(group.weightUnitSizeKg || 0),
+          shippingUnits: Number(group.shippingUnits || 0),
+          minimumFee: Number(group.minimumFee || 0),
+          additionalUnitFee: Number(group.additionalUnitFee || 0),
+          shippingPricedBy: String(group.shippingPricedBy || ""),
+          eligibleLogisticsCompanies: Array.isArray(group.eligibleLogisticsCompanies)
+            ? group.eligibleLogisticsCompanies.map((company: any) => ({
+                id: String(company.id || ""),
+                companyName: String(company.companyName || ""),
+                coverageType: String(company.coverageType || ""),
+                coveredStates: Array.isArray(company.coveredStates)
+                  ? company.coveredStates.map((state: unknown) => String(state))
+                  : [],
+                pricing: {
+                  id: String(company.pricing?.id || ""),
+                  pricingScope: String(company.pricing?.pricingScope || ""),
+                  state: company.pricing?.state ? String(company.pricing.state) : null,
+                  minimumFee: Number(company.pricing?.minimumFee || 0),
+                  additionalUnitFee: Number(company.pricing?.additionalUnitFee || 0),
+                  weightUnitSizeKg: Number(company.pricing?.weightUnitSizeKg || 0),
+                  volumetricDivisor: Number(company.pricing?.volumetricDivisor || 0),
+                  isActive: Boolean(company.pricing?.isActive),
+                },
+              }))
+            : [],
+        }))
+      : [],
+  };
 }
 
 export const useAdminOrdersStore = create<AdminOrdersState>((set, get) => ({
@@ -483,6 +636,39 @@ export const useAdminOrdersStore = create<AdminOrdersState>((set, get) => ({
       set({
         isUpdating: false,
         error: error instanceof Error ? error.message : "Unable to update order status",
+      });
+      throw error;
+    }
+  },
+
+  quoteAssistedOrder: async (payload) => {
+    const token = useAdminAuthStore.getState().token;
+    if (!token) {
+      throw new Error("Admin session not found");
+    }
+
+    console.log("[Admin Orders] Assisted quote start", payload);
+
+    try {
+      const response = await adminApiRequest<{
+        success: true;
+        quote: any;
+      }>("/api/admin/orders/assisted/quote", {
+        method: "POST",
+        token,
+        body: JSON.stringify(payload),
+      });
+
+      const quote = normalizeAssistedOrderQuote(response.quote);
+      console.log("[Admin Orders] Assisted quote success", {
+        sellerGroupCount: quote.sellerGroups.length,
+        totalShippingFee: quote.totalShippingFee,
+      });
+      return quote;
+    } catch (error) {
+      console.error("[Admin Orders] Assisted quote failed", {
+        payload,
+        error: describeError(error),
       });
       throw error;
     }

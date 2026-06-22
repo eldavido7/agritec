@@ -56,6 +56,17 @@ const buyerLabel = (orderGroup: SellerOrderGroupRecord) =>
   orderGroup.parentOrder.buyerId ||
   "Buyer order";
 
+const formatTimelineDate = (value?: Date) =>
+  value
+    ? value.toLocaleString("en-NG", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "-";
+
 export default function OrdersPage() {
   const authReady = useSellerAuthStore((state) => state.isReady);
   const sellerProfile = useSellerAuthStore((state) => state.user?.sellerProfile);
@@ -114,7 +125,7 @@ export default function OrdersPage() {
       <motion.div initial="hidden" animate="visible" variants={itemVariants}>
         <div>
           <p className="text-muted-foreground mt-2">
-            Track seller order groups for {sellerProfile?.farmName || "your farm"}. Delivery status is managed by admin.
+            Track seller order groups for {sellerProfile?.farmName || "your farm"}. Assigned logistics companies manage delivery progression, while you stay informed through the shared timeline.
           </p>
         </div>
       </motion.div>
@@ -382,6 +393,18 @@ export default function OrdersPage() {
                       <p className="text-sm text-muted-foreground mb-1">Group Total</p>
                       <p className="font-semibold text-primary">{formatCurrency(selectedOrderGroup.groupTotal)}</p>
                     </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Assigned Logistics</p>
+                      <p className="font-semibold text-foreground">
+                        {selectedOrderGroup.logisticsCompany?.companyName || "Not assigned yet"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Delivery Region</p>
+                      <p className="font-semibold text-foreground">
+                        {selectedOrderGroup.deliveryRegion || "Not set"}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="rounded-lg border border-border p-4 space-y-2">
@@ -397,6 +420,44 @@ export default function OrdersPage() {
                         .filter(Boolean)
                         .join(", ")}
                     </p>
+                  </div>
+
+                  <div className="rounded-lg border border-border p-4 space-y-3">
+                    <p className="text-sm font-semibold text-foreground">Delivery Timeline</p>
+                    {selectedOrderGroup.statusHistory.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedOrderGroup.statusHistory.map((entry) => (
+                          <div
+                            key={entry.id}
+                            className="rounded-lg bg-muted/30 p-3"
+                          >
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <p className="font-medium text-foreground">
+                                  {humanizeStatus(entry.status)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {(entry.updatedByUser?.fullName || "System")}{" "}
+                                  {entry.updatedByRole
+                                    ? `(${humanizeStatus(entry.updatedByRole)})`
+                                    : ""}
+                                </p>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {formatTimelineDate(entry.createdAt)}
+                              </p>
+                            </div>
+                            {entry.description ? (
+                              <p className="mt-2 text-sm text-foreground">{entry.description}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No delivery timeline updates recorded yet.
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-3">

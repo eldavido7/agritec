@@ -35,8 +35,6 @@ export type SellerLowStockItem = {
 export type SellerCustomerRecord = {
   id: string;
   name: string;
-  email: string | null;
-  phone: string | null;
   location: string;
   totalOrders: number;
   totalSpent: number;
@@ -89,8 +87,6 @@ function locationFromSnapshot(parentOrder: SellerParentOrderSnapshot) {
 function customerKey(parentOrder: SellerParentOrderSnapshot) {
   return (
     parentOrder.buyerId ||
-    parentOrder.buyerEmailSnapshot ||
-    parentOrder.buyerPhoneSnapshot ||
     parentOrder.buyerNameSnapshot ||
     parentOrder.id
   );
@@ -126,8 +122,6 @@ function buildCustomerRecords(orderGroups: SellerOrderGroupRecord[]) {
       customerMap.set(key, {
         id: key,
         name: customerName(parentOrder),
-        email: parentOrder.buyerEmailSnapshot || null,
-        phone: parentOrder.buyerPhoneSnapshot || null,
         location: locationFromSnapshot(parentOrder),
         totalOrders: 1,
         totalSpent: getGroupNetRevenue(group),
@@ -139,12 +133,6 @@ function buildCustomerRecords(orderGroups: SellerOrderGroupRecord[]) {
     current.totalOrders += 1;
     current.totalSpent += getGroupNetRevenue(group);
     current.location = current.location || locationFromSnapshot(parentOrder);
-    if (!current.email && parentOrder.buyerEmailSnapshot) {
-      current.email = parentOrder.buyerEmailSnapshot;
-    }
-    if (!current.phone && parentOrder.buyerPhoneSnapshot) {
-      current.phone = parentOrder.buyerPhoneSnapshot;
-    }
     if (orderDate && (!current.lastOrder || orderDate > current.lastOrder)) {
       current.lastOrder = orderDate;
     }

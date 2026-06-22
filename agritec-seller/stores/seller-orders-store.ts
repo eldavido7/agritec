@@ -22,8 +22,6 @@ export type SellerParentOrderSnapshot = {
   id: string;
   buyerId?: string | null;
   buyerNameSnapshot?: string | null;
-  buyerEmailSnapshot?: string | null;
-  buyerPhoneSnapshot?: string | null;
   status?: string;
   paymentReference?: string | null;
   productSubtotal: number;
@@ -73,6 +71,25 @@ export type SellerOrderGroupRecord = {
   commissionRateBpsSnapshot?: number | null;
   platformCommissionAmount?: number | null;
   sellerEarningsAmount?: number | null;
+  logisticsCompany?: {
+    id: string;
+    companyName: string;
+    phone: string | null;
+    contactPersonName: string | null;
+  } | null;
+  statusHistory: Array<{
+    id: string;
+    status: string;
+    description?: string | null;
+    updatedByRole?: string | null;
+    updatedByUser?: {
+      id: string;
+      fullName: string;
+      role: string;
+    } | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }>;
   createdAt?: Date;
   updatedAt?: Date;
   items: SellerOrderGroupItemRecord[];
@@ -133,6 +150,35 @@ const mapOrderGroup = (group: any): SellerOrderGroupRecord => ({
     group.sellerEarningsAmount == null
       ? null
       : toNumber(group.sellerEarningsAmount),
+  logisticsCompany: group.logisticsCompany
+    ? {
+        id: String(group.logisticsCompany.id),
+        companyName: String(group.logisticsCompany.companyName || ""),
+        phone: group.logisticsCompany.user?.phone
+          ? String(group.logisticsCompany.user.phone)
+          : null,
+        contactPersonName: group.logisticsCompany.contactPersonName
+          ? String(group.logisticsCompany.contactPersonName)
+          : null,
+      }
+    : null,
+  statusHistory: Array.isArray(group.statusHistory)
+    ? group.statusHistory.map((entry: any) => ({
+        id: String(entry.id),
+        status: String(entry.status || "PENDING"),
+        description: entry.description ? String(entry.description) : null,
+        updatedByRole: entry.updatedByRole ? String(entry.updatedByRole) : null,
+        updatedByUser: entry.updatedByUser
+          ? {
+              id: String(entry.updatedByUser.id || ""),
+              fullName: String(entry.updatedByUser.fullName || ""),
+              role: String(entry.updatedByUser.role || ""),
+            }
+          : null,
+        createdAt: entry.createdAt ? new Date(entry.createdAt) : undefined,
+        updatedAt: entry.updatedAt ? new Date(entry.updatedAt) : undefined,
+      }))
+    : [],
   createdAt: group.createdAt ? new Date(group.createdAt) : undefined,
   updatedAt: group.updatedAt ? new Date(group.updatedAt) : undefined,
   items: Array.isArray(group.items)
@@ -158,12 +204,6 @@ const mapOrderGroup = (group: any): SellerOrderGroupRecord => ({
     buyerId: group.parentOrder?.buyerId ? String(group.parentOrder.buyerId) : null,
     buyerNameSnapshot: group.parentOrder?.buyerNameSnapshot
       ? String(group.parentOrder.buyerNameSnapshot)
-      : null,
-    buyerEmailSnapshot: group.parentOrder?.buyerEmailSnapshot
-      ? String(group.parentOrder.buyerEmailSnapshot)
-      : null,
-    buyerPhoneSnapshot: group.parentOrder?.buyerPhoneSnapshot
-      ? String(group.parentOrder.buyerPhoneSnapshot)
       : null,
     status: group.parentOrder?.status ? String(group.parentOrder.status) : undefined,
     paymentReference: group.parentOrder?.paymentReference ? String(group.parentOrder.paymentReference) : null,

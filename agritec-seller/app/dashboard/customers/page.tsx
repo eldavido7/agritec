@@ -45,9 +45,7 @@ export default function CustomersPage() {
       customers.filter(
         (customer) =>
           customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          customer.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (customer.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (customer.phone || "").toLowerCase().includes(searchQuery.toLowerCase()),
+          customer.location.toLowerCase().includes(searchQuery.toLowerCase()),
       ),
     [customers, searchQuery],
   );
@@ -86,7 +84,7 @@ export default function CustomersPage() {
       >
         <Input
           type="text"
-          placeholder="Search customers by name, location, email, or phone..."
+          placeholder="Search customers by name or location..."
           value={searchQuery}
           onChange={(event) => {
             setSearchQuery(event.target.value);
@@ -114,12 +112,6 @@ export default function CustomersPage() {
                         Location
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
-                        Email
-                      </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
-                        Phone
-                      </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
                         Orders
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
@@ -143,12 +135,6 @@ export default function CustomersPage() {
                           {customer.location}
                         </td>
                         <td className="px-4 py-3 text-sm text-foreground">
-                          {customer.email || "-"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-foreground">
-                          {customer.phone || "-"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-foreground">
                           {customer.totalOrders}
                         </td>
                         <td className="px-4 py-3 text-sm font-semibold text-primary">
@@ -161,7 +147,7 @@ export default function CustomersPage() {
                     ))}
                     {paginatedCustomers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
                           No customers found matching your criteria.
                         </td>
                       </tr>

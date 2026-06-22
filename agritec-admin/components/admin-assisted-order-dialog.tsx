@@ -76,12 +76,16 @@ export function AdminAssistedOrderDialog({
   onCreated,
 }: AdminAssistedOrderDialogProps) {
   const buyers = useAdminBuyersStore((state) => state.buyers);
+  const buyersLoaded = useAdminBuyersStore((state) => state.loaded);
+  const fetchBuyers = useAdminBuyersStore((state) => state.fetchBuyers);
   const selectedBuyerDetail = useAdminBuyersStore(
     (state) => state.selectedBuyerDetail,
   );
   const fetchBuyerDetail = useAdminBuyersStore((state) => state.fetchBuyerDetail);
 
   const sellers = useAdminSellersStore((state) => state.sellers);
+  const sellersLoaded = useAdminSellersStore((state) => state.loaded);
+  const fetchSellers = useAdminSellersStore((state) => state.fetchSellers);
 
   const products = useAdminProductsStore((state) => state.products);
   const productsLoading = useAdminProductsStore((state) => state.isLoading);
@@ -91,6 +95,7 @@ export function AdminAssistedOrderDialog({
   const initializeAssistedOrder = useAdminOrdersStore(
     (state) => state.initializeAssistedOrder,
   );
+  const quoteAssistedOrder = useAdminOrdersStore((state) => state.quoteAssistedOrder);
   const isSubmitting = useAdminOrdersStore((state) => state.isUpdating);
 
   const [buyerSearch, setBuyerSearch] = useState("");
@@ -100,6 +105,8 @@ export function AdminAssistedOrderDialog({
   const [productSearch, setProductSearch] = useState("");
   const [lineItems, setLineItems] = useState<AssistedLineItem[]>([]);
   const [discountCodes, setDiscountCodes] = useState<Record<string, string>>({});
+  const [sellerLogisticsSelections, setSellerLogisticsSelections] = useState<Record<string, string>>({});
+  const [allGroupsLogisticsCompanyId, setAllGroupsLogisticsCompanyId] = useState<string>("");
   const [addressMode, setAddressMode] = useState<"existing" | "manual">("existing");
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [manualAddress, setManualAddress] = useState<ManualAddressForm>({
@@ -111,6 +118,11 @@ export function AdminAssistedOrderDialog({
     landmark: "",
     saveToBuyerProfile: false,
   });
+  const [logisticsQuote, setLogisticsQuote] = useState<Awaited<
+    ReturnType<typeof quoteAssistedOrder>
+  > | null>(null);
+  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -121,6 +133,8 @@ export function AdminAssistedOrderDialog({
       setProductSearch("");
       setLineItems([]);
       setDiscountCodes({});
+      setSellerLogisticsSelections({});
+      setAllGroupsLogisticsCompanyId("");
       setAddressMode("existing");
       setSelectedAddressId("");
       setManualAddress({
@@ -132,9 +146,22 @@ export function AdminAssistedOrderDialog({
         landmark: "",
         saveToBuyerProfile: false,
       });
+      setLogisticsQuote(null);
+      setIsQuoteLoading(false);
+      setQuoteError(null);
       clearProducts();
     }
   }, [clearProducts, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!buyersLoaded) {
+      void fetchBuyers();
+    }
+    if (!sellersLoaded) {
+      void fetchSellers();
+    }
+  }, [buyersLoaded, fetchBuyers, fetchSellers, open, sellersLoaded]);
 
   useEffect(() => {
     if (!selectedBuyerId) return;
@@ -268,6 +295,96 @@ export function AdminAssistedOrderDialog({
     }));
   }, [lineItems]);
 
+  const quoteAddressPayload = useMemo(() => {
+    if (addressMode === "existing") {
+      if (!selectedAddressId) return null;
+      return { addressId: selectedAddressId };
+    }
+
+    if (
+      !manualAddress.addressLine.trim() ||
+      !manualAddress.fullAddress.trim() ||
+      !manualAddress.city.trim() ||
+      !manualAddress.state.trim()
+    ) {
+      return null;
+    }
+
+    return {
+      manualAddress: {
+        displayName: manualAddress.displayName.trim() || null,
+        addressLine: manualAddress.addressLine.trim(),
+        fullAddress: manualAddress.fullAddress.trim(),
+        city: manualAddress.city.trim(),
+        state: manualAddress.state.trim(),
+        landmark: manualAddress.landmark.trim() || null,
+        saveToBuyerProfile: manualAddress.saveToBuyerProfile,
+      },
+    };
+  }, [addressMode, manualAddress, selectedAddressId]);
+
+  const quoteReady =
+    open && !!selectedBuyerId && lineItems.length > 0 && quoteAddressPayload != null;
+
+  useEffect(() => {
+    if (!quoteReady || !quoteAddressPayload || !selectedBuyerId) {
+      setLogisticsQuote(null);
+      setQuoteError(null);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIsQuoteLoading(true);
+      setQuoteError(null);
+
+      void quoteAssistedOrder({
+        buyerId: selectedBuyerId,
+        items: lineItems.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId,
+          quantity: item.quantity,
+        })),
+        discountCodes,
+        logisticsSelections: allGroupsLogisticsCompanyId ? {} : sellerLogisticsSelections,
+        allGroupsLogisticsCompanyId: allGroupsLogisticsCompanyId || null,
+        ...quoteAddressPayload,
+      })
+        .then((quote) => {
+          setLogisticsQuote(quote);
+          setSellerLogisticsSelections((current) => {
+            if (allGroupsLogisticsCompanyId) return current;
+            const next = { ...current };
+            for (const group of quote.sellerGroups) {
+              if (!next[group.sellerId] && group.logisticsCompanyId) {
+                next[group.sellerId] = group.logisticsCompanyId;
+              }
+            }
+            return next;
+          });
+        })
+        .catch((error) => {
+          setLogisticsQuote(null);
+          setQuoteError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load logistics options",
+          );
+        })
+        .finally(() => setIsQuoteLoading(false));
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    allGroupsLogisticsCompanyId,
+    discountCodes,
+    lineItems,
+    quoteAddressPayload,
+    quoteAssistedOrder,
+    quoteReady,
+    selectedBuyerId,
+    sellerLogisticsSelections,
+  ]);
+
   const handleSelectBuyer = (buyer: AdminBuyerRecord) => {
     setSelectedBuyerId(buyer.id);
     setBuyerSearch(buyer.fullName);
@@ -356,6 +473,11 @@ export function AdminAssistedOrderDialog({
       }
     }
 
+    if (!logisticsQuote || logisticsQuote.sellerGroups.some((group) => !group.logisticsCompanyId)) {
+      toast.error("Select a logistics company for each seller group before continuing.");
+      return;
+    }
+
     try {
       const result = await initializeAssistedOrder({
         buyerId: selectedBuyerId,
@@ -365,6 +487,8 @@ export function AdminAssistedOrderDialog({
           quantity: item.quantity,
         })),
         discountCodes,
+        logisticsSelections: allGroupsLogisticsCompanyId ? {} : sellerLogisticsSelections,
+        allGroupsLogisticsCompanyId: allGroupsLogisticsCompanyId || null,
         ...(addressMode === "existing"
           ? { addressId: selectedAddressId }
           : {
@@ -746,6 +870,153 @@ export function AdminAssistedOrderDialog({
                   Save this manual address to the buyer profile
                 </label>
               </div>
+            )}
+          </div>
+
+          <div className="space-y-4 rounded-md border border-border/50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-medium text-foreground">Logistics selection</p>
+                <p className="text-sm text-muted-foreground">
+                  Choose one logistics company per seller group, or one nationwide company for all groups.
+                </p>
+              </div>
+              {isQuoteLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Spinner className="size-4" />
+                  <span>Loading logistics...</span>
+                </div>
+              ) : null}
+            </div>
+
+            {quoteError ? (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {quoteError}
+              </div>
+            ) : null}
+
+            {logisticsQuote ? (
+              <>
+                {(() => {
+                  const nationwideOptions = Array.from(
+                    new Map(
+                      logisticsQuote.sellerGroups
+                        .flatMap((group) => group.eligibleLogisticsCompanies)
+                        .filter((company) => company.coverageType === "NATIONWIDE")
+                        .map((company) => [company.id, company]),
+                    ).values(),
+                  );
+
+                  return nationwideOptions.length > 0 ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Nationwide company for all seller groups
+                      </label>
+                      <select
+                        value={allGroupsLogisticsCompanyId}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setAllGroupsLogisticsCompanyId(value);
+                          if (value) {
+                            setSellerLogisticsSelections({});
+                          }
+                        }}
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                      >
+                        <option value="">Select per seller group instead</option>
+                        {nationwideOptions.map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.companyName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null;
+                })()}
+
+                <div className="space-y-3">
+                  {logisticsQuote.sellerGroups.map((group) => (
+                    <div key={group.sellerId} className="rounded-md border border-border/40 p-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-medium text-foreground">{group.farmName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Deliver to {group.buyerDeliveryCity}, {group.buyerDeliveryState}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Chargeable weight {group.totalChargeableWeightKg.toFixed(1)}kg
+                          </p>
+                        </div>
+                        <div className="text-right text-sm">
+                          <p className="font-semibold text-foreground">
+                            {formatCurrency(group.groupTotal)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Shipping {formatCurrency(group.shippingFee)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <select
+                          value={
+                            allGroupsLogisticsCompanyId
+                              ? allGroupsLogisticsCompanyId
+                              : sellerLogisticsSelections[group.sellerId] || ""
+                          }
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setAllGroupsLogisticsCompanyId("");
+                            setSellerLogisticsSelections((current) => ({
+                              ...current,
+                              [group.sellerId]: value,
+                            }));
+                          }}
+                          disabled={Boolean(allGroupsLogisticsCompanyId)}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                        >
+                          <option value="">Select logistics company</option>
+                          {group.eligibleLogisticsCompanies.map((company) => (
+                            <option key={company.id} value={company.id}>
+                              {company.companyName} - {company.coverageType === "NATIONWIDE" ? "Nationwide" : company.pricing.state || "Regional"}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <div className="rounded-md bg-muted/30 p-3">
+                    <p className="text-sm text-muted-foreground">Products</p>
+                    <p className="font-semibold text-foreground">
+                      {formatCurrency(logisticsQuote.productSubtotal)}
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-muted/30 p-3">
+                    <p className="text-sm text-muted-foreground">Discounts</p>
+                    <p className="font-semibold text-foreground">
+                      {formatCurrency(logisticsQuote.discountTotal)}
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-muted/30 p-3">
+                    <p className="text-sm text-muted-foreground">Shipping</p>
+                    <p className="font-semibold text-foreground">
+                      {formatCurrency(logisticsQuote.totalShippingFee)}
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-muted/30 p-3">
+                    <p className="text-sm text-muted-foreground">Grand total</p>
+                    <p className="font-semibold text-foreground">
+                      {formatCurrency(logisticsQuote.grandTotal)}
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Add products and a delivery address to load eligible logistics companies.
+              </p>
             )}
           </div>
 
