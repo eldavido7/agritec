@@ -2,20 +2,44 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Mail } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
+  const token = useLogisticsAuthStore((state) => state.token);
+  const user = useLogisticsAuthStore((state) => state.user);
+  const isReady = useLogisticsAuthStore((state) => state.isReady);
+  const bootstrap = useLogisticsAuthStore((state) => state.bootstrap);
   const requestPasswordReset = useLogisticsAuthStore((state) => state.requestPasswordReset);
   const isLoading = useLogisticsAuthStore((state) => state.isLoading);
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
+
+  useEffect(() => {
+    if (!isReady || !token || user?.role !== 'LOGISTICS') return;
+    router.replace('/dashboard');
+  }, [isReady, router, token, user]);
+
+  if (!isReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    );
+  }
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

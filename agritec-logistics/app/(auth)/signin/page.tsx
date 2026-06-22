@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { motion } from 'framer-motion';
+import { Spinner } from '@/components/ui/spinner';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
 
 export default function SignInPage() {
@@ -21,11 +22,32 @@ export default function SignInPage() {
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const token = useLogisticsAuthStore((state) => state.token);
+  const user = useLogisticsAuthStore((state) => state.user);
+  const isReady = useLogisticsAuthStore((state) => state.isReady);
+  const bootstrap = useLogisticsAuthStore((state) => state.bootstrap);
   const signIn = useLogisticsAuthStore((state) => state.signIn);
   const isLoading = useLogisticsAuthStore((state) => state.isLoading);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
+
+  useEffect(() => {
+    if (!isReady || !token || user?.role !== 'LOGISTICS') return;
+    router.replace(searchParams.get('next') || '/dashboard');
+  }, [isReady, router, searchParams, token, user]);
+
+  if (!isReady) {
+    return (
+      <div className="flex min-h-[320px] items-center justify-center">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    );
+  }
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

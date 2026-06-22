@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,11 +16,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { motion } from 'framer-motion';
+import { Spinner } from '@/components/ui/spinner';
 import { nigeriaLocations } from '@/lib/data/nigeria-locations';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
 
 export default function SignUpPage() {
   const router = useRouter();
+  const token = useLogisticsAuthStore((state) => state.token);
+  const user = useLogisticsAuthStore((state) => state.user);
+  const isReady = useLogisticsAuthStore((state) => state.isReady);
+  const bootstrap = useLogisticsAuthStore((state) => state.bootstrap);
   const signUp = useLogisticsAuthStore((state) => state.signUp);
   const isLoading = useLogisticsAuthStore((state) => state.isLoading);
   const [formData, setFormData] = useState({
@@ -46,6 +51,23 @@ export default function SignUpPage() {
     () => nigeriaLocations.find((state) => state.name === formData.state) ?? null,
     [formData.state]
   );
+
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
+
+  useEffect(() => {
+    if (!isReady || !token || user?.role !== 'LOGISTICS') return;
+    router.replace('/dashboard');
+  }, [isReady, router, token, user]);
+
+  if (!isReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    );
+  }
 
   const handleChange = (field: string, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }));

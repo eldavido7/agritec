@@ -37,7 +37,7 @@ export default function DashboardLayout({
   );
 }
 
-function DashboardShell({ children }: { children: React.ReactNode }) {
+function DashboardShell({ children, onNavigate }: { children: React.ReactNode; onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -89,9 +89,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         transition={{ duration: 0.3 }}
         className="fixed left-0 top-0 z-50 h-full w-64 border-r border-border bg-card md:static md:translate-x-0"
       >
-        <div className="border-b border-border p-6">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="AgriTec" width={150} height={50} className="h-8 w-auto" />
+        <div className="border-b border-border p-1.5">
+          <Link href="/dashboard" className="group" onClick={onNavigate}>
+            <Image
+              src="/logo.png"
+              alt="AgriTec Logo"
+              width={140}
+              height={140}
+              className="ml-12 items-center justify-center"
+            />
           </Link>
         </div>
 
@@ -105,8 +111,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
                   isActive(item.href)
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-foreground hover:bg-muted'
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground hover:bg-muted"
                 }`}
               >
                 <Icon className="h-5 w-5" />
@@ -117,7 +123,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="absolute bottom-6 left-4 right-4">
-          <Button variant="outline" className="w-full justify-start" size="sm" onClick={handleSignOut}>
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            size="sm"
+            onClick={handleSignOut}
+          >
             <LogOut className="mr-2 h-4 w-4" />
             Sign Out
           </Button>
@@ -131,7 +142,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="text-foreground hover:text-primary md:hidden"
             >
-              {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              {sidebarOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
             </button>
 
             <div className="flex-1" />
@@ -139,25 +154,32 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-4">
               <div className="hidden text-right md:block">
                 <p className="text-sm font-semibold text-foreground">
-                  {user?.logisticsProfile?.companyName || 'Logistics Company'}
+                  {user?.logisticsProfile?.companyName || "Logistics Company"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {user?.fullName || 'Logistics User'}
-                  {' • '}
-                  {user?.logisticsProfile?.verificationStatus === 'VERIFIED'
-                    ? 'Verified'
-                    : 'Pending verification'}
+                  {user?.fullName || "Logistics User"}
+                  {" • "}
+                  {user?.logisticsProfile?.verificationStatus === "VERIFIED"
+                    ? "Verified"
+                    : "Pending verification"}
                 </p>
               </div>
 
               <button
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 className="rounded-lg p-2 text-foreground transition-colors hover:bg-muted"
               >
-                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                {theme === "dark" ? (
+                  <Sun className="h-5 w-5" />
+                ) : (
+                  <Moon className="h-5 w-5" />
+                )}
               </button>
 
-              <Link href="/notifications" className="relative rounded-lg p-2 text-foreground transition-colors hover:bg-muted">
+              <Link
+                href="/notifications"
+                className="relative rounded-lg p-2 text-foreground transition-colors hover:bg-muted"
+              >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 ? (
                   <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
