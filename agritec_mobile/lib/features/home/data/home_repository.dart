@@ -39,7 +39,7 @@ class HomeDataSnapshot {
 class HomeRepository {
   HomeRepository(this._cacheService, this._apiClient);
 
-  static const cacheKey = 'cache_home_snapshot_v4';
+  static const cacheKey = 'cache_home_snapshot_v5';
   final LocalCacheService _cacheService;
   final MobileApiClient _apiClient;
 

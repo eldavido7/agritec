@@ -278,11 +278,20 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
         return;
       }
 
+      const shouldShowLoading =
+        !force ||
+        state.loadedForUserId !== userId ||
+        state.conversations.length === 0;
+
       console.log("[Seller Messages] Conversation fetch start", {
         userId,
         force,
+        shouldShowLoading,
       });
-      set({ isLoadingConversations: true, error: null });
+      set({
+        isLoadingConversations: shouldShowLoading,
+        error: null,
+      });
 
       try {
         const response = await sellerApiRequest<{
@@ -344,8 +353,18 @@ export const useSellerMessagesStore = create<SellerMessagesState>(
         return cached;
       }
 
-      console.log("[Seller Messages] Messages fetch start", { conversationId });
-      set({ isLoadingMessages: true, error: null, selectedConversationId: conversationId });
+      const shouldShowLoading = !force || !cached || cached.length === 0;
+
+      console.log("[Seller Messages] Messages fetch start", {
+        conversationId,
+        force,
+        shouldShowLoading,
+      });
+      set({
+        isLoadingMessages: shouldShowLoading,
+        error: null,
+        selectedConversationId: conversationId,
+      });
 
       try {
         const response = await sellerApiRequest<{

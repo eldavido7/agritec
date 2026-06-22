@@ -317,7 +317,9 @@ export default function MessagesPage() {
       previousMessageCountRef.current = count;
       setShowNewMessageJump(false);
 
-      window.setTimeout(() => scrollMessagesToBottom("auto"), 0);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => scrollMessagesToBottom("auto"));
+      });
       return;
     }
 

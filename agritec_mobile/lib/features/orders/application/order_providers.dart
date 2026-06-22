@@ -206,6 +206,12 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
   Future<MarketplaceOrder?> fetchOrderById(String orderId) async {
     final token = ref.read(buyerAuthTokenProvider);
     if (token == null || token.trim().isEmpty) return null;
+    await refresh();
+    final existing = state.where((item) => item.id == orderId).firstOrNull;
+    if (existing != null) {
+      return existing;
+    }
+
     final api = ref.read(mobileApiClientProvider);
     final payload = await api.get('/api/orders/$orderId', token: token);
     final orderJson = payload['order'];
@@ -216,7 +222,6 @@ class OrdersNotifier extends Notifier<List<MarketplaceOrder>> {
       fallbackSellers: ref.read(homeSellersProvider),
     );
     upsert(order);
-    await refresh();
     return order;
   }
 

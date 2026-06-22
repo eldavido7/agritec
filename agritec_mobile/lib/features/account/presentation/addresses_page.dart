@@ -163,9 +163,16 @@ class AddressesPage extends ConsumerWidget {
     WidgetRef ref, {
     BuyerAddress? address,
   }) async {
-    final key = await GooglePlacesService.getApiKey();
+    String? key;
+    try {
+      key = await GooglePlacesService.getApiKey();
+    } catch (_) {
+      key = null;
+    }
     if (!context.mounted) return;
-    final places = GooglePlacesService(key);
+    final places = (key != null && key.trim().isNotEmpty)
+        ? GooglePlacesService(key)
+        : null;
     final labelController = TextEditingController(text: address?.label ?? '');
     final fullAddressController = TextEditingController(
       text: address?.fullAddress ?? '',
@@ -195,6 +202,14 @@ class AddressesPage extends ConsumerWidget {
     void Function(VoidCallback fn)? setDialogState;
 
     Future<void> loadSuggestions(String query) async {
+      if (places == null) {
+        setDialogState?.call(() {
+          suggestions.clear();
+          loadingSuggestions = false;
+          suggestionError = ref.tr('addresses.loadSuggestionsError');
+        });
+        return;
+      }
       if (query.trim().length < 3) {
         setDialogState?.call(() {
           suggestions.clear();
@@ -246,6 +261,14 @@ class AddressesPage extends ConsumerWidget {
     Future<void> reverseGeocodeAndApply(double lat, double lng) async {
       setDialogState?.call(() => loadingReverseGeocode = true);
       try {
+        if (places == null) {
+          selectedLat = lat;
+          selectedLng = lng;
+          latController.text = lat.toStringAsFixed(6);
+          lngController.text = lng.toStringAsFixed(6);
+          setDialogState?.call(() {});
+          return;
+        }
         final details = await places.reverseGeocode(
           latitude: lat,
           longitude: lng,
@@ -399,6 +422,13 @@ class AddressesPage extends ConsumerWidget {
                                         title: Text(item.mainText),
                                         subtitle: Text(item.secondaryText),
                                         onTap: () async {
+                                          if (places == null) {
+                                            setDialogState?.call(() {
+                                              suggestionError =
+                                                  ref.tr('addresses.placeDetailsError');
+                                            });
+                                            return;
+                                          }
                                           final details = await places
                                               .getPlaceDetails(item.placeId);
                                           if (details == null) {
@@ -416,28 +446,50 @@ class AddressesPage extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: SizedBox(
-                                height: 230,
-                                child: GoogleMap(
-                                  initialCameraPosition: CameraPosition(
-                                    target: LatLng(selectedLat, selectedLng),
-                                    zoom: 14,
+                            if (places != null)
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: SizedBox(
+                                  height: 230,
+                                  child: GoogleMap(
+                                    initialCameraPosition: CameraPosition(
+                                      target: LatLng(selectedLat, selectedLng),
+                                      zoom: 14,
+                                    ),
+                                    myLocationButtonEnabled: false,
+                                    zoomControlsEnabled: false,
+                                    markers: {marker},
+                                    onMapCreated: (controller) {
+                                      mapController = controller;
+                                    },
+                                    onTap: (point) => reverseGeocodeAndApply(
+                                      point.latitude,
+                                      point.longitude,
+                                    ),
                                   ),
-                                  myLocationButtonEnabled: false,
-                                  zoomControlsEnabled: false,
-                                  markers: {marker},
-                                  onMapCreated: (controller) {
-                                    mapController = controller;
-                                  },
-                                  onTap: (point) => reverseGeocodeAndApply(
-                                    point.latitude,
-                                    point.longitude,
+                                ),
+                              )
+                            else
+                              Container(
+                                height: 140,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3F5F4),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: const Color(0xFFDCE4E0),
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.all(16),
+                                child: Text(
+                                  ref.tr('addresses.loadSuggestionsError'),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Color(0xFF65706B),
                                   ),
                                 ),
                               ),
-                            ),
                             if (loadingReverseGeocode)
                               Padding(
                                 padding: const EdgeInsets.only(top: 6),
@@ -504,7 +556,7 @@ class AddressesPage extends ConsumerWidget {
                           const SizedBox(width: 10),
                           Expanded(
                             child: ElevatedButton(
-                              onPressed: () {
+                              onPressed: () async {
                                 final lat = double.tryParse(
                                   latController.text.trim(),
                                 );
@@ -517,12 +569,24 @@ class AddressesPage extends ConsumerWidget {
                                     lng == null ||
                                     selectedCity == null ||
                                     selectedState == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        ref.tr('addresses.fillRequired'),
-                                      ),
-                                    ),
+                                  await showDialog<void>(
+                                    context: dialogContext,
+                                    builder: (alertContext) {
+                                      return AlertDialog(
+                                        title: const Text('Error'),
+                                        content: Text(
+                                          ref.tr('addresses.fillRequired'),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(
+                                              alertContext,
+                                            ).pop(),
+                                            child: const Text('OK'),
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   );
                                   return;
                                 }

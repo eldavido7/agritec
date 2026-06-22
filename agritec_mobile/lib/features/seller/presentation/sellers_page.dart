@@ -237,7 +237,7 @@ class _SellersPageState extends ConsumerState<SellersPage> {
                                             Expanded(
                                               child: Text(
                                                 seller.location,
-                                                maxLines: 1,
+                                                maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
                                                   fontSize: 11,

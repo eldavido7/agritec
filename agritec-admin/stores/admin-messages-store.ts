@@ -212,8 +212,10 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
       return;
     }
 
-    console.log("[Admin Messages] Fetch start", { force });
-    set({ isLoading: true, error: null });
+    const shouldShowLoading = !force || !state.loaded || state.conversations.length === 0;
+
+    console.log("[Admin Messages] Fetch start", { force, shouldShowLoading });
+    set({ isLoading: shouldShowLoading, error: null });
 
     try {
       const response = await adminApiRequest<{
@@ -280,8 +282,14 @@ export const useAdminMessagesStore = create<AdminMessagesState>((set, get) => ({
       return existing;
     }
 
-    console.log("[Admin Messages] Message fetch start", { conversationId, force });
-    set({ isMessagesLoading: true, error: null });
+    const shouldShowLoading = !force || !existing || existing.length === 0;
+
+    console.log("[Admin Messages] Message fetch start", {
+      conversationId,
+      force,
+      shouldShowLoading,
+    });
+    set({ isMessagesLoading: shouldShowLoading, error: null });
 
     try {
       const response = await adminApiRequest<{
