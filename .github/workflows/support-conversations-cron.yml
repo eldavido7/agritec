@@ -1,0 +1,32 @@
+name: Support Conversations Cron
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call support conversation sweep
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${API_BASE_URL}" ]; then
+            echo "API_BASE_URL secret is not configured" >&2
+            exit 1
+          fi
+
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "CRON_SECRET secret is not configured" >&2
+            exit 1
+          fi
+
+          curl --fail --silent --show-error \
+            --request GET \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            "${API_BASE_URL%/}/api/cron/support-conversations"
