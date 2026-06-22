@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,14 @@ import { motion } from 'framer-motion';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
 
 export default function SignInPage() {
+  return (
+    <Suspense fallback={<SignInFallback />}>
+      <SignInForm />
+    </Suspense>
+  );
+}
+
+function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const signIn = useLogisticsAuthStore((state) => state.signIn);
@@ -104,5 +112,18 @@ export default function SignInPage() {
         </div>
       </Card>
     </motion.div>
+  );
+}
+
+function SignInFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="mb-8 flex items-center justify-center">
+        <Image src="/logo.png" alt="AgriTec" width={150} height={50} className="h-12 w-auto" />
+      </div>
+      <Card className="p-8 text-center text-sm text-muted-foreground">
+        Loading sign in...
+      </Card>
+    </div>
   );
 }
