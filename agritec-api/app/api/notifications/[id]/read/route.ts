@@ -8,7 +8,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuthenticatedUser(request, [UserRole.BUYER, UserRole.SELLER, UserRole.ADMIN]);
+    const user = await requireAuthenticatedUser(request, [
+      UserRole.BUYER,
+      UserRole.SELLER,
+      UserRole.ADMIN,
+      UserRole.LOGISTICS,
+    ]);
     if (!user) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }

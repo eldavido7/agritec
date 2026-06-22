@@ -1,11 +1,19 @@
 'use client';
 
+import { useEffect } from 'react';
 import { KPICards } from '@/components/dashboard/kpi-cards';
 import { ChartsGrid, StatusBreakdownChart } from '@/components/dashboard/charts';
 import { RecentDeliveriesTable } from '@/components/dashboard/recent-deliveries-table';
 import { motion } from 'framer-motion';
+import { useLogisticsStore } from '@/lib/store/logistics-store';
 
 export default function DashboardPage() {
+  const fetchDeliveries = useLogisticsStore((state) => state.fetchDeliveries);
+
+  useEffect(() => {
+    void fetchDeliveries({ force: true }).catch(() => undefined);
+  }, [fetchDeliveries]);
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {

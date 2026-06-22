@@ -3,53 +3,53 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
 
 export default function SignInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const signIn = useLogisticsAuthStore((state) => state.signIn);
+  const isLoading = useLogisticsAuthStore((state) => state.isLoading);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError('');
-    setLoading(true);
 
-    // Simulate auth check
-    if (!email || !password) {
-      setError('Please fill in all fields');
-      setLoading(false);
+    if (!email.trim() || !password) {
+      setError('Enter your email and password.');
       return;
     }
 
-    if (!email.includes('@')) {
-      setError('Please enter a valid email');
-      setLoading(false);
-      return;
+    try {
+      await signIn(email, password);
+      router.push(searchParams.get('next') || '/dashboard');
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error ? submitError.message : 'Unable to sign in'
+      );
     }
-
-    // Simulate successful login
-    setTimeout(() => {
-      router.push('/dashboard');
-    }, 500);
   };
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-      <div className="flex items-center justify-center mb-8">
+      <div className="mb-8 flex items-center justify-center">
         <Image src="/logo.png" alt="AgriTec" width={150} height={50} className="h-12 w-auto" />
       </div>
 
-      <Card className="p-8 space-y-6">
+      <Card className="space-y-6 p-8">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Sign In</h1>
-          <p className="text-sm text-muted-foreground mt-2">Enter your credentials to access your dashboard</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Access your logistics operations dashboard
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -59,9 +59,9 @@ export default function SignInPage() {
               type="email"
               placeholder="your@email.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               className="mt-2"
-              disabled={loading}
+              disabled={isLoading}
             />
           </div>
 
@@ -69,18 +69,22 @@ export default function SignInPage() {
             <label className="text-sm font-medium text-foreground">Password</label>
             <Input
               type="password"
-              placeholder="••••••••"
+              placeholder="Password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               className="mt-2"
-              disabled={loading}
+              disabled={isLoading}
             />
           </div>
 
-          {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">{error}</div>}
+          {error ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
 
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={loading}>
-            {loading ? 'Signing In...' : 'Sign In'}
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
         </form>
 
@@ -90,10 +94,10 @@ export default function SignInPage() {
           </Link>
         </div>
 
-        <div className="pt-4 border-t border-border">
+        <div className="border-t border-border pt-4">
           <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-primary hover:underline font-medium">
+            <Link href="/signup" className="font-medium text-primary hover:underline">
               Sign up
             </Link>
           </p>

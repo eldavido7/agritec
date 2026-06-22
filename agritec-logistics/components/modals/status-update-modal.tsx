@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -19,12 +18,20 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useLogisticsStore } from '@/lib/store/logistics-store';
+import type { DeliveryStatus } from '@/lib/types';
+
+const statusOptions: Array<{ value: DeliveryStatus; label: string }> = [
+  { value: 'PROCESSING', label: 'Processing' },
+  { value: 'SHIPPED', label: 'Shipped' },
+  { value: 'DELIVERED', label: 'Delivered' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+];
 
 interface StatusUpdateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   deliveryId: string;
-  currentStatus: string;
+  currentStatus: DeliveryStatus;
 }
 
 export function StatusUpdateModal({
@@ -34,33 +41,37 @@ export function StatusUpdateModal({
   currentStatus,
 }: StatusUpdateModalProps) {
   const updateDeliveryStatus = useLogisticsStore((state) => state.updateDeliveryStatus);
-  const [status, setStatus] = useState('');
+  const isUpdating = useLogisticsStore((state) => state.isUpdatingStatus);
+  const [status, setStatus] = useState<DeliveryStatus | ''>('');
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const statusOptions = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'assigned', label: 'Assigned' },
-    { value: 'picked_up', label: 'Picked Up' },
-    { value: 'in_transit', label: 'In Transit' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'failed', label: 'Failed' },
-    { value: 'cancelled', label: 'Cancelled' },
-  ];
+  const availableStatuses = useMemo(
+    () => statusOptions.filter((option) => option.value !== currentStatus),
+    [currentStatus]
+  );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!status) return;
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!status) {
+      setError('Select a status to continue.');
+      return;
+    }
 
-    setLoading(true);
-    updateDeliveryStatus(deliveryId, status, description, 'Current User');
-    
-    setTimeout(() => {
-      setLoading(false);
-      onOpenChange(false);
+    setError('');
+
+    try {
+      await updateDeliveryStatus(deliveryId, status, description);
       setStatus('');
       setDescription('');
-    }, 500);
+      onOpenChange(false);
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Failed to update delivery status'
+      );
+    }
   };
 
   return (
@@ -72,13 +83,13 @@ export function StatusUpdateModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-foreground">New Status *</label>
-            <Select value={status} onValueChange={setStatus}>
+            <label className="text-sm font-medium text-foreground">New Status</label>
+            <Select value={status} onValueChange={(value) => setStatus(value as DeliveryStatus)}>
               <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Select new status" />
+                <SelectValue placeholder="Select delivery status" />
               </SelectTrigger>
               <SelectContent>
-                {statusOptions.map((option) => (
+                {availableStatuses.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -89,33 +100,35 @@ export function StatusUpdateModal({
 
           <div>
             <label className="text-sm font-medium text-foreground">
-              Description (Optional)
+              Update Note
             </label>
             <Textarea
-              placeholder="Add any notes about this status update..."
+              placeholder="Add a delivery update or cancellation reason"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(event) => setDescription(event.target.value)}
               className="mt-2 resize-none"
               rows={4}
-              disabled={loading}
+              disabled={isUpdating}
             />
           </div>
+
+          {error ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
 
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={loading}
+              disabled={isUpdating}
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              className="bg-primary hover:bg-primary/90"
-              disabled={loading || !status}
-            >
-              {loading ? 'Updating...' : 'Update Status'}
+            <Button type="submit" disabled={isUpdating || !status}>
+              {isUpdating ? 'Updating...' : 'Update Status'}
             </Button>
           </DialogFooter>
         </form>

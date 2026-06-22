@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Bell,
   MessageCircle,
+  Truck,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,12 @@ const navItems: NavItem[] = [
     label: "Orders",
     href: "/dashboard/orders",
     icon: <ShoppingCart className="w-4 h-4" />,
+    section: "orders",
+  },
+  {
+    label: "Logistics",
+    href: "/dashboard/logistics",
+    icon: <Truck className="w-4 h-4" />,
     section: "orders",
   },
   {

@@ -1,0 +1,42 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Spinner } from "@/components/ui/spinner";
+import { useLogisticsAuthStore } from "@/lib/store/logistics-auth-store";
+
+export function DashboardAuthGuard({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { token, user, isReady, bootstrap } = useLogisticsAuthStore();
+  const [isAllowed, setIsAllowed] = useState(false);
+
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
+
+  useEffect(() => {
+    if (!isReady) return;
+
+    if (!token || !user || user.role !== "LOGISTICS") {
+      router.replace(`/signin?next=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    setIsAllowed(true);
+  }, [isReady, pathname, router, token, user]);
+
+  if (!isReady || !isAllowed) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background text-sm text-muted-foreground">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}

@@ -1,32 +1,35 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useLogisticsStore } from '@/lib/store/logistics-store';
 import { motion } from 'framer-motion';
-import { Bell, Package, AlertCircle, MessageSquare, CheckCircle, Trash2 } from 'lucide-react';
+import { Bell, CheckCircle, MessageSquare, Package, Truck } from 'lucide-react';
 
 const notificationIcons: Record<string, typeof Bell> = {
-  new_delivery: Package,
-  status_update: CheckCircle,
-  failed_delivery: AlertCircle,
-  admin_message: MessageSquare,
+  ORDER: Package,
+  MESSAGE: MessageSquare,
+  PAYOUT: Truck,
 };
 
 const notificationColors: Record<string, string> = {
-  new_delivery: 'text-blue-500 bg-blue-50 dark:bg-blue-950',
-  status_update: 'text-green-500 bg-green-50 dark:bg-green-950',
-  failed_delivery: 'text-red-500 bg-red-50 dark:bg-red-950',
-  admin_message: 'text-purple-500 bg-purple-50 dark:bg-purple-950',
+  ORDER: 'text-blue-500 bg-blue-50 dark:bg-blue-950',
+  MESSAGE: 'text-purple-500 bg-purple-50 dark:bg-purple-950',
+  PAYOUT: 'text-green-500 bg-green-50 dark:bg-green-950',
 };
 
 export default function NotificationsPage() {
   const notifications = useLogisticsStore((state) => state.notifications);
+  const unreadCount = useLogisticsStore((state) => state.unreadCount);
+  const fetchNotifications = useLogisticsStore((state) => state.fetchNotifications);
   const markAsRead = useLogisticsStore((state) => state.markNotificationAsRead);
   const markAllAsRead = useLogisticsStore((state) => state.markAllNotificationsAsRead);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  useEffect(() => {
+    void fetchNotifications({ force: true }).catch(() => undefined);
+  }, [fetchNotifications]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -55,55 +58,51 @@ export default function NotificationsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Notifications</h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="mt-2 text-muted-foreground">
               You have {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
             </p>
           </div>
-          {unreadCount > 0 && (
-            <Button onClick={() => markAllAsRead()} variant="outline">
+          {unreadCount > 0 ? (
+            <Button onClick={() => void markAllAsRead()} variant="outline">
               Mark All as Read
             </Button>
-          )}
+          ) : null}
         </div>
       </motion.div>
 
       <motion.div variants={itemVariants} className="space-y-3">
         {notifications.length > 0 ? (
-          notifications.map((notification, i) => {
+          notifications.map((notification) => {
             const Icon = notificationIcons[notification.type] || Bell;
             return (
               <motion.div key={notification.id} variants={itemVariants}>
                 <Card
-                  className={`p-4 cursor-pointer transition-all ${
-                    !notification.read ? 'border-primary/50 bg-primary/5' : ''
+                  className={`cursor-pointer p-4 transition-all ${
+                    !notification.isRead ? 'border-primary/50 bg-primary/5' : ''
                   }`}
-                  onClick={() => !notification.read && markAsRead(notification.id)}
+                  onClick={() => !notification.isRead && void markAsRead(notification.id)}
                 >
                   <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-lg ${notificationColors[notification.type]}`}>
-                      <Icon className="w-5 h-5" />
+                    <div className={`rounded-lg p-3 ${notificationColors[notification.type] || 'bg-muted text-foreground'}`}>
+                      <Icon className="h-5 w-5" />
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center gap-2">
                         <h3 className="font-semibold text-foreground">{notification.title}</h3>
-                        {!notification.read && (
+                        {!notification.isRead ? (
                           <Badge className="bg-primary text-primary-foreground text-xs">New</Badge>
-                        )}
+                        ) : null}
                       </div>
-                      <p className="text-sm text-muted-foreground">{notification.message}</p>
-                      <p className="text-xs text-muted-foreground mt-2">
+                      <p className="text-sm text-muted-foreground">{notification.body}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
                         {new Date(notification.createdAt).toLocaleString()}
                       </p>
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {notification.isRead ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : null}
                   </div>
                 </Card>
               </motion.div>
@@ -111,7 +110,7 @@ export default function NotificationsPage() {
           })
         ) : (
           <Card className="p-12 text-center">
-            <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+            <Bell className="mx-auto mb-4 h-12 w-12 text-muted-foreground opacity-50" />
             <p className="text-muted-foreground">No notifications yet</p>
           </Card>
         )}

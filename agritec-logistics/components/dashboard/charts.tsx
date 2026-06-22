@@ -4,19 +4,19 @@ import { Card } from '@/components/ui/card';
 import { useLogisticsStore } from '@/lib/store/logistics-store';
 import { motion } from 'framer-motion';
 import {
-  LineChart,
-  Line,
-  AreaChart,
   Area,
-  PieChart,
-  Pie,
+  AreaChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from 'recharts';
 
 const itemVariants = {
@@ -38,7 +38,7 @@ export function DeliveriesChart() {
   return (
     <motion.div variants={itemVariants}>
       <Card className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Deliveries Over Time</h3>
+        <h3 className="mb-4 text-lg font-semibold text-foreground">Deliveries Over Time</h3>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={analytics.deliveriesByDate}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -75,7 +75,7 @@ export function RevenueChart() {
   return (
     <motion.div variants={itemVariants}>
       <Card className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Revenue Trend</h3>
+        <h3 className="mb-4 text-lg font-semibold text-foreground">Revenue Trend</h3>
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={analytics.revenueByDate}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -88,7 +88,7 @@ export function RevenueChart() {
                 borderRadius: '8px',
               }}
               labelStyle={{ color: 'var(--foreground)' }}
-              formatter={(value) => `₦${value.toLocaleString()}`}
+              formatter={(value) => `NGN ${Number(value ?? 0).toLocaleString()}`}
             />
             <Legend wrapperStyle={{ color: 'var(--foreground)' }} />
             <Area
@@ -111,16 +111,16 @@ export function StatusBreakdownChart() {
   const analytics = useLogisticsStore((state) => state.analytics);
 
   const data = Object.entries(analytics.statusBreakdown)
-    .filter(([_, count]) => count > 0)
+    .filter(([, count]) => count > 0)
     .map(([status, count]) => ({
-      name: status.replace(/_/g, ' ').toUpperCase(),
+      name: status.replace(/_/g, ' '),
       value: count,
     }));
 
   return (
     <motion.div variants={itemVariants}>
       <Card className="p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Status Breakdown</h3>
+        <h3 className="mb-4 text-lg font-semibold text-foreground">Status Breakdown</h3>
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>
             <Pie
@@ -128,7 +128,7 @@ export function StatusBreakdownChart() {
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
               outerRadius={100}
               fill="#8884d8"
               dataKey="value"
@@ -168,7 +168,7 @@ export function ChartsGrid() {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+      className="grid grid-cols-1 gap-6 lg:grid-cols-2"
     >
       <DeliveriesChart />
       <RevenueChart />

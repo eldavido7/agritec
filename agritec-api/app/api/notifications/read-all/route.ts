@@ -5,7 +5,12 @@ import prisma from "@/lib/prisma";
 
 export async function PATCH(request: Request) {
   try {
-    const user = await requireAuthenticatedUser(request, [UserRole.BUYER, UserRole.SELLER, UserRole.ADMIN]);
+    const user = await requireAuthenticatedUser(request, [
+      UserRole.BUYER,
+      UserRole.SELLER,
+      UserRole.ADMIN,
+      UserRole.LOGISTICS,
+    ]);
     if (!user) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }

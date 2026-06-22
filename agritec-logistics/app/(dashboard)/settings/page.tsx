@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
@@ -15,8 +14,11 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { motion } from 'framer-motion';
-import { Save, User, DollarSign, MapPin, Lock, Search, X } from 'lucide-react';
+import { DollarSign, MapPin, Save, Search, User, X } from 'lucide-react';
 import { nigerianStates } from '@/lib/data/nigerian-states';
+import { useLogisticsStore } from '@/lib/store/logistics-store';
+import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
+import type { CoverageType } from '@/lib/types';
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
@@ -29,41 +31,215 @@ const itemVariants = {
   },
 };
 
+type ProfileFormState = {
+  fullName: string;
+  email: string;
+  phone: string;
+  companyName: string;
+  contactPersonName: string;
+  businessAddress: string;
+  city: string;
+  state: string;
+  lga: string;
+  area: string;
+  description: string;
+};
+
+type PricingFormState = {
+  abujaMinimumFee: string;
+  abujaAdditionalUnitFee: string;
+  outsideMinimumFee: string;
+  outsideAdditionalUnitFee: string;
+  weightUnitSizeKg: string;
+  volumetricDivisor: string;
+  weeklyAutoPayoutDay: string;
+};
+
 export default function SettingsPage() {
+  const user = useLogisticsAuthStore((state) => state.user);
+  const profile = useLogisticsStore((state) => state.profile);
+  const fetchProfile = useLogisticsStore((state) => state.fetchProfile);
+  const updateProfile = useLogisticsStore((state) => state.updateProfile);
+  const isLoadingProfile = useLogisticsStore((state) => state.isLoadingProfile);
+  const isUpdatingProfile = useLogisticsStore((state) => state.isUpdatingProfile);
   const [activeTab, setActiveTab] = useState('profile');
-  const [saved, setSaved] = useState(false);
-  const [coverageType, setCoverageType] = useState('regional');
+  const [savedMessage, setSavedMessage] = useState('');
+  const [profileForm, setProfileForm] = useState<ProfileFormState>({
+    fullName: '',
+    email: '',
+    phone: '',
+    companyName: '',
+    contactPersonName: '',
+    businessAddress: '',
+    city: '',
+    state: '',
+    lga: '',
+    area: '',
+    description: '',
+  });
+  const [pricingForm, setPricingForm] = useState<PricingFormState>({
+    abujaMinimumFee: '2500',
+    abujaAdditionalUnitFee: '2500',
+    outsideMinimumFee: '5000',
+    outsideAdditionalUnitFee: '5000',
+    weightUnitSizeKg: '10',
+    volumetricDivisor: '5000',
+    weeklyAutoPayoutDay: '',
+  });
+  const [coverageType, setCoverageType] = useState<CoverageType>('REGIONAL');
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedLGAsByState, setSelectedLGAsByState] = useState<Record<string, string[]>>({});
   const [stateSearch, setStateSearch] = useState('');
-  const [selectedState, setSelectedState] = useState<string | null>(null);
-  const [selectedLGAs, setSelectedLGAs] = useState<string[]>([]);
   const [lgaSearch, setLgaSearch] = useState('');
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
+  useEffect(() => {
+    void fetchProfile({ force: true }).catch(() => undefined);
+  }, [fetchProfile]);
 
-  const handleStateToggle = (stateName: string) => {
-    setSelectedStates((prev) =>
-      prev.includes(stateName) ? prev.filter((s) => s !== stateName) : [...prev, stateName]
-    );
-  };
+  useEffect(() => {
+    if (!user?.logisticsProfile || !profile) {
+      return;
+    }
 
-  const handleLGAToggle = (lga: string) => {
-    setSelectedLGAs((prev) =>
-      prev.includes(lga) ? prev.filter((l) => l !== lga) : [...prev, lga]
-    );
-  };
+    setProfileForm({
+      fullName: user.fullName || '',
+      email: user.email || '',
+      phone: user.phone || user.logisticsProfile.phone || '',
+      companyName: user.logisticsProfile.companyName || '',
+      contactPersonName: user.logisticsProfile.contactPersonName || '',
+      businessAddress: user.logisticsProfile.businessAddress || '',
+      city: user.logisticsProfile.city || '',
+      state: user.logisticsProfile.state || '',
+      lga: user.logisticsProfile.lga || '',
+      area: user.logisticsProfile.area || '',
+      description: user.logisticsProfile.description || '',
+    });
 
-  const filteredStates = nigerianStates.filter((state) =>
-    state.name.toLowerCase().includes(stateSearch.toLowerCase())
+    setPricingForm({
+      abujaMinimumFee: String(profile.pricingSettings?.abujaMinimumFee ?? 2500),
+      abujaAdditionalUnitFee: String(profile.pricingSettings?.abujaAdditionalUnitFee ?? 2500),
+      outsideMinimumFee: String(profile.pricingSettings?.outsideMinimumFee ?? 5000),
+      outsideAdditionalUnitFee: String(profile.pricingSettings?.outsideAdditionalUnitFee ?? 5000),
+      weightUnitSizeKg: String(profile.pricingSettings?.weightUnitSizeKg ?? 10),
+      volumetricDivisor: String(profile.pricingSettings?.volumetricDivisor ?? 5000),
+      weeklyAutoPayoutDay:
+        profile.pricingSettings?.weeklyAutoPayoutDay == null
+          ? ''
+          : String(profile.pricingSettings.weeklyAutoPayoutDay),
+    });
+
+    setCoverageType(profile.coverageDraft.coverageType);
+    setSelectedStates(profile.coverageDraft.stateSelections);
+
+    const nextSelectedLGAsByState: Record<string, string[]> = {};
+    for (const selection of profile.coverageDraft.lgaSelections) {
+      nextSelectedLGAsByState[selection.state] = [
+        ...(nextSelectedLGAsByState[selection.state] || []),
+        selection.lga,
+      ];
+    }
+    setSelectedLGAsByState(nextSelectedLGAsByState);
+  }, [profile, user]);
+
+  const filteredStates = useMemo(
+    () =>
+      nigerianStates.filter((state) =>
+        state.name.toLowerCase().includes(stateSearch.toLowerCase())
+      ),
+    [stateSearch]
   );
 
-  const currentState = selectedState ? nigerianStates.find((s) => s.name === selectedState) : null;
-  const filteredLGAs = currentState
-    ? currentState.lgas.filter((lga) => lga.toLowerCase().includes(lgaSearch.toLowerCase()))
-    : [];
+  const activeStateData = useMemo(
+    () => nigerianStates.find((state) => state.name === selectedState) ?? null,
+    [selectedState]
+  );
+
+  const filteredLGAs = useMemo(() => {
+    if (!activeStateData) return [];
+    return activeStateData.lgas.filter((lga) =>
+      lga.toLowerCase().includes(lgaSearch.toLowerCase())
+    );
+  }, [activeStateData, lgaSearch]);
+
+  const handleStateToggle = (stateName: string) => {
+    setSelectedStates((current) =>
+      current.includes(stateName)
+        ? current.filter((state) => state !== stateName)
+        : [...current, stateName].sort()
+    );
+  };
+
+  const handleLGAToggle = (stateName: string, lga: string) => {
+    setSelectedLGAsByState((current) => {
+      const existing = current[stateName] || [];
+      const next = existing.includes(lga)
+        ? existing.filter((value) => value !== lga)
+        : [...existing, lga].sort();
+
+      return {
+        ...current,
+        [stateName]: next,
+      };
+    });
+  };
+
+  const handleSave = async () => {
+    setSavedMessage('');
+
+    try {
+      const coverageAreas =
+        coverageType === 'NATIONWIDE'
+          ? []
+          : [
+              ...selectedStates.map((state) => ({
+                selectionType: 'STATE',
+                state,
+              })),
+              ...Object.entries(selectedLGAsByState).flatMap(([state, lgas]) =>
+                lgas.map((lga) => ({
+                  selectionType: 'LGA',
+                  state,
+                  lga,
+                }))
+              ),
+            ];
+
+      await updateProfile({
+        ...profileForm,
+        phone: profileForm.phone || null,
+        contactPersonName: profileForm.contactPersonName || null,
+        businessAddress: profileForm.businessAddress || null,
+        city: profileForm.city || null,
+        state: profileForm.state || null,
+        lga: profileForm.lga || null,
+        area: profileForm.area || null,
+        description: profileForm.description || null,
+        pricingSettings: {
+          abujaMinimumFee: Number(pricingForm.abujaMinimumFee || 0),
+          abujaAdditionalUnitFee: Number(pricingForm.abujaAdditionalUnitFee || 0),
+          outsideMinimumFee: Number(pricingForm.outsideMinimumFee || 0),
+          outsideAdditionalUnitFee: Number(pricingForm.outsideAdditionalUnitFee || 0),
+          weightUnitSizeKg: Number(pricingForm.weightUnitSizeKg || 10),
+          volumetricDivisor: Number(pricingForm.volumetricDivisor || 5000),
+          weeklyAutoPayoutDay:
+            pricingForm.weeklyAutoPayoutDay === ''
+              ? null
+              : Number(pricingForm.weeklyAutoPayoutDay),
+        },
+        coverage: {
+          coverageType,
+          areas: coverageAreas,
+        },
+      });
+
+      setSavedMessage('Settings saved successfully.');
+    } catch (saveError) {
+      setSavedMessage(
+        saveError instanceof Error ? saveError.message : 'Failed to save settings'
+      );
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -79,232 +255,190 @@ export default function SettingsPage() {
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       <motion.div variants={itemVariants}>
         <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-2">Manage your account and business settings</p>
+        <p className="mt-2 text-muted-foreground">
+          Manage your logistics company profile, pricing, and delivery coverage
+        </p>
       </motion.div>
 
       <motion.div variants={itemVariants}>
         <Card className="p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-6">
+            <TabsList className="mb-6 grid w-full grid-cols-3">
               <TabsTrigger value="profile" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                <span className="hidden sm:inline">Profile</span>
+                <User className="h-4 w-4" />
+                Profile
               </TabsTrigger>
               <TabsTrigger value="pricing" className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4" />
-                <span className="hidden sm:inline">Pricing</span>
+                <DollarSign className="h-4 w-4" />
+                Pricing
               </TabsTrigger>
               <TabsTrigger value="coverage" className="flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                <span className="hidden sm:inline">Coverage</span>
-              </TabsTrigger>
-              <TabsTrigger value="account" className="flex items-center gap-2">
-                <Lock className="w-4 h-4" />
-                <span className="hidden sm:inline">Account</span>
+                <MapPin className="h-4 w-4" />
+                Coverage
               </TabsTrigger>
             </TabsList>
 
-            {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-foreground">Company Name</label>
-                  <Input placeholder="Your Company" defaultValue="AgriTec Logistics" className="mt-2" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground">Contact Person</label>
-                  <Input placeholder="John Doe" defaultValue="John Doe" className="mt-2" />
-                </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Owner Full Name">
+                  <Input value={profileForm.fullName} onChange={(event) => setProfileForm((current) => ({ ...current, fullName: event.target.value }))} />
+                </Field>
+                <Field label="Company Name">
+                  <Input value={profileForm.companyName} onChange={(event) => setProfileForm((current) => ({ ...current, companyName: event.target.value }))} />
+                </Field>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-foreground">Email</label>
-                  <Input
-                    type="email"
-                    placeholder="your@email.com"
-                    defaultValue="john@agritec.com"
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground">Phone</label>
-                  <Input placeholder="+234-80-0000-0000" defaultValue="+234-801-234-5678" className="mt-2" />
-                </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Email">
+                  <Input type="email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} />
+                </Field>
+                <Field label="Phone">
+                  <Input value={profileForm.phone} onChange={(event) => setProfileForm((current) => ({ ...current, phone: event.target.value }))} />
+                </Field>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-foreground">Address</label>
-                <Textarea
-                  placeholder="Business address"
-                  defaultValue="123 Business Street, Lagos, Nigeria"
-                  className="mt-2"
-                />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Contact Person">
+                  <Input value={profileForm.contactPersonName} onChange={(event) => setProfileForm((current) => ({ ...current, contactPersonName: event.target.value }))} />
+                </Field>
+                <Field label="City">
+                  <Input value={profileForm.city} onChange={(event) => setProfileForm((current) => ({ ...current, city: event.target.value }))} />
+                </Field>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-foreground">CAC Number</label>
-                  <Input placeholder="12345678" defaultValue="12345678" className="mt-2" />
-                </div>
+              <Field label="Business Address">
+                <Input value={profileForm.businessAddress} onChange={(event) => setProfileForm((current) => ({ ...current, businessAddress: event.target.value }))} />
+              </Field>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Field label="State">
+                  <Input value={profileForm.state} onChange={(event) => setProfileForm((current) => ({ ...current, state: event.target.value }))} />
+                </Field>
+                <Field label="LGA">
+                  <Input value={profileForm.lga} onChange={(event) => setProfileForm((current) => ({ ...current, lga: event.target.value }))} />
+                </Field>
+                <Field label="Area">
+                  <Input value={profileForm.area} onChange={(event) => setProfileForm((current) => ({ ...current, area: event.target.value }))} />
+                </Field>
               </div>
 
-              <div className="pt-4 border-t border-border">
-                <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
-                  <Save className="w-4 h-4 mr-2" />
-                  {saved ? 'Saved!' : 'Save Changes'}
-                </Button>
-              </div>
+              <Field label="Company Description">
+                <Input value={profileForm.description} onChange={(event) => setProfileForm((current) => ({ ...current, description: event.target.value }))} />
+              </Field>
             </TabsContent>
 
-            {/* Pricing Tab */}
             <TabsContent value="pricing" className="space-y-4">
-              <div className="bg-muted/50 p-4 rounded-lg mb-4">
-                <p className="text-sm text-muted-foreground">
-                  Set your pricing tiers based on weight. Prices are calculated as: (base price) + (weight × price per kg)
-                </p>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Abuja Minimum Fee">
+                  <Input type="number" value={pricingForm.abujaMinimumFee} onChange={(event) => setPricingForm((current) => ({ ...current, abujaMinimumFee: event.target.value }))} />
+                </Field>
+                <Field label="Abuja Additional Unit Fee">
+                  <Input type="number" value={pricingForm.abujaAdditionalUnitFee} onChange={(event) => setPricingForm((current) => ({ ...current, abujaAdditionalUnitFee: event.target.value }))} />
+                </Field>
               </div>
 
-              {[
-                { name: 'Light', base: 2000, perKg: 50, min: 0, max: 20 },
-                { name: 'Standard', base: 3500, perKg: 40, min: 20, max: 50 },
-                { name: 'Heavy', base: 5000, perKg: 30, min: 50, max: 100 },
-              ].map((tier, i) => (
-                <Card key={i} className="p-4">
-                  <h4 className="font-semibold text-foreground mb-4">{tier.name} Tier</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-foreground">Weight Range</label>
-                      <Input
-                        placeholder="Min"
-                        defaultValue={`${tier.min}-${tier.max} kg`}
-                        disabled
-                        className="mt-2"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-foreground">Base Price (₦)</label>
-                      <Input placeholder="0" defaultValue={tier.base.toString()} className="mt-2" />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-foreground">Price per kg (₦)</label>
-                      <Input placeholder="0" defaultValue={tier.perKg.toString()} className="mt-2" />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-foreground">Status</label>
-                      <div className="mt-2">
-                        <Checkbox defaultChecked />
-                        <span className="ml-2 text-sm text-muted-foreground">Active</span>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Outside Abuja Minimum Fee">
+                  <Input type="number" value={pricingForm.outsideMinimumFee} onChange={(event) => setPricingForm((current) => ({ ...current, outsideMinimumFee: event.target.value }))} />
+                </Field>
+                <Field label="Outside Abuja Additional Unit Fee">
+                  <Input type="number" value={pricingForm.outsideAdditionalUnitFee} onChange={(event) => setPricingForm((current) => ({ ...current, outsideAdditionalUnitFee: event.target.value }))} />
+                </Field>
+              </div>
 
-              <div className="pt-4 border-t border-border">
-                <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
-                  <Save className="w-4 h-4 mr-2" />
-                  {saved ? 'Saved!' : 'Save Changes'}
-                </Button>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Field label="Weight Unit Size (kg)">
+                  <Input type="number" step="0.001" value={pricingForm.weightUnitSizeKg} onChange={(event) => setPricingForm((current) => ({ ...current, weightUnitSizeKg: event.target.value }))} />
+                </Field>
+                <Field label="Volumetric Divisor">
+                  <Input type="number" value={pricingForm.volumetricDivisor} onChange={(event) => setPricingForm((current) => ({ ...current, volumetricDivisor: event.target.value }))} />
+                </Field>
+                <Field label="Weekly Auto Payout Day">
+                  <Select value={pricingForm.weeklyAutoPayoutDay || 'NONE'} onValueChange={(value) => setPricingForm((current) => ({ ...current, weeklyAutoPayoutDay: value == null || value === 'NONE' ? '' : value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Not set" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Not set</SelectItem>
+                      <SelectItem value="0">Sunday</SelectItem>
+                      <SelectItem value="1">Monday</SelectItem>
+                      <SelectItem value="2">Tuesday</SelectItem>
+                      <SelectItem value="3">Wednesday</SelectItem>
+                      <SelectItem value="4">Thursday</SelectItem>
+                      <SelectItem value="5">Friday</SelectItem>
+                      <SelectItem value="6">Saturday</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
             </TabsContent>
 
-            {/* Coverage Tab */}
             <TabsContent value="coverage" className="space-y-4">
-              <div className="bg-muted/50 p-4 rounded-lg mb-4">
-                <p className="text-sm text-muted-foreground">
-                  Configure your delivery coverage type and service areas
-                </p>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-foreground">Coverage Type</label>
-                <Select value={coverageType} onValueChange={setCoverageType}>
-                  <SelectTrigger className="mt-2">
+              <Field label="Coverage Type">
+                <Select value={coverageType} onValueChange={(value) => setCoverageType((value ?? 'REGIONAL') as CoverageType)}>
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="regional">Regional</SelectItem>
-                    <SelectItem value="nationwide">Nationwide</SelectItem>
+                    <SelectItem value="REGIONAL">Regional</SelectItem>
+                    <SelectItem value="NATIONWIDE">Nationwide</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
 
-              {coverageType === 'regional' && (
-                <Card className="p-4 space-y-4">
+              {coverageType === 'NATIONWIDE' ? (
+                <Card className="border-primary/20 bg-primary/5 p-4 text-sm text-foreground">
+                  Nationwide coverage enabled. Your company will be eligible for all supported delivery destinations.
+                </Card>
+              ) : (
+                <Card className="space-y-4 p-4">
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-2 block">
-                      Select States
-                    </label>
-                    <div className="flex items-center gap-2 mb-3 relative">
-                      <Search className="w-4 h-4 absolute left-2 text-muted-foreground pointer-events-none" />
+                    <label className="mb-2 block text-sm font-medium text-foreground">Supported States</label>
+                    <div className="relative mb-3">
+                      <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Search states..."
                         value={stateSearch}
-                        onChange={(e) => setStateSearch(e.target.value)}
+                        onChange={(event) => setStateSearch(event.target.value)}
                         className="pl-8"
                       />
                     </div>
-
-                    <div className="border border-border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                      {filteredStates.length > 0 ? (
-                        filteredStates.map((state) => (
-                          <div key={state.name} className="flex items-center gap-2">
-                            <Checkbox
-                              id={`state-${state.name}`}
-                              checked={selectedStates.includes(state.name)}
-                              onCheckedChange={() => handleStateToggle(state.name)}
-                            />
-                            <label
-                              htmlFor={`state-${state.name}`}
-                              className="text-sm text-foreground cursor-pointer flex-1"
-                            >
-                              {state.name}
-                            </label>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No states found</p>
-                      )}
-                    </div>
-
-                    {selectedStates.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-xs text-muted-foreground">
-                          Selected states ({selectedStates.length}):
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedStates.map((state) => (
-                            <div key={state} className="bg-primary/20 text-primary text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                              {state}
-                              <button
-                                onClick={() => handleStateToggle(state)}
-                                className="hover:text-primary/80"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
+                    <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
+                      {filteredStates.map((state) => (
+                        <div key={state.name} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`state-${state.name}`}
+                            checked={selectedStates.includes(state.name)}
+                            onCheckedChange={() => handleStateToggle(state.name)}
+                          />
+                          <label htmlFor={`state-${state.name}`} className="flex-1 cursor-pointer text-sm text-foreground">
+                            {state.name}
+                          </label>
                         </div>
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
 
-                  {selectedStates.length > 0 && (
-                    <div className="pt-4 border-t border-border space-y-3">
-                      <div>
-                        <label className="text-sm font-medium text-foreground mb-2 block">
-                          Select LGAs/Cities (Optional - leave empty for all)
-                        </label>
-                        <p className="text-xs text-muted-foreground mb-2">
-                          Choose a state to select specific LGAs/cities within it:
-                        </p>
+                  {selectedStates.length > 0 ? (
+                    <div className="space-y-3 border-t border-border pt-4">
+                      <div className="flex flex-wrap gap-2">
+                        {selectedStates.map((state) => (
+                          <div key={state} className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">
+                            {state}
+                            <button type="button" onClick={() => handleStateToggle(state)}>
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
 
-                        <Select value={selectedState || ''} onValueChange={setSelectedState}>
+                      <Field label="Specific LGAs or cities within selected states">
+                        <Select value={selectedState || 'NONE'} onValueChange={(value) => setSelectedState(value == null || value === 'NONE' ? '' : value)}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select a state..." />
+                            <SelectValue placeholder="Choose state for LGA selection" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="NONE">Choose state</SelectItem>
                             {selectedStates.map((state) => (
                               <SelectItem key={state} value={state}>
                                 {state}
@@ -312,125 +446,75 @@ export default function SettingsPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                      </div>
+                      </Field>
 
-                      {selectedState && (
+                      {selectedState ? (
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2 relative">
-                            <Search className="w-4 h-4 absolute left-2 text-muted-foreground pointer-events-none" />
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
-                              placeholder="Search LGAs/cities..."
+                              placeholder="Search LGAs..."
                               value={lgaSearch}
-                              onChange={(e) => setLgaSearch(e.target.value)}
+                              onChange={(event) => setLgaSearch(event.target.value)}
                               className="pl-8"
                             />
                           </div>
 
-                          <div className="border border-border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
-                            {filteredLGAs.length > 0 ? (
-                              filteredLGAs.map((lga) => (
-                                <div key={lga} className="flex items-center gap-2">
-                                  <Checkbox
-                                    id={`lga-${lga}`}
-                                    checked={selectedLGAs.includes(lga)}
-                                    onCheckedChange={() => handleLGAToggle(lga)}
-                                  />
-                                  <label
-                                    htmlFor={`lga-${lga}`}
-                                    className="text-sm text-foreground cursor-pointer flex-1"
-                                  >
-                                    {lga}
-                                  </label>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="text-sm text-muted-foreground">No LGAs found</p>
-                            )}
-                          </div>
-
-                          {selectedLGAs.length > 0 && (
-                            <div className="mt-2 space-y-2">
-                              <p className="text-xs text-muted-foreground">
-                                Selected LGAs in {selectedState} ({selectedLGAs.length}):
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedLGAs.map((lga) => (
-                                  <div key={lga} className="bg-secondary/20 text-secondary text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                                    {lga}
-                                    <button
-                                      onClick={() => handleLGAToggle(lga)}
-                                      className="hover:text-secondary/80"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                ))}
+                          <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
+                            {filteredLGAs.map((lga) => (
+                              <div key={lga} className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`lga-${selectedState}-${lga}`}
+                                  checked={(selectedLGAsByState[selectedState] || []).includes(lga)}
+                                  onCheckedChange={() => handleLGAToggle(selectedState, lga)}
+                                />
+                                <label
+                                  htmlFor={`lga-${selectedState}-${lga}`}
+                                  className="flex-1 cursor-pointer text-sm text-foreground"
+                                >
+                                  {lga}
+                                </label>
                               </div>
-                            </div>
-                          )}
+                            ))}
+                          </div>
                         </div>
-                      )}
+                      ) : null}
                     </div>
-                  )}
+                  ) : null}
                 </Card>
               )}
-
-              {coverageType === 'nationwide' && (
-                <Card className="p-4 bg-primary/5 border-primary/20">
-                  <p className="text-sm text-foreground">
-                    Nationwide coverage enabled. You can deliver to all states and LGAs in Nigeria.
-                  </p>
-                </Card>
-              )}
-
-              <div className="pt-4 border-t border-border">
-                <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
-                  <Save className="w-4 h-4 mr-2" />
-                  {saved ? 'Saved!' : 'Save Changes'}
-                </Button>
-              </div>
-            </TabsContent>
-
-            {/* Account Tab */}
-            <TabsContent value="account" className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-foreground">Current Password</label>
-                <Input type="password" placeholder="••••••••" className="mt-2" />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-foreground">New Password</label>
-                <Input type="password" placeholder="••••••••" className="mt-2" />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-foreground">Confirm New Password</label>
-                <Input type="password" placeholder="••••••••" className="mt-2" />
-              </div>
-
-              <div className="bg-yellow-50 dark:bg-yellow-950 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                  Password must be at least 8 characters and contain a mix of letters, numbers, and symbols.
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-border">
-                <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
-                  <Save className="w-4 h-4 mr-2" />
-                  {saved ? 'Saved!' : 'Update Password'}
-                </Button>
-              </div>
-
-              <div className="pt-6 border-t border-border">
-                <h4 className="font-semibold text-foreground mb-4">Danger Zone</h4>
-                <Button variant="destructive">
-                  Delete Account
-                </Button>
-              </div>
             </TabsContent>
           </Tabs>
+
+          {savedMessage ? (
+            <div className="mt-6 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
+              {savedMessage}
+            </div>
+          ) : null}
+
+          <div className="mt-6 border-t border-border pt-4">
+            <Button onClick={() => void handleSave()} disabled={isLoadingProfile || isUpdatingProfile}>
+              <Save className="mr-2 h-4 w-4" />
+              {isUpdatingProfile ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </Card>
       </motion.div>
     </motion.div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-foreground">{label}</label>
+      <div className="mt-2">{children}</div>
+    </div>
   );
 }

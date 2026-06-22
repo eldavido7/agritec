@@ -7,51 +7,51 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { motion } from 'framer-motion';
-import { Mail, ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Mail } from 'lucide-react';
+import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
 
 export default function ForgotPasswordPage() {
+  const requestPasswordReset = useLogisticsAuthStore((state) => state.requestPasswordReset);
+  const isLoading = useLogisticsAuthStore((state) => state.isLoading);
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setMessage('');
 
-    if (!email) {
-      setError('Please enter your email');
-      setLoading(false);
+    if (!email.trim()) {
+      setMessage('Enter your account email address.');
       return;
     }
 
-    if (!email.includes('@')) {
-      setError('Please enter a valid email');
-      setLoading(false);
-      return;
-    }
-
-    // Simulate email sending
-    setTimeout(() => {
+    try {
+      const responseMessage = await requestPasswordReset(email);
+      setMessage(responseMessage);
       setSubmitted(true);
-      setLoading(false);
-    }, 500);
+    } catch (submitError) {
+      setMessage(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Failed to send reset email'
+      );
+    }
   };
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-      <div className="flex items-center justify-center mb-8">
+      <div className="mb-8 flex items-center justify-center">
         <Image src="/logo.png" alt="AgriTec" width={150} height={50} className="h-12 w-auto" />
       </div>
 
-      <Card className="p-8 space-y-6">
+      <Card className="space-y-6 p-8">
         {!submitted ? (
           <>
             <div>
               <h1 className="text-2xl font-bold text-foreground">Reset Password</h1>
-              <p className="text-sm text-muted-foreground mt-2">
-                Enter your email address and we&apos;ll send you a link to reset your password
+              <p className="mt-2 text-sm text-muted-foreground">
+                Enter your logistics account email to receive a reset link
               </p>
             </div>
 
@@ -60,53 +60,48 @@ export default function ForgotPasswordPage() {
                 <label className="text-sm font-medium text-foreground">Email</label>
                 <Input
                   type="email"
-                  placeholder="your@email.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   className="mt-2"
-                  disabled={loading}
+                  disabled={isLoading}
                 />
               </div>
 
-              {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">{error}</div>}
+              {message ? (
+                <div className="rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
+                  {message}
+                </div>
+              ) : null}
 
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={loading}>
-                {loading ? 'Sending...' : 'Send Reset Link'}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Sending...' : 'Send Reset Link'}
               </Button>
             </form>
 
-            <div className="pt-4 border-t border-border">
-              <Link href="/signin" className="flex items-center gap-2 text-sm text-primary hover:underline justify-center">
-                <ChevronLeft className="w-4 h-4" />
+            <div className="border-t border-border pt-4">
+              <Link href="/signin" className="flex items-center justify-center gap-2 text-sm text-primary hover:underline">
+                <ChevronLeft className="h-4 w-4" />
                 Back to Sign In
               </Link>
             </div>
           </>
         ) : (
           <>
-            <div className="text-center space-y-4">
+            <div className="space-y-4 text-center">
               <div className="flex justify-center">
-                <div className="bg-green-100 p-4 rounded-full">
-                  <Mail className="w-8 h-8 text-green-600" />
+                <div className="rounded-full bg-green-100 p-4">
+                  <Mail className="h-8 w-8 text-green-600" />
                 </div>
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-foreground">Check your email</h2>
-                <p className="text-sm text-muted-foreground mt-2">
-                  We&apos;ve sent a password reset link to <strong>{email}</strong>
-                </p>
+                <p className="mt-2 text-sm text-muted-foreground">{message}</p>
               </div>
             </div>
 
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>• Check your spam folder if you don&apos;t see the email</p>
-              <p>• The link will expire in 24 hours</p>
-              <p>• Click the link to create a new password</p>
-            </div>
-
-            <div className="pt-4 border-t border-border">
-              <Link href="/signin" className="flex items-center gap-2 text-sm text-primary hover:underline justify-center">
-                <ChevronLeft className="w-4 h-4" />
+            <div className="border-t border-border pt-4">
+              <Link href="/signin" className="flex items-center justify-center gap-2 text-sm text-primary hover:underline">
+                <ChevronLeft className="h-4 w-4" />
                 Back to Sign In
               </Link>
             </div>

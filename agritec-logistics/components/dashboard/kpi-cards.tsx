@@ -3,7 +3,7 @@
 import { Card } from '@/components/ui/card';
 import { useLogisticsStore } from '@/lib/store/logistics-store';
 import { motion } from 'framer-motion';
-import { TrendingUp, Package, AlertCircle, Clock } from 'lucide-react';
+import { AlertCircle, Clock, Package, TrendingUp } from 'lucide-react';
 
 export function KPICards() {
   const analytics = useLogisticsStore((state) => state.analytics);
@@ -31,8 +31,8 @@ export function KPICards() {
       bgColor: 'bg-orange-50 dark:bg-orange-950',
     },
     {
-      title: 'Failed',
-      value: analytics.failedCount,
+      title: 'Cancelled',
+      value: analytics.cancelledCount,
       icon: AlertCircle,
       color: 'text-red-500',
       bgColor: 'bg-red-50 dark:bg-red-950',
@@ -45,8 +45,8 @@ export function KPICards() {
       bgColor: 'bg-purple-50 dark:bg-purple-950',
     },
     {
-      title: 'Total Revenue',
-      value: `₦${analytics.revenue.toLocaleString()}`,
+      title: 'Shipping Revenue',
+      value: `NGN ${analytics.revenue.toLocaleString()}`,
       icon: TrendingUp,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
@@ -79,22 +79,20 @@ export function KPICards() {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8"
+      className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
     >
-      {kpis.map((kpi, i) => {
+      {kpis.map((kpi, index) => {
         const Icon = kpi.icon;
         return (
-          <motion.div key={i} variants={itemVariants}>
+          <motion.div key={index} variants={itemVariants}>
             <Card className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground font-medium">{kpi.title}</p>
-                  <p className="text-3xl font-bold text-foreground mt-2">
-                    {typeof kpi.value === 'number' ? kpi.value : kpi.value}
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">{kpi.title}</p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">{kpi.value}</p>
                 </div>
-                <div className={`${kpi.bgColor} p-3 rounded-lg`}>
-                  <Icon className={`w-6 h-6 ${kpi.color}`} />
+                <div className={`${kpi.bgColor} rounded-lg p-3`}>
+                  <Icon className={`h-6 w-6 ${kpi.color}`} />
                 </div>
               </div>
             </Card>
