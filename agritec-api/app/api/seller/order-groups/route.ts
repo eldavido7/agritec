@@ -14,6 +14,16 @@ export async function GET(request: Request) {
       where: { sellerId: user.sellerProfile.id },
       include: {
         items: true,
+        refunds: true,
+        logisticsCompany: { include: { user: true } },
+        statusHistory: {
+          include: {
+            updatedByUser: {
+              select: { id: true, fullName: true, role: true },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
         parentOrder: {
           include: {
             addressSnapshot: true,

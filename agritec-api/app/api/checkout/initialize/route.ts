@@ -15,6 +15,8 @@ import { initializePaystackTransaction } from "@/lib/paystack";
 const initializeSchema = z.object({
   addressId: z.string().trim().min(1, "Address is required"),
   discountCodes: z.record(z.string(), z.string().trim().min(1)).optional().default({}),
+  logisticsSelections: z.record(z.string(), z.string().trim().min(1)).optional().default({}),
+  allGroupsLogisticsCompanyId: z.string().trim().min(1).optional().nullable(),
   callbackUrl: z.string().trim().url().optional(),
   channels: z.array(z.string().trim().min(1)).optional(),
 });
@@ -39,6 +41,21 @@ function checkoutErrorResponse(error: unknown) {
         { success: false, message: "Shipping settings are not configured" },
         { status: 500 }
       );
+    case "LOGISTICS_COMPANY_NOT_FOUND":
+      return NextResponse.json(
+        { success: false, message: "Selected logistics company was not found" },
+        { status: 404 }
+      );
+    case "ALL_GROUPS_LOGISTICS_MUST_BE_NATIONWIDE":
+      return NextResponse.json(
+        { success: false, message: "All-groups logistics selection must be a nationwide company" },
+        { status: 400 }
+      );
+    case "NO_ELIGIBLE_LOGISTICS_COMPANIES":
+      return NextResponse.json(
+        { success: false, message: "No eligible logistics companies are available for this address" },
+        { status: 400 }
+      );
     case "CART_EMPTY":
       return NextResponse.json({ success: false, message: "Cart is empty" }, { status: 400 });
     case "PAYSTACK_SECRET_KEY_NOT_CONFIGURED":
@@ -47,6 +64,18 @@ function checkoutErrorResponse(error: unknown) {
         { status: 500 }
       );
     default:
+      if (message.startsWith("LOGISTICS_SELECTION_REQUIRED:")) {
+        return NextResponse.json(
+          { success: false, message: "Logistics selection is required for each seller group" },
+          { status: 400 }
+        );
+      }
+      if (message.startsWith("LOGISTICS_COMPANY_NOT_ELIGIBLE:")) {
+        return NextResponse.json(
+          { success: false, message: "Selected logistics company is not eligible for one or more seller groups" },
+          { status: 400 }
+        );
+      }
       return NextResponse.json({ success: false, message: "Failed to initialize checkout" }, { status: 500 });
   }
 }
@@ -67,6 +96,8 @@ export async function POST(request: Request) {
       buyerId: user.buyerProfile.id,
       addressId: payload.addressId,
       discountCodes: payload.discountCodes,
+      logisticsSelections: payload.logisticsSelections,
+      allGroupsLogisticsCompanyId: payload.allGroupsLogisticsCompanyId ?? null,
     });
 
     const pendingOrder = await createPendingCheckoutOrder({

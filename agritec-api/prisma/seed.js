@@ -43,6 +43,8 @@ const sellerUsers = [
     fullAddress: '12 Admiralty Way, Lekki Phase 1, Lagos',
     city: 'Lagos',
     state: 'Lagos',
+    lga: 'Eti-Osa',
+    area: 'Lekki Phase 1',
     latitude: 6.4474,
     longitude: 3.4722,
   },
@@ -58,8 +60,134 @@ const sellerUsers = [
     fullAddress: '45 Zoo Road, Kano Municipal, Kano',
     city: 'Kano',
     state: 'Kano',
+    lga: 'Kano Municipal',
+    area: 'Zoo Road',
     latitude: 12.0022,
     longitude: 8.5920,
+  },
+];
+
+const logisticsCompanies = [
+  {
+    userId: 'user-logistics-pending-1',
+    logisticsId: 'logistics-pending-1',
+    pricingId: 'logistics-pricing-pending-1',
+    email: 'pending@greenhaul.ng',
+    fullName: 'GreenHaul Logistics Admin',
+    phone: '+2347031112233',
+    password: 'greenhaul123',
+    companyName: 'GreenHaul Logistics',
+    contactPersonName: 'Musa Ibrahim',
+    businessAddress: '18 Ahmadu Bello Way, Kaduna',
+    city: 'Kaduna',
+    state: 'Kaduna',
+    lga: 'Kaduna North',
+    area: 'Central Business District',
+    latitude: 10.5222,
+    longitude: 7.4383,
+    isActive: false,
+    verificationStatus: 'PENDING_VERIFICATION',
+    isVerified: false,
+    pricing: {
+      abujaMinimumFee: 2600,
+      abujaAdditionalUnitFee: 2400,
+      outsideMinimumFee: 5400,
+      outsideAdditionalUnitFee: 5100,
+      weightUnitSizeKg: 10,
+      volumetricDivisor: 5000,
+      weeklyAutoPayoutDay: 4,
+    },
+    coverageAreas: [
+      {
+        id: 'coverage-pending-kaduna-state',
+        coverageType: 'REGIONAL',
+        selectionType: 'STATE',
+        state: 'Kaduna',
+      },
+    ],
+  },
+  {
+    userId: 'user-logistics-nationwide-1',
+    logisticsId: 'logistics-nationwide-1',
+    pricingId: 'logistics-pricing-nationwide-1',
+    email: 'ops@naijafreight.ng',
+    fullName: 'Naija Freight Operations',
+    phone: '+2347042223344',
+    password: 'naijafreight123',
+    companyName: 'Naija Freight Express',
+    contactPersonName: 'Tosin Adebayo',
+    businessAddress: '2 Terminal Road, Ikeja, Lagos',
+    city: 'Lagos',
+    state: 'Lagos',
+    lga: 'Ikeja',
+    area: 'Airport Road',
+    latitude: 6.5770,
+    longitude: 3.3211,
+    isActive: true,
+    verificationStatus: 'VERIFIED',
+    isVerified: true,
+    pricing: {
+      abujaMinimumFee: 2800,
+      abujaAdditionalUnitFee: 2600,
+      outsideMinimumFee: 5600,
+      outsideAdditionalUnitFee: 5300,
+      weightUnitSizeKg: 10,
+      volumetricDivisor: 5000,
+      weeklyAutoPayoutDay: 5,
+    },
+    coverageAreas: [
+      {
+        id: 'coverage-nationwide-all',
+        coverageType: 'NATIONWIDE',
+        selectionType: null,
+        state: null,
+      },
+    ],
+  },
+  {
+    userId: 'user-logistics-regional-1',
+    logisticsId: 'logistics-regional-1',
+    pricingId: 'logistics-pricing-regional-1',
+    email: 'dispatch@northfield.ng',
+    fullName: 'NorthField Dispatch Admin',
+    phone: '+2347053334455',
+    password: 'northfield123',
+    companyName: 'NorthField Dispatch',
+    contactPersonName: 'Aisha Garba',
+    businessAddress: '11 Murtala Mohammed Way, Kano',
+    city: 'Kano',
+    state: 'Kano',
+    lga: 'Kano Municipal',
+    area: 'Sabon Gari',
+    latitude: 12.0022,
+    longitude: 8.5920,
+    isActive: true,
+    verificationStatus: 'VERIFIED',
+    isVerified: true,
+    pricing: {
+      abujaMinimumFee: 2550,
+      abujaAdditionalUnitFee: 2350,
+      outsideMinimumFee: 4900,
+      outsideAdditionalUnitFee: 4700,
+      weightUnitSizeKg: 10,
+      volumetricDivisor: 5000,
+      weeklyAutoPayoutDay: 3,
+    },
+    coverageAreas: [
+      {
+        id: 'coverage-regional-kano-state',
+        coverageType: 'REGIONAL',
+        selectionType: 'STATE',
+        state: 'Kano',
+      },
+      {
+        id: 'coverage-regional-kaduna-lga',
+        coverageType: 'REGIONAL',
+        selectionType: 'LGA',
+        state: 'Kaduna',
+        lga: 'Kaduna North',
+      },
+    ],
   },
 ];
 
@@ -79,6 +207,8 @@ const buyerUsers = [
         fullAddress: '22 Freedom Way, Lekki Phase 1, Lagos',
         city: 'Lagos',
         state: 'Lagos',
+        lga: 'Eti-Osa',
+        area: 'Lekki Phase 1',
         landmark: 'Near The Lennox Mall',
         latitude: 6.4429,
         longitude: 3.4851,
@@ -330,6 +460,8 @@ const products = [
 async function clearDatabase() {
   await prisma.messageAttachment.deleteMany();
   await prisma.message.deleteMany();
+  await prisma.supportInternalComment.deleteMany();
+  await prisma.supportConversationAssignment.deleteMany();
   await prisma.conversationParticipant.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.notification.deleteMany();
@@ -341,6 +473,7 @@ async function clearDatabase() {
   await prisma.sellerBankAccount.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.orderItem.deleteMany();
+  await prisma.orderGroupStatusHistory.deleteMany();
   await prisma.sellerOrderGroup.deleteMany();
   await prisma.orderAddressSnapshot.deleteMany();
   await prisma.parentOrder.deleteMany();
@@ -353,6 +486,9 @@ async function clearDatabase() {
   await prisma.address.deleteMany();
   await prisma.buyerProfile.deleteMany();
   await prisma.sellerProfile.deleteMany();
+  await prisma.logisticsCoverageArea.deleteMany();
+  await prisma.logisticsPricingSettings.deleteMany();
+  await prisma.logisticsCompanyProfile.deleteMany();
   await prisma.user.deleteMany();
   await prisma.category.deleteMany();
   await prisma.platformSettings.deleteMany();
@@ -395,6 +531,8 @@ async function seedUsers() {
             fullAddress: seller.fullAddress,
             city: seller.city,
             state: seller.state,
+            lga: seller.lga,
+            area: seller.area,
             latitude: decimal(seller.latitude),
             longitude: decimal(seller.longitude),
             autoPayoutEnabled: false,
@@ -426,6 +564,8 @@ async function seedUsers() {
                 fullAddress: address.fullAddress,
                 city: address.city,
                 state: address.state,
+                lga: address.lga,
+                area: address.area,
                 landmark: address.landmark,
                 latitude: address.latitude == null ? null : decimal(address.latitude),
                 longitude: address.longitude == null ? null : decimal(address.longitude),
@@ -436,6 +576,63 @@ async function seedUsers() {
               })),
             },
             cart: { create: {} },
+          },
+        },
+      },
+    });
+  }
+
+  for (const logistics of logisticsCompanies) {
+    await prisma.user.create({
+      data: {
+        id: logistics.userId,
+        email: logistics.email,
+        passwordHash: await bcrypt.hash(logistics.password, 12),
+        fullName: logistics.fullName,
+        phone: logistics.phone,
+        role: UserRole.LOGISTICS,
+        isActive: logistics.isActive,
+        emailVerifiedAt: new Date(),
+        lastActiveAt: logistics.isActive ? new Date() : null,
+        logisticsProfile: {
+          create: {
+            id: logistics.logisticsId,
+            companyName: logistics.companyName,
+            description: `${logistics.companyName} handles agricultural deliveries across its configured service areas.`,
+            contactPersonName: logistics.contactPersonName,
+            phone: logistics.phone,
+            businessAddress: logistics.businessAddress,
+            city: logistics.city,
+            state: logistics.state,
+            lga: logistics.lga,
+            area: logistics.area,
+            latitude: decimal(logistics.latitude),
+            longitude: decimal(logistics.longitude),
+            verificationStatus: logistics.verificationStatus,
+            isVerified: logistics.isVerified,
+            pricingSettings: {
+              create: {
+                id: logistics.pricingId,
+                abujaMinimumFee: logistics.pricing.abujaMinimumFee,
+                abujaAdditionalUnitFee: logistics.pricing.abujaAdditionalUnitFee,
+                outsideMinimumFee: logistics.pricing.outsideMinimumFee,
+                outsideAdditionalUnitFee: logistics.pricing.outsideAdditionalUnitFee,
+                weightUnitSizeKg: decimal(logistics.pricing.weightUnitSizeKg),
+                volumetricDivisor: logistics.pricing.volumetricDivisor,
+                weeklyAutoPayoutDay: logistics.pricing.weeklyAutoPayoutDay,
+              },
+            },
+            coverageAreas: {
+              create: logistics.coverageAreas.map((coverage) => ({
+                id: coverage.id,
+                coverageType: coverage.coverageType,
+                selectionType: coverage.selectionType,
+                state: coverage.state ?? null,
+                lga: coverage.lga ?? null,
+                city: coverage.city ?? null,
+                area: coverage.area ?? null,
+              })),
+            },
           },
         },
       },
@@ -531,7 +728,11 @@ async function main() {
   await seedUsers();
   await seedProducts();
 
-  console.log(`Seeded ${categories.length} categories, ${1 + sellerUsers.length + buyerUsers.length} users, and ${products.length} products.`);
+  console.log(
+    `Seeded ${categories.length} categories, ${
+      1 + sellerUsers.length + buyerUsers.length + logisticsCompanies.length
+    } users, and ${products.length} products.`
+  );
 }
 
 main()

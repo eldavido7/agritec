@@ -12,6 +12,15 @@ const orderInclude = {
     include: {
       items: true,
       refunds: true,
+      logisticsCompany: { include: { user: true } },
+      statusHistory: {
+        include: {
+          updatedByUser: {
+            select: { id: true, fullName: true, role: true },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   },
 } as const;
@@ -44,6 +53,15 @@ export async function GET(request: Request) {
             include: {
               items: true,
               refunds: true,
+              logisticsCompany: { include: { user: true } },
+              statusHistory: {
+                include: {
+                  updatedByUser: {
+                    select: { id: true, fullName: true, role: true },
+                  },
+                },
+                orderBy: { createdAt: "asc" },
+              },
             },
           },
         },

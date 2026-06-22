@@ -18,6 +18,16 @@ export async function GET(
       where: { id },
       include: {
         items: true,
+        refunds: true,
+        logisticsCompany: { include: { user: true } },
+        statusHistory: {
+          include: {
+            updatedByUser: {
+              select: { id: true, fullName: true, role: true },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
         seller: { include: { user: true } },
         parentOrder: {
           include: {

@@ -103,6 +103,7 @@ export async function sendBuyerOrderGroupStatusEmail(args: {
   sellerOrderGroupId: string;
   farmName: string;
   status: SellerOrderGroupStatus;
+  description?: string | null;
   productSubtotal: number;
   shippingFee: number;
   groupTotal: number;
@@ -131,6 +132,11 @@ export async function sendBuyerOrderGroupStatusEmail(args: {
           <div style="font-size: 14px; color: #6b7280; margin-bottom: 8px;">Order #${args.parentOrderId}</div>
           <div style="font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 8px;">${readableStatus}</div>
           <div style="font-size: 15px; color: #374151; line-height: 1.6;">${message}</div>
+          ${args.description?.trim() ? `
+            <div style="margin-top: 12px; font-size: 14px; color: #4b5563; line-height: 1.6;">
+              <strong>Update note:</strong> ${args.description.trim()}
+            </div>
+          ` : ""}
         </div>
 
         <div style="background: #ffffff; border-radius: 16px; padding: 24px; margin-bottom: 16px; border: 1px solid #e5e7eb;">

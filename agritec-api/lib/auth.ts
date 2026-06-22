@@ -5,7 +5,7 @@ import { Prisma, UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { reserveSequentialId } from "@/lib/id-sequence";
 
-const authUserSelect = {
+export const authUserSelect = {
   id: true,
   email: true,
   fullName: true,
@@ -30,9 +30,29 @@ const authUserSelect = {
       fullAddress: true,
       city: true,
       state: true,
+      lga: true,
+      area: true,
       latitude: true,
       longitude: true,
       autoPayoutEnabled: true,
+    },
+  },
+  logisticsProfile: {
+    select: {
+      id: true,
+      companyName: true,
+      description: true,
+      contactPersonName: true,
+      phone: true,
+      businessAddress: true,
+      city: true,
+      state: true,
+      lga: true,
+      area: true,
+      latitude: true,
+      longitude: true,
+      verificationStatus: true,
+      isVerified: true,
     },
   },
 } satisfies Prisma.UserSelect;
@@ -57,6 +77,23 @@ type SellerSignupInput = {
   fullAddress?: string | null;
   city?: string | null;
   state?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+type LogisticsSignupInput = {
+  fullName: string;
+  email: string;
+  password: string;
+  phone?: string | null;
+  companyName: string;
+  description?: string | null;
+  contactPersonName?: string | null;
+  businessAddress?: string | null;
+  city?: string | null;
+  state?: string | null;
+  lga?: string | null;
+  area?: string | null;
   latitude?: number | null;
   longitude?: number | null;
 };
@@ -103,6 +140,17 @@ export function serializeAuthUser(user: AuthUser) {
             : null,
           longitude: user.sellerProfile.longitude
             ? Number(user.sellerProfile.longitude)
+            : null,
+        }
+      : null,
+    logisticsProfile: user.logisticsProfile
+      ? {
+          ...user.logisticsProfile,
+          latitude: user.logisticsProfile.latitude
+            ? Number(user.logisticsProfile.latitude)
+            : null,
+          longitude: user.logisticsProfile.longitude
+            ? Number(user.logisticsProfile.longitude)
             : null,
         }
       : null,
@@ -298,8 +346,61 @@ export async function createSellerAccount(input: SellerSignupInput) {
             fullAddress: input.fullAddress?.trim() || null,
             city: input.city?.trim() || null,
             state: input.state?.trim() || null,
+            lga: null,
+            area: null,
             latitude: input.latitude ?? null,
             longitude: input.longitude ?? null,
+          },
+        },
+      },
+      select: authUserSelect,
+    });
+  });
+}
+
+export async function createLogisticsAccount(input: LogisticsSignupInput) {
+  const normalizedEmail = normalizeEmail(input.email);
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      email: normalizedEmail,
+      role: UserRole.LOGISTICS,
+    },
+  });
+  if (existingUser) {
+    throw new Error("EMAIL_ALREADY_EXISTS");
+  }
+
+  const passwordHash = await bcrypt.hash(input.password, 12);
+
+  return prisma.$transaction(async (tx) => {
+    const userId = await reserveSequentialId(tx, "user");
+    const logisticsProfileId = await reserveSequentialId(tx, "logistics_company_profile");
+
+    return tx.user.create({
+      data: {
+        id: userId,
+        email: normalizedEmail,
+        passwordHash,
+        fullName: input.fullName.trim(),
+        role: UserRole.LOGISTICS,
+        phone: input.phone?.trim() || null,
+        isActive: false,
+        logisticsProfile: {
+          create: {
+            id: logisticsProfileId,
+            companyName: input.companyName.trim(),
+            description: input.description?.trim() || null,
+            contactPersonName: input.contactPersonName?.trim() || null,
+            phone: input.phone?.trim() || null,
+            businessAddress: input.businessAddress?.trim() || null,
+            city: input.city?.trim() || null,
+            state: input.state?.trim() || null,
+            lga: input.lga?.trim() || null,
+            area: input.area?.trim() || null,
+            latitude: input.latitude ?? null,
+            longitude: input.longitude ?? null,
+            verificationStatus: "PENDING_VERIFICATION",
+            isVerified: false,
           },
         },
       },

@@ -19,6 +19,8 @@ async function getExistingMaxId(tx: TxClient, sequenceName: string): Promise<num
       return extractMax(await tx.buyerProfile.findMany({ select: { id: true } }));
     case "seller_profile":
       return extractMax(await tx.sellerProfile.findMany({ select: { id: true } }));
+    case "logistics_company_profile":
+      return extractMax(await tx.logisticsCompanyProfile.findMany({ select: { id: true } }));
     case "cart":
       return extractMax(await tx.cart.findMany({ select: { id: true } }));
     case "cart_item":
@@ -37,8 +39,14 @@ async function getExistingMaxId(tx: TxClient, sequenceName: string): Promise<num
       return extractMax(await tx.parentOrder.findMany({ select: { id: true } }));
     case "payment":
       return extractMax(await tx.payment.findMany({ select: { id: true } }));
+    case "logistics_pricing_settings":
+      return extractMax(await tx.logisticsPricingSettings.findMany({ select: { id: true } }));
+    case "logistics_coverage_area":
+      return extractMax(await tx.logisticsCoverageArea.findMany({ select: { id: true } }));
     case "seller_order_group":
       return extractMax(await tx.sellerOrderGroup.findMany({ select: { id: true } }));
+    case "order_group_status_history":
+      return extractMax(await tx.orderGroupStatusHistory.findMany({ select: { id: true } }));
     case "order_item":
       return extractMax(await tx.orderItem.findMany({ select: { id: true } }));
     case "order_address_snapshot":
@@ -61,6 +69,10 @@ async function getExistingMaxId(tx: TxClient, sequenceName: string): Promise<num
       return extractMax(await tx.inventoryMovement.findMany({ select: { id: true } }));
     case "conversation":
       return extractMax(await tx.conversation.findMany({ select: { id: true } }));
+    case "support_conversation_assignment":
+      return extractMax(await tx.supportConversationAssignment.findMany({ select: { id: true } }));
+    case "support_internal_comment":
+      return extractMax(await tx.supportInternalComment.findMany({ select: { id: true } }));
     case "conversation_participant":
       return extractMax(await tx.conversationParticipant.findMany({ select: { id: true } }));
     case "message":

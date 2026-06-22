@@ -11,6 +11,7 @@ enum UserRole {
   BUYER
   SELLER
   ADMIN
+  LOGISTICS
 }
 
 enum AddressCreatorRole {
@@ -120,6 +121,7 @@ enum WithdrawalStatus {
 enum ConversationType {
   BUYER_SELLER
   BUYER_SUPPORT
+  SELLER_SUPPORT
 }
 
 enum MessageType {
@@ -148,27 +150,67 @@ enum InventoryMovementType {
   MANUAL_ADJUSTMENT
 }
 
+enum LogisticsCompanyVerificationStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  SUSPENDED
+}
+
+enum LogisticsCoverageType {
+  NATIONWIDE
+  REGIONAL
+}
+
+enum LogisticsCoverageSelectionType {
+  STATE
+  LGA
+  CITY
+  AREA
+}
+
+enum SupportConversationStatus {
+  ACTIVE
+  ASSIGNED
+  UNASSIGNED
+  RESOLVED
+}
+
+enum SupportAssignmentEventType {
+  AUTO_ASSIGN
+  MANUAL_ASSIGN
+  CLAIM
+  REASSIGN
+  UNASSIGN
+  RESOLVE
+  REOPEN
+}
+
 model User {
-  id                         String                    @id @default(cuid())
+  id                         String                          @id @default(cuid())
   email                      String
   passwordHash               String
   fullName                   String
   role                       UserRole
   phone                      String?
-  isActive                   Boolean                   @default(true)
+  isActive                   Boolean                         @default(true)
   emailVerifiedAt            DateTime?
   lastActiveAt               DateTime?
-  createdAt                  DateTime                  @default(now())
-  updatedAt                  DateTime                  @updatedAt
+  createdAt                  DateTime                        @default(now())
+  updatedAt                  DateTime                        @updatedAt
   buyerProfile               BuyerProfile?
   sellerProfile              SellerProfile?
+  logisticsProfile           LogisticsCompanyProfile?
   notifications              Notification[]
-  sentMessages               Message[]                 @relation("UserSentMessages")
+  sentMessages               Message[]                       @relation("UserSentMessages")
   conversationParticipants   ConversationParticipant[]
-  auditLogs                  AuditLog[]                @relation("AdminAuditLogs")
+  auditLogs                  AuditLog[]                      @relation("AdminAuditLogs")
   passwordResetTokens        PasswordResetToken[]
-  approvedWithdrawalRequests WithdrawalRequest[]       @relation("AdminApprovedWithdrawals")
+  approvedWithdrawalRequests WithdrawalRequest[]             @relation("AdminApprovedWithdrawals")
   deviceTokens               DeviceToken[]
+  updatedOrderGroupStatuses  OrderGroupStatusHistory[]
+  supportAssignmentsHandled  SupportConversationAssignment[] @relation("SupportAssignmentHandledBy")
+  supportAssignmentCreated   SupportConversationAssignment[] @relation("SupportAssignmentCreatedBy")
+  supportInternalComments    SupportInternalComment[]
 }
 
 model PasswordResetToken {
@@ -205,6 +247,8 @@ model SellerProfile {
   fullAddress        String?
   city               String?
   state              String?
+  lga                String?
+  area               String?
   latitude           Decimal?            @db.Decimal(10, 7)
   longitude          Decimal?            @db.Decimal(10, 7)
   autoPayoutEnabled  Boolean             @default(false)
@@ -219,6 +263,65 @@ model SellerProfile {
   updatedAt          DateTime            @updatedAt
 }
 
+model LogisticsCompanyProfile {
+  id                 String                             @id @default(cuid())
+  userId             String                             @unique
+  user               User                               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String
+  description        String?
+  contactPersonName  String?
+  phone              String?
+  businessAddress    String?
+  city               String?
+  state              String?
+  lga                String?
+  area               String?
+  latitude           Decimal?                           @db.Decimal(10, 7)
+  longitude          Decimal?                           @db.Decimal(10, 7)
+  verificationStatus LogisticsCompanyVerificationStatus @default(PENDING_VERIFICATION)
+  isVerified         Boolean                            @default(false)
+  pricingSettings    LogisticsPricingSettings?
+  coverageAreas      LogisticsCoverageArea[]
+  assignedGroups     SellerOrderGroup[]
+  createdAt          DateTime                           @default(now())
+  updatedAt          DateTime                           @updatedAt
+
+  @@index([verificationStatus, createdAt])
+}
+
+model LogisticsPricingSettings {
+  id                       String                  @id @default(cuid())
+  logisticsCompanyId       String                  @unique
+  logisticsCompany         LogisticsCompanyProfile @relation(fields: [logisticsCompanyId], references: [id], onDelete: Cascade)
+  abujaMinimumFee          Int                     @default(2500)
+  abujaAdditionalUnitFee   Int                     @default(2500)
+  outsideMinimumFee        Int                     @default(5000)
+  outsideAdditionalUnitFee Int                     @default(5000)
+  weightUnitSizeKg         Decimal                 @default(10) @db.Decimal(10, 3)
+  volumetricDivisor        Int                     @default(5000)
+  weeklyAutoPayoutDay      Int?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+}
+
+model LogisticsCoverageArea {
+  id                 String                          @id @default(cuid())
+  logisticsCompanyId String
+  logisticsCompany   LogisticsCompanyProfile         @relation(fields: [logisticsCompanyId], references: [id], onDelete: Cascade)
+  coverageType       LogisticsCoverageType
+  selectionType      LogisticsCoverageSelectionType?
+  state              String?
+  lga                String?
+  city               String?
+  area               String?
+  isActive           Boolean                         @default(true)
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+
+  @@index([logisticsCompanyId, coverageType, isActive])
+  @@index([state, lga, city, area])
+}
+
 model Address {
   id              String             @id @default(cuid())
   buyerId         String
@@ -228,6 +331,8 @@ model Address {
   fullAddress     String
   city            String
   state           String
+  lga             String?
+  area            String?
   landmark        String?
   latitude        Decimal?           @db.Decimal(10, 7)
   longitude       Decimal?           @db.Decimal(10, 7)
@@ -427,38 +532,49 @@ model Payment {
 }
 
 model SellerOrderGroup {
-  id                          String                 @id @default(cuid())
-  parentOrderId               String
-  parentOrder                 ParentOrder            @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
-  sellerId                    String
-  seller                      SellerProfile          @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-  status                      SellerOrderGroupStatus @default(PENDING)
-  sellerNameSnapshot          String
-  farmNameSnapshot            String
-  productSubtotal             Int
-  shippingFee                 Int
-  discountTotal               Int
-  groupTotal                  Int
-  commissionRateBpsSnapshot   Int                    @default(0)
-  platformCommissionAmount    Int                    @default(0)
-  sellerEarningsAmount        Int                    @default(0)
-  deliveryRegion              String
-  totalChargeableWeightKg     Decimal                @db.Decimal(10, 3)
-  weightUnitSizeKg            Decimal                @default(10) @db.Decimal(10, 3)
-  shippingUnits               Int
-  minimumFee                  Int                    @default(0)
-  additionalUnitFee           Int                    @default(0)
-  discountCodeSnapshot        String?
-  discountTypeSnapshot        DiscountType?
-  discountValueSnapshot       Int?
-  discountDescriptionSnapshot String?
-  items                       OrderItem[]
-  refunds                     Refund[]
-  createdAt                   DateTime               @default(now())
-  updatedAt                   DateTime               @updatedAt
+  id                           String                    @id @default(cuid())
+  parentOrderId                String
+  parentOrder                  ParentOrder               @relation(fields: [parentOrderId], references: [id], onDelete: Cascade)
+  sellerId                     String
+  seller                       SellerProfile             @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  logisticsCompanyId           String?
+  logisticsCompany             LogisticsCompanyProfile?  @relation(fields: [logisticsCompanyId], references: [id], onDelete: SetNull)
+  status                       SellerOrderGroupStatus    @default(PENDING)
+  sellerNameSnapshot           String
+  farmNameSnapshot             String
+  logisticsCompanyNameSnapshot String?
+  productSubtotal              Int
+  shippingFee                  Int
+  discountTotal                Int
+  groupTotal                   Int
+  commissionRateBpsSnapshot    Int                       @default(0)
+  platformCommissionAmount     Int                       @default(0)
+  sellerEarningsAmount         Int                       @default(0)
+  deliveryRegion               String
+  totalChargeableWeightKg      Decimal                   @db.Decimal(10, 3)
+  weightUnitSizeKg             Decimal                   @default(10) @db.Decimal(10, 3)
+  shippingUnits                Int
+  minimumFee                   Int                       @default(0)
+  additionalUnitFee            Int                       @default(0)
+  sellerPickupStateSnapshot    String?
+  sellerPickupCitySnapshot     String?
+  sellerPickupLgaSnapshot      String?
+  buyerDeliveryStateSnapshot   String?
+  buyerDeliveryCitySnapshot    String?
+  buyerDeliveryLgaSnapshot     String?
+  discountCodeSnapshot         String?
+  discountTypeSnapshot         DiscountType?
+  discountValueSnapshot        Int?
+  discountDescriptionSnapshot  String?
+  items                        OrderItem[]
+  refunds                      Refund[]
+  statusHistory                OrderGroupStatusHistory[]
+  createdAt                    DateTime                  @default(now())
+  updatedAt                    DateTime                  @updatedAt
 
   @@index([parentOrderId])
   @@index([sellerId, status])
+  @@index([logisticsCompanyId, status])
 }
 
 model OrderItem {
@@ -534,6 +650,8 @@ model OrderAddressSnapshot {
   fullAddress     String
   city            String
   state           String
+  lga             String?
+  area            String?
   landmark        String?
   latitude        Decimal?           @db.Decimal(10, 7)
   longitude       Decimal?           @db.Decimal(10, 7)
@@ -625,19 +743,23 @@ model WithdrawalRequest {
 }
 
 model Conversation {
-  id                   String                    @id @default(cuid())
+  id                   String                          @id @default(cuid())
   type                 ConversationType
-  uniqueKey            String                    @unique
+  uniqueKey            String                          @unique
   subject              String?
   relatedParentOrderId String?
   relatedSellerGroupId String?
+  supportStatus        SupportConversationStatus       @default(ACTIVE)
   participants         ConversationParticipant[]
   messages             Message[]
+  assignments          SupportConversationAssignment[]
+  internalComments     SupportInternalComment[]
   lastMessageAt        DateTime?
-  createdAt            DateTime                  @default(now())
-  updatedAt            DateTime                  @updatedAt
+  createdAt            DateTime                        @default(now())
+  updatedAt            DateTime                        @updatedAt
 
   @@index([updatedAt])
+  @@index([type, supportStatus, updatedAt])
 }
 
 model ConversationParticipant {
@@ -728,6 +850,53 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([adminId, createdAt])
+}
+
+model OrderGroupStatusHistory {
+  id                 String                 @id @default(cuid())
+  sellerOrderGroupId String
+  sellerOrderGroup   SellerOrderGroup       @relation(fields: [sellerOrderGroupId], references: [id], onDelete: Cascade)
+  status             SellerOrderGroupStatus
+  description        String?
+  updatedByUserId    String?
+  updatedByUser      User?                  @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  updatedByRole      UserRole?
+  createdAt          DateTime               @default(now())
+
+  @@index([sellerOrderGroupId, createdAt])
+  @@index([updatedByUserId, createdAt])
+}
+
+model SupportConversationAssignment {
+  id               String                     @id @default(cuid())
+  conversationId   String
+  conversation     Conversation               @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  assignedAdminId  String?
+  assignedAdmin    User?                      @relation("SupportAssignmentHandledBy", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  assignedByUserId String?
+  assignedByUser   User?                      @relation("SupportAssignmentCreatedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  eventType        SupportAssignmentEventType
+  note             String?
+  responseDueAt    DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime                   @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([assignedAdminId, createdAt])
+}
+
+model SupportInternalComment {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorUserId   String
+  authorUser     User         @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  body           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([conversationId, createdAt])
+  @@index([authorUserId, createdAt])
 }
 
 model InventoryMovement {

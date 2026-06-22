@@ -1,4 +1,3 @@
-import { DiscountType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
   calculatePlatformShippingBreakdown,
@@ -9,16 +8,35 @@ import {
   normalizeDiscountCode,
   volumetricWeightKg,
 } from "@/lib/checkout-utils";
+import {
+  allocateCombinedShippingFees,
+  buildEligibleLogisticsCompanies,
+  calculateLogisticsShippingBreakdown,
+  isNationwideCompany,
+  type EligibleLogisticsCompany,
+} from "@/lib/logistics-utils";
 import { serializeProduct } from "@/lib/marketplace-serializers";
+
+type LogisticsSelections = Record<string, string>;
 
 export async function buildCheckoutQuote(args: {
   buyerId: string;
   addressId: string;
   discountCodes?: Record<string, string>;
+  logisticsSelections?: LogisticsSelections;
+  allGroupsLogisticsCompanyId?: string | null;
+  allowPlatformFallbackWithoutSelection?: boolean;
 }) {
-  const { buyerId, addressId, discountCodes = {} } = args;
+  const {
+    buyerId,
+    addressId,
+    discountCodes = {},
+    logisticsSelections = {},
+    allGroupsLogisticsCompanyId = null,
+    allowPlatformFallbackWithoutSelection = false,
+  } = args;
 
-  const [address, cart, shippingSettings] = await Promise.all([
+  const [address, cart, shippingSettings, logisticsCompanies] = await Promise.all([
     prisma.address.findFirst({ where: { id: addressId, buyerId } }),
     prisma.cart.findUnique({
       where: { buyerId },
@@ -43,13 +61,28 @@ export async function buildCheckoutQuote(args: {
       },
     }),
     prisma.shippingSettings.findUnique({ where: { id: "shipping" } }),
+    prisma.logisticsCompanyProfile.findMany({
+      where: {
+        isVerified: true,
+        verificationStatus: "VERIFIED",
+        user: { isActive: true, role: "LOGISTICS" },
+      },
+      include: {
+        user: { select: { isActive: true } },
+        pricingSettings: true,
+        coverageAreas: true,
+      },
+      orderBy: { companyName: "asc" },
+    }),
   ]);
 
   if (!address) throw new Error("ADDRESS_NOT_FOUND");
   if (!cart) throw new Error("CART_NOT_FOUND");
   if (!shippingSettings) throw new Error("SHIPPING_SETTINGS_NOT_CONFIGURED");
 
-  const activeItems = cart.items.filter((item) => !item.product.isDeleted && item.product.status !== "ARCHIVED");
+  const activeItems = cart.items.filter(
+    (item) => !item.product.isDeleted && item.product.status !== "ARCHIVED"
+  );
   if (activeItems.length === 0) throw new Error("CART_EMPTY");
 
   const itemsBySeller = new Map<string, typeof activeItems>();
@@ -59,13 +92,7 @@ export async function buildCheckoutQuote(args: {
     itemsBySeller.set(item.product.sellerId, sellerItems);
   }
 
-  const volumetricDivisor = shippingSettings.volumetricDivisor;
-
-  let productSubtotal = 0;
-  let totalShippingFee = 0;
-  let discountTotal = 0;
-
-  const sellerGroups = await Promise.all(
+  const initialSellerGroups = await Promise.all(
     Array.from(itemsBySeller.entries()).map(async ([sellerId, sellerItems]) => {
       const requestedDiscountCode = discountCodes[sellerId]
         ? normalizeDiscountCode(discountCodes[sellerId])
@@ -79,13 +106,25 @@ export async function buildCheckoutQuote(args: {
       let groupDiscountTotal = 0;
       let totalChargeableWeight = 0;
 
+      const seller = sellerItems[0].product.seller;
+      const eligibleLogisticsCompanies = buildEligibleLogisticsCompanies({
+        companies: logisticsCompanies,
+        buyerDeliveryRegion: address,
+      });
+
+      if (eligibleLogisticsCompanies.length === 0) {
+        throw new Error("NO_ELIGIBLE_LOGISTICS_COMPANIES");
+      }
+
       const items = sellerItems.map((item) => {
         const availableInventory = item.variant
           ? Math.max(0, item.variant.inventory - item.variant.reservedInventory)
           : Math.max(0, item.product.inventory - item.product.reservedInventory);
 
         if (item.quantity > availableInventory) {
-          throw new Error(`INSUFFICIENT_INVENTORY:${item.variant?.id ?? item.product.id}`);
+          throw new Error(
+            `INSUFFICIENT_INVENTORY:${item.variant?.id ?? item.product.id}`
+          );
         }
 
         const product = item.product;
@@ -102,8 +141,14 @@ export async function buildCheckoutQuote(args: {
         });
         const lineTotal = lineSubtotal - lineDiscount;
         const actualWeight = decimalToNumber(logisticsSource.unitWeightKg ?? null) ?? 0;
+        const volumetricDivisor =
+          eligibleLogisticsCompanies[0]?.pricing.volumetricDivisor ??
+          shippingSettings.volumetricDivisor;
         const volumetricWeight = volumetricWeightKg(logisticsSource, volumetricDivisor);
-        const unitChargeableWeight = chargeableWeightKg(logisticsSource, volumetricDivisor);
+        const unitChargeableWeight = chargeableWeightKg(
+          logisticsSource,
+          volumetricDivisor
+        );
         const lineChargeableWeight = unitChargeableWeight * item.quantity;
 
         groupProductSubtotal += lineSubtotal;
@@ -130,36 +175,21 @@ export async function buildCheckoutQuote(args: {
         };
       });
 
-      const shippingBreakdown = calculatePlatformShippingBreakdown({
-        totalChargeableWeightKg: totalChargeableWeight,
-        address,
-        settings: shippingSettings,
-      });
-      const shippingFee = shippingBreakdown.shippingFee;
-      const groupTotal = groupProductSubtotal - groupDiscountTotal + shippingFee;
-
-      productSubtotal += groupProductSubtotal;
-      discountTotal += groupDiscountTotal;
-      totalShippingFee += shippingFee;
-
-      const seller = sellerItems[0].product.seller;
-
       return {
         sellerId,
         sellerName: seller.user.fullName,
         sellerEmail: seller.user.email,
         sellerPhone: seller.user.phone,
         farmName: seller.farmName,
-        deliveryRegion: shippingBreakdown.deliveryRegion,
+        sellerPickupState: seller.state,
+        sellerPickupCity: seller.city,
+        sellerPickupLga: seller.lga,
+        buyerDeliveryState: address.state,
+        buyerDeliveryCity: address.city,
+        buyerDeliveryLga: address.lga,
         productSubtotal: groupProductSubtotal,
         discountTotal: groupDiscountTotal,
-        shippingFee,
-        groupTotal,
         totalChargeableWeightKg: Number(totalChargeableWeight.toFixed(3)),
-        weightUnitSizeKg: shippingBreakdown.weightUnitSizeKg,
-        shippingUnits: shippingBreakdown.shippingUnits,
-        minimumFee: shippingBreakdown.minimumFee,
-        additionalUnitFee: shippingBreakdown.additionalUnitFee,
         discountCode: discount ? discount.code : requestedDiscountCode,
         discountApplied: Boolean(discount),
         discountSummary: discount
@@ -171,9 +201,159 @@ export async function buildCheckoutQuote(args: {
               description: discount.description,
             }
           : null,
+        eligibleLogisticsCompanies,
         items,
       };
     })
+  );
+
+  if (allGroupsLogisticsCompanyId) {
+    const selectedNationwideCompany = logisticsCompanies.find(
+      (company) => company.id === allGroupsLogisticsCompanyId
+    );
+    if (!selectedNationwideCompany) {
+      throw new Error("LOGISTICS_COMPANY_NOT_FOUND");
+    }
+    if (!isNationwideCompany(selectedNationwideCompany)) {
+      throw new Error("ALL_GROUPS_LOGISTICS_MUST_BE_NATIONWIDE");
+    }
+  }
+
+  const computedSellerGroups = initialSellerGroups.map((group) => {
+    const selectedLogisticsCompanyId =
+      allGroupsLogisticsCompanyId || logisticsSelections[group.sellerId] || null;
+    const selectedLogisticsCompany = selectedLogisticsCompanyId
+      ? group.eligibleLogisticsCompanies.find(
+          (company) => company.id === selectedLogisticsCompanyId
+        ) ?? null
+      : null;
+
+    if (
+      selectedLogisticsCompanyId &&
+      !selectedLogisticsCompany
+    ) {
+      throw new Error(`LOGISTICS_COMPANY_NOT_ELIGIBLE:${group.sellerId}`);
+    }
+
+    if (!allowPlatformFallbackWithoutSelection && !selectedLogisticsCompany) {
+      throw new Error(`LOGISTICS_SELECTION_REQUIRED:${group.sellerId}`);
+    }
+
+    if (selectedLogisticsCompany) {
+      const shippingBreakdown = calculateLogisticsShippingBreakdown({
+        totalChargeableWeightKg: group.totalChargeableWeightKg,
+        address,
+        pricing: selectedLogisticsCompany.pricing,
+      });
+
+      return {
+        ...group,
+        logisticsCompanyId: selectedLogisticsCompany.id,
+        logisticsCompanyName: selectedLogisticsCompany.companyName,
+        deliveryRegion: shippingBreakdown.deliveryRegion,
+        shippingFee: shippingBreakdown.shippingFee,
+        groupTotal:
+          group.productSubtotal - group.discountTotal + shippingBreakdown.shippingFee,
+        weightUnitSizeKg: shippingBreakdown.weightUnitSizeKg,
+        shippingUnits: shippingBreakdown.shippingUnits,
+        minimumFee: shippingBreakdown.minimumFee,
+        additionalUnitFee: shippingBreakdown.additionalUnitFee,
+        shippingPricedBy:
+          "LOGISTICS" as
+            | "LOGISTICS"
+            | "PLATFORM_FALLBACK"
+            | "LOGISTICS_NATIONWIDE_COMBINED",
+      };
+    }
+
+    const shippingBreakdown = calculatePlatformShippingBreakdown({
+      totalChargeableWeightKg: group.totalChargeableWeightKg,
+      address,
+      settings: shippingSettings,
+    });
+
+    return {
+      ...group,
+      logisticsCompanyId: null,
+      logisticsCompanyName: null,
+      deliveryRegion: shippingBreakdown.deliveryRegion,
+      shippingFee: shippingBreakdown.shippingFee,
+      groupTotal:
+        group.productSubtotal - group.discountTotal + shippingBreakdown.shippingFee,
+      weightUnitSizeKg: shippingBreakdown.weightUnitSizeKg,
+      shippingUnits: shippingBreakdown.shippingUnits,
+      minimumFee: shippingBreakdown.minimumFee,
+      additionalUnitFee: shippingBreakdown.additionalUnitFee,
+        shippingPricedBy:
+          "PLATFORM_FALLBACK" as
+            | "LOGISTICS"
+            | "PLATFORM_FALLBACK"
+            | "LOGISTICS_NATIONWIDE_COMBINED",
+    };
+  });
+
+  if (allGroupsLogisticsCompanyId) {
+    const selectedCompany = logisticsCompanies.find(
+      (company) => company.id === allGroupsLogisticsCompanyId
+    );
+    if (!selectedCompany?.pricingSettings) {
+      throw new Error("LOGISTICS_COMPANY_NOT_FOUND");
+    }
+
+    const combinedWeight = computedSellerGroups.reduce(
+      (sum, group) => sum + group.totalChargeableWeightKg,
+      0
+    );
+    const combinedBreakdown = calculateLogisticsShippingBreakdown({
+      totalChargeableWeightKg: combinedWeight,
+      address,
+      pricing: {
+        abujaMinimumFee: selectedCompany.pricingSettings.abujaMinimumFee,
+        abujaAdditionalUnitFee:
+          selectedCompany.pricingSettings.abujaAdditionalUnitFee,
+        outsideMinimumFee: selectedCompany.pricingSettings.outsideMinimumFee,
+        outsideAdditionalUnitFee:
+          selectedCompany.pricingSettings.outsideAdditionalUnitFee,
+        weightUnitSizeKg: selectedCompany.pricingSettings.weightUnitSizeKg,
+        volumetricDivisor: selectedCompany.pricingSettings.volumetricDivisor,
+      },
+    });
+
+    const allocatedFees = allocateCombinedShippingFees({
+      totalShippingFee: combinedBreakdown.shippingFee,
+      groupChargeableWeightsKg: computedSellerGroups.map((group) => ({
+        sellerId: group.sellerId,
+        totalChargeableWeightKg: group.totalChargeableWeightKg,
+      })),
+    });
+
+    computedSellerGroups.forEach((group, index) => {
+      const allocatedFee = Math.max(0, allocatedFees.get(group.sellerId) ?? 0);
+      computedSellerGroups[index] = {
+        ...group,
+        shippingFee: allocatedFee,
+        groupTotal: group.productSubtotal - group.discountTotal + allocatedFee,
+        deliveryRegion: combinedBreakdown.deliveryRegion,
+        weightUnitSizeKg: combinedBreakdown.weightUnitSizeKg,
+        shippingUnits: combinedBreakdown.shippingUnits,
+        minimumFee: combinedBreakdown.minimumFee,
+        additionalUnitFee: combinedBreakdown.additionalUnitFee,
+        shippingPricedBy: "LOGISTICS_NATIONWIDE_COMBINED" as const,
+      };
+    });
+  }
+
+  const productSubtotal = computedSellerGroups.reduce(
+    (sum, group) => sum + group.productSubtotal,
+    0
+  );
+  const totalShippingFee = computedSellerGroups.reduce(
+    (sum, group) => sum + group.shippingFee,
+    0
+  );
+  const discountTotal = computedSellerGroups.reduce(
+    (sum, group) => sum + group.discountTotal,
+    0
   );
 
   return {
@@ -183,7 +363,37 @@ export async function buildCheckoutQuote(args: {
     totalShippingFee,
     discountTotal,
     grandTotal: productSubtotal - discountTotal + totalShippingFee,
-    sellerGroups,
+    sellerGroups: computedSellerGroups,
     currencyCode: "NGN",
+    allGroupsLogisticsCompanyId,
+  };
+}
+
+export async function buildEligibleCheckoutLogistics(args: {
+  buyerId: string;
+  addressId: string;
+}) {
+  const quote = await buildCheckoutQuote({
+    buyerId: args.buyerId,
+    addressId: args.addressId,
+    allowPlatformFallbackWithoutSelection: true,
+  });
+
+  return {
+    buyerId: quote.buyerId,
+    address: quote.address,
+    sellerGroups: quote.sellerGroups.map((group) => ({
+      sellerId: group.sellerId,
+      sellerName: group.sellerName,
+      farmName: group.farmName,
+      sellerPickupState: group.sellerPickupState,
+      sellerPickupCity: group.sellerPickupCity,
+      sellerPickupLga: group.sellerPickupLga,
+      buyerDeliveryState: group.buyerDeliveryState,
+      buyerDeliveryCity: group.buyerDeliveryCity,
+      buyerDeliveryLga: group.buyerDeliveryLga,
+      totalChargeableWeightKg: group.totalChargeableWeightKg,
+      eligibleLogisticsCompanies: group.eligibleLogisticsCompanies,
+    })),
   };
 }

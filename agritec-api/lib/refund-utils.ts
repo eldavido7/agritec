@@ -289,7 +289,7 @@ async function markRefundFailed(refundId: string, payload: Record<string, unknow
 
 export async function initiateSellerOrderGroupRefund(args: {
   sellerOrderGroupId: string;
-  adminId: string;
+  adminId?: string | null;
 }) {
   const existingOpenRefund = await prisma.refund.findFirst({
     where: {
@@ -345,22 +345,24 @@ export async function initiateSellerOrderGroupRefund(args: {
         paystackTransactionReference: group.parentOrder.payment.reference,
         customerNote,
         merchantNote,
-        initiatedByAdminId: args.adminId,
+        initiatedByAdminId: args.adminId ?? null,
         idempotencyKey: `refund:init:${group.id}`,
       },
     });
 
-    await createAuditLog(tx, {
-      adminId: args.adminId,
-      action: "refund.initiated",
-      targetType: "refund",
-      targetId: refund.id,
-      metadata: toJsonValue({
-        parentOrderId: group.parentOrderId,
-        sellerOrderGroupId: group.id,
-        amount: refund.amount,
-      }),
-    });
+    if (args.adminId) {
+      await createAuditLog(tx, {
+        adminId: args.adminId,
+        action: "refund.initiated",
+        targetType: "refund",
+        targetId: refund.id,
+        metadata: toJsonValue({
+          parentOrderId: group.parentOrderId,
+          sellerOrderGroupId: group.id,
+          amount: refund.amount,
+        }),
+      });
+    }
 
     return {
       refund,
@@ -414,18 +416,20 @@ export async function initiateSellerOrderGroupRefund(args: {
         },
       });
 
-      await createAuditLog(tx, {
-        adminId: args.adminId,
-        action: "refund.initiation_failed",
-        targetType: "refund",
-        targetId: prepared.refund.id,
-        metadata: toJsonValue({
-          parentOrderId: prepared.parentOrderId,
-          sellerOrderGroupId: prepared.groupId,
-          amount: prepared.refund.amount,
-          failureReason,
-        }),
-      });
+      if (args.adminId) {
+        await createAuditLog(tx, {
+          adminId: args.adminId,
+          action: "refund.initiation_failed",
+          targetType: "refund",
+          targetId: prepared.refund.id,
+          metadata: toJsonValue({
+            parentOrderId: prepared.parentOrderId,
+            sellerOrderGroupId: prepared.groupId,
+            amount: prepared.refund.amount,
+            failureReason,
+          }),
+        });
+      }
 
       return failedRefund;
     });
@@ -463,7 +467,7 @@ export async function cancelParentOrderAndInitiateRefunds(args: {
       sellerOrderGroupId: group.id,
       nextStatus: SellerOrderGroupStatus.CANCELLED,
       actorRole: "ADMIN",
-      actorAdminId: args.adminId,
+      actorUserId: args.adminId,
     });
   }
 

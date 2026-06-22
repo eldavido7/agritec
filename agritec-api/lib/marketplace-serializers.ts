@@ -24,6 +24,17 @@ function serializeRefund(refund: any) {
   };
 }
 
+function serializeStatusHistoryEntry(entry: any) {
+  return {
+    ...entry,
+    updatedByUser: entry.updatedByUser
+      ? {
+          ...entry.updatedByUser,
+        }
+      : null,
+  };
+}
+
 export function serializePublicSeller(seller: any) {
   return {
     ...seller,
@@ -77,6 +88,16 @@ export function serializeOrder(order: any) {
           ...group,
           totalChargeableWeightKg: decimalToNumber(group.totalChargeableWeightKg),
           weightUnitSizeKg: decimalToNumber(group.weightUnitSizeKg),
+          logisticsCompany: group.logisticsCompany
+            ? {
+                ...group.logisticsCompany,
+                latitude: decimalToNumber(group.logisticsCompany.latitude),
+                longitude: decimalToNumber(group.logisticsCompany.longitude),
+              }
+            : null,
+          statusHistory: Array.isArray(group.statusHistory)
+            ? group.statusHistory.map(serializeStatusHistoryEntry)
+            : [],
           refunds: Array.isArray(group.refunds) ? group.refunds.map(serializeRefund) : [],
           items: Array.isArray(group.items)
             ? group.items.map((item: any) => ({

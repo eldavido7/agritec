@@ -143,6 +143,7 @@ export async function createPendingCheckoutOrder(args: {
     const paymentId = await reserveSequentialId(tx, "payment");
     const addressSnapshotId = await reserveSequentialId(tx, "order_address_snapshot");
     const sellerGroupIds = await reserveSequentialIds(tx, "seller_order_group", quote.sellerGroups.length);
+    const statusHistoryIds = await reserveSequentialIds(tx, "order_group_status_history", quote.sellerGroups.length);
     const totalOrderItems = quote.sellerGroups.reduce((sum, group) => sum + group.items.length, 0);
     const orderItemIds = await reserveSequentialIds(tx, "order_item", totalOrderItems);
     const paymentReference = generatePaymentReference(paymentId);
@@ -174,6 +175,8 @@ export async function createPendingCheckoutOrder(args: {
         fullAddress: quote.address.fullAddress,
         city: quote.address.city,
         state: quote.address.state,
+        lga: quote.address.lga ?? null,
+        area: quote.address.area ?? null,
         landmark: quote.address.landmark,
         latitude: quote.address.latitude,
         longitude: quote.address.longitude,
@@ -196,6 +199,13 @@ export async function createPendingCheckoutOrder(args: {
           discountCodes,
           cartItemIds,
           sellerIds: quote.sellerGroups.map((group) => group.sellerId),
+          logisticsSelections: quote.sellerGroups.reduce<Record<string, string>>((acc, group) => {
+            if (group.logisticsCompanyId) {
+              acc[group.sellerId] = group.logisticsCompanyId;
+            }
+            return acc;
+          }, {}),
+          allGroupsLogisticsCompanyId: quote.allGroupsLogisticsCompanyId ?? null,
           amountInSubunit: nairaToSubunit(quote.grandTotal),
         }),
       },
@@ -216,9 +226,11 @@ export async function createPendingCheckoutOrder(args: {
           id: sellerOrderGroupId,
           parentOrderId,
           sellerId: group.sellerId,
+          logisticsCompanyId: group.logisticsCompanyId,
           status: SellerOrderGroupStatus.PENDING,
           sellerNameSnapshot: group.sellerName,
           farmNameSnapshot: group.farmName,
+          logisticsCompanyNameSnapshot: group.logisticsCompanyName,
           productSubtotal: group.productSubtotal,
           shippingFee: group.shippingFee,
           discountTotal: group.discountTotal,
@@ -232,10 +244,27 @@ export async function createPendingCheckoutOrder(args: {
           shippingUnits: group.shippingUnits,
           minimumFee: group.minimumFee,
           additionalUnitFee: group.additionalUnitFee,
+          sellerPickupStateSnapshot: group.sellerPickupState ?? null,
+          sellerPickupCitySnapshot: group.sellerPickupCity ?? null,
+          sellerPickupLgaSnapshot: group.sellerPickupLga ?? null,
+          buyerDeliveryStateSnapshot: group.buyerDeliveryState ?? null,
+          buyerDeliveryCitySnapshot: group.buyerDeliveryCity ?? null,
+          buyerDeliveryLgaSnapshot: group.buyerDeliveryLga ?? null,
           discountCodeSnapshot: group.discountApplied ? group.discountSummary?.code ?? group.discountCode ?? null : null,
           discountTypeSnapshot: group.discountApplied ? group.discountSummary?.type ?? null : null,
           discountValueSnapshot: group.discountApplied ? group.discountSummary?.value ?? null : null,
           discountDescriptionSnapshot: group.discountApplied ? group.discountSummary?.description ?? null : null,
+        },
+      });
+
+      await tx.orderGroupStatusHistory.create({
+        data: {
+          id: statusHistoryIds[groupIndex],
+          sellerOrderGroupId,
+          status: SellerOrderGroupStatus.PENDING,
+          description: null,
+          updatedByUserId: null,
+          updatedByRole: null,
         },
       });
 
@@ -297,6 +326,7 @@ export async function createPendingAssistedOrder(args: {
     const paymentId = await reserveSequentialId(tx, "payment");
     const addressSnapshotId = await reserveSequentialId(tx, "order_address_snapshot");
     const sellerGroupIds = await reserveSequentialIds(tx, "seller_order_group", quote.sellerGroups.length);
+    const statusHistoryIds = await reserveSequentialIds(tx, "order_group_status_history", quote.sellerGroups.length);
     const totalOrderItems = quote.sellerGroups.reduce((sum, group) => sum + group.items.length, 0);
     const orderItemIds = await reserveSequentialIds(tx, "order_item", totalOrderItems);
     const paymentReference = generatePaymentReference(paymentId);
@@ -327,6 +357,8 @@ export async function createPendingAssistedOrder(args: {
         fullAddress: quote.address.fullAddress,
         city: quote.address.city,
         state: quote.address.state,
+        lga: quote.address.lga ?? null,
+        area: quote.address.area ?? null,
         landmark: quote.address.landmark ?? null,
         latitude: quote.address.latitude ?? null,
         longitude: quote.address.longitude ?? null,
@@ -349,6 +381,13 @@ export async function createPendingAssistedOrder(args: {
           discountCodes,
           cartItemIds: [],
           sellerIds: quote.sellerGroups.map((group) => group.sellerId),
+          logisticsSelections: quote.sellerGroups.reduce<Record<string, string>>((acc, group) => {
+            if (group.logisticsCompanyId) {
+              acc[group.sellerId] = group.logisticsCompanyId;
+            }
+            return acc;
+          }, {}),
+          allGroupsLogisticsCompanyId: quote.allGroupsLogisticsCompanyId ?? null,
           amountInSubunit: nairaToSubunit(quote.grandTotal),
           isAdminAssisted: true,
         }),
@@ -370,9 +409,11 @@ export async function createPendingAssistedOrder(args: {
           id: sellerOrderGroupId,
           parentOrderId,
           sellerId: group.sellerId,
+          logisticsCompanyId: group.logisticsCompanyId,
           status: SellerOrderGroupStatus.PENDING,
           sellerNameSnapshot: group.sellerName,
           farmNameSnapshot: group.farmName,
+          logisticsCompanyNameSnapshot: group.logisticsCompanyName,
           productSubtotal: group.productSubtotal,
           shippingFee: group.shippingFee,
           discountTotal: group.discountTotal,
@@ -386,10 +427,27 @@ export async function createPendingAssistedOrder(args: {
           shippingUnits: group.shippingUnits,
           minimumFee: group.minimumFee,
           additionalUnitFee: group.additionalUnitFee,
+          sellerPickupStateSnapshot: group.sellerPickupState ?? null,
+          sellerPickupCitySnapshot: group.sellerPickupCity ?? null,
+          sellerPickupLgaSnapshot: group.sellerPickupLga ?? null,
+          buyerDeliveryStateSnapshot: group.buyerDeliveryState ?? null,
+          buyerDeliveryCitySnapshot: group.buyerDeliveryCity ?? null,
+          buyerDeliveryLgaSnapshot: group.buyerDeliveryLga ?? null,
           discountCodeSnapshot: group.discountApplied ? group.discountSummary?.code ?? group.discountCode ?? null : null,
           discountTypeSnapshot: group.discountApplied ? group.discountSummary?.type ?? null : null,
           discountValueSnapshot: group.discountApplied ? group.discountSummary?.value ?? null : null,
           discountDescriptionSnapshot: group.discountApplied ? group.discountSummary?.description ?? null : null,
+        },
+      });
+
+      await tx.orderGroupStatusHistory.create({
+        data: {
+          id: statusHistoryIds[groupIndex],
+          sellerOrderGroupId,
+          status: SellerOrderGroupStatus.PENDING,
+          description: null,
+          updatedByUserId: null,
+          updatedByRole: null,
         },
       });
 
@@ -581,6 +639,12 @@ export async function finalizeSuccessfulPayment(args: {
       return { alreadyProcessed: true, order: existingOrder };
     }
 
+    const confirmedStatusHistoryIds = await reserveSequentialIds(
+      tx,
+      "order_group_status_history",
+      payment.parentOrder.sellerGroups.length
+    );
+
     await tx.parentOrder.update({
       where: { id: payment.parentOrderId },
       data: {
@@ -601,6 +665,17 @@ export async function finalizeSuccessfulPayment(args: {
     });
 
     for (const group of payment.parentOrder.sellerGroups) {
+      await tx.orderGroupStatusHistory.create({
+        data: {
+          id: confirmedStatusHistoryIds.shift()!,
+          sellerOrderGroupId: group.id,
+          status: SellerOrderGroupStatus.CONFIRMED,
+          description: null,
+          updatedByUserId: null,
+          updatedByRole: null,
+        },
+      });
+
       const sellerProfile = await tx.sellerProfile.findUnique({
         where: { id: group.sellerId },
         select: { userId: true },

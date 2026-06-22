@@ -60,7 +60,7 @@ export function isAbujaRegion(address: { city?: string | null; state?: string | 
   return normalized.includes("abuja") || normalized.includes("fct");
 }
 
-export function calculatePlatformShippingBreakdown(args: {
+export function calculateShippingBreakdown(args: {
   totalChargeableWeightKg: number;
   address: { city?: string | null; state?: string | null };
   settings: {
@@ -102,6 +102,20 @@ export function calculatePlatformShippingBreakdown(args: {
     shippingUnits,
     shippingFee,
   };
+}
+
+export function calculatePlatformShippingBreakdown(args: {
+  totalChargeableWeightKg: number;
+  address: { city?: string | null; state?: string | null };
+  settings: {
+    abujaMinimumFee: number;
+    abujaAdditionalUnitFee: number;
+    outsideMinimumFee: number;
+    outsideAdditionalUnitFee: number;
+    weightUnitSizeKg: Prisma.Decimal | number;
+  };
+}) {
+  return calculateShippingBreakdown(args);
 }
 
 export function normalizeDiscountCode(code: string) {

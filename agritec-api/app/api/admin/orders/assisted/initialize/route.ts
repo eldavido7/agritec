@@ -21,6 +21,8 @@ const manualAddressSchema = z.object({
   fullAddress: z.string().trim().min(1),
   city: z.string().trim().min(1),
   state: z.string().trim().min(1),
+  lga: z.string().trim().optional().nullable(),
+  area: z.string().trim().optional().nullable(),
   landmark: z.string().trim().optional().nullable(),
   saveToBuyerProfile: z.boolean().optional().default(false),
 });
@@ -29,6 +31,8 @@ const assistedInitializeSchema = z.object({
   buyerId: z.string().trim().min(1),
   items: z.array(assistedLineSchema).min(1),
   discountCodes: z.record(z.string(), z.string().trim().min(1)).optional().default({}),
+  logisticsSelections: z.record(z.string(), z.string().trim().min(1)).optional().default({}),
+  allGroupsLogisticsCompanyId: z.string().trim().min(1).optional().nullable(),
   addressId: z.string().trim().min(1).optional(),
   manualAddress: manualAddressSchema.optional(),
   callbackUrl: z.string().trim().url().optional(),
@@ -70,11 +74,26 @@ function errorResponse(error: unknown) {
   if (message === "SHIPPING_SETTINGS_NOT_CONFIGURED") {
     return NextResponse.json({ success: false, message: "Shipping settings are not configured" }, { status: 500 });
   }
+  if (message === "LOGISTICS_COMPANY_NOT_FOUND") {
+    return NextResponse.json({ success: false, message: "Selected logistics company was not found" }, { status: 404 });
+  }
+  if (message === "ALL_GROUPS_LOGISTICS_MUST_BE_NATIONWIDE") {
+    return NextResponse.json({ success: false, message: "All-groups logistics selection must be a nationwide company" }, { status: 400 });
+  }
+  if (message === "NO_ELIGIBLE_LOGISTICS_COMPANIES") {
+    return NextResponse.json({ success: false, message: "No eligible logistics companies are available for this address" }, { status: 400 });
+  }
   if (message === "BUYER_ADDRESS_NOT_FOUND") {
     return NextResponse.json({ success: false, message: "Selected buyer address was not found" }, { status: 404 });
   }
   if (message === "PAYSTACK_SECRET_KEY_NOT_CONFIGURED") {
     return NextResponse.json({ success: false, message: "Paystack is not configured on the server" }, { status: 500 });
+  }
+  if (message.startsWith("LOGISTICS_SELECTION_REQUIRED:")) {
+    return NextResponse.json({ success: false, message: "Logistics selection is required for each seller group" }, { status: 400 });
+  }
+  if (message.startsWith("LOGISTICS_COMPANY_NOT_ELIGIBLE:")) {
+    return NextResponse.json({ success: false, message: "Selected logistics company is not eligible for one or more seller groups" }, { status: 400 });
   }
 
   return NextResponse.json({ success: false, message: "Failed to initialize assisted order" }, { status: 500 });
@@ -135,6 +154,8 @@ export async function POST(request: Request) {
               fullAddress: manualAddress.fullAddress,
               city: manualAddress.city,
               state: manualAddress.state,
+              lga: manualAddress.lga ?? null,
+              area: manualAddress.area ?? null,
               landmark: manualAddress.landmark ?? null,
               latitude: null,
               longitude: null,
@@ -157,6 +178,8 @@ export async function POST(request: Request) {
         fullAddress: manualAddress.fullAddress,
         city: manualAddress.city,
         state: manualAddress.state,
+        lga: manualAddress.lga ?? null,
+        area: manualAddress.area ?? null,
         landmark: manualAddress.landmark ?? null,
         latitude: null,
         longitude: null,
@@ -183,6 +206,8 @@ export async function POST(request: Request) {
         fullAddress: addressRecord.fullAddress,
         city: addressRecord.city,
         state: addressRecord.state,
+        lga: addressRecord.lga ?? null,
+        area: addressRecord.area ?? null,
         landmark: addressRecord.landmark ?? null,
         latitude: addressRecord.latitude != null ? Number(addressRecord.latitude) : null,
         longitude: addressRecord.longitude != null ? Number(addressRecord.longitude) : null,
@@ -191,6 +216,8 @@ export async function POST(request: Request) {
         createdByRole: addressRecord.createdByRole,
       },
       discountCodes: payload.discountCodes,
+      logisticsSelections: payload.logisticsSelections,
+      allGroupsLogisticsCompanyId: payload.allGroupsLogisticsCompanyId ?? null,
     });
 
     const pendingOrder = await createPendingAssistedOrder({

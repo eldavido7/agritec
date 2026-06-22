@@ -9,6 +9,7 @@ import { updateSellerOrderGroupStatus } from "@/lib/seller-order-group-utils";
 
 const statusSchema = z.object({
   status: z.nativeEnum(SellerOrderGroupStatus),
+  description: z.string().trim().optional().nullable(),
 });
 
 export async function PATCH(
@@ -35,7 +36,8 @@ export async function PATCH(
       sellerOrderGroupId: id,
       nextStatus: payload.status,
       actorRole: "ADMIN",
-      actorAdminId: user.id,
+      actorUserId: user.id,
+      description: payload.description ?? null,
     });
 
     let refund = null;
@@ -57,6 +59,15 @@ export async function PATCH(
       where: { id: sellerOrderGroup.id },
       include: {
         items: true,
+        logisticsCompany: { include: { user: true } },
+        statusHistory: {
+          include: {
+            updatedByUser: {
+              select: { id: true, fullName: true, role: true },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
         refunds: true,
         seller: { include: { user: true } },
         parentOrder: {
@@ -82,6 +93,7 @@ export async function PATCH(
         sellerOrderGroupId: result.id,
         farmName: result.farmNameSnapshot,
         status: result.status,
+        description: payload.description ?? null,
         productSubtotal: result.productSubtotal,
         shippingFee: result.shippingFee,
         groupTotal: result.groupTotal,
@@ -119,6 +131,8 @@ export async function PATCH(
         return NextResponse.json({ success: false, message: "Order group not found" }, { status: 404 });
       case "ORDER_GROUP_ALREADY_CLOSED":
       case "DELIVERED_GROUP_CANNOT_BE_CANCELLED_HERE":
+      case "INVALID_LOGISTICS_STATUS_TRANSITION":
+      case "LOGISTICS_NOT_ASSIGNED_TO_ORDER_GROUP":
       case "SELLER_ORDER_GROUP_MUST_BE_CANCELLED_BEFORE_REFUND":
       case "SELLER_ORDER_GROUP_PAYMENT_NOT_ELIGIBLE_FOR_REFUND":
         return NextResponse.json({ success: false, message }, { status: 400 });

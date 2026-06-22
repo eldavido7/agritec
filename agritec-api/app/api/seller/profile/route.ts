@@ -3,6 +3,7 @@ import { z } from "zod";
 import { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
+  authUserSelect,
   normalizeEmail,
   requireAuthenticatedUser,
   serializeAuthUser,
@@ -112,37 +113,7 @@ export async function PATCH(request: Request) {
           },
         },
       },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        role: true,
-        phone: true,
-        isActive: true,
-        emailVerifiedAt: true,
-        lastActiveAt: true,
-        createdAt: true,
-        updatedAt: true,
-        buyerProfile: {
-          select: {
-            id: true,
-          },
-        },
-        sellerProfile: {
-          select: {
-            id: true,
-            farmName: true,
-            description: true,
-            locationLabel: true,
-            fullAddress: true,
-            city: true,
-            state: true,
-            latitude: true,
-            longitude: true,
-            autoPayoutEnabled: true,
-          },
-        },
-      },
+      select: authUserSelect,
     });
 
     return NextResponse.json({

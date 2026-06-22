@@ -3,6 +3,7 @@ import {
   NotificationType,
   Prisma,
   SellerOrderGroupStatus,
+  UserRole,
   WalletTransactionType,
 } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -48,20 +49,26 @@ async function notifyStatusChange(tx: Prisma.TransactionClient, args: {
   nextStatus: SellerOrderGroupStatus;
   sellerName: string;
   farmName: string;
+  logisticsUserId?: string | null;
+  logisticsCompanyName?: string | null;
+  description?: string | null;
+  actorLabel: string;
 }) {
   const readableStatus = statusLabel(args.nextStatus);
+  const noteSuffix = args.description?.trim() ? ` Note: ${args.description.trim()}` : "";
 
   await createNotification(tx, {
     userId: args.sellerUserId,
     type: NotificationType.ORDER,
     title: `Order group ${readableStatus}`,
-    body: `Admin updated order group ${args.sellerOrderGroupId} from ${args.farmName} to ${readableStatus}.`,
+    body: `${args.actorLabel} updated order group ${args.sellerOrderGroupId} from ${args.farmName} to ${readableStatus}.${noteSuffix}`,
     targetType: "sellerOrderGroup",
     targetId: args.sellerOrderGroupId,
     metadata: toJsonValue({
       parentOrderId: args.parentOrderId,
       sellerOrderGroupId: args.sellerOrderGroupId,
       status: args.nextStatus,
+      description: args.description ?? null,
     }),
   });
 
@@ -69,7 +76,7 @@ async function notifyStatusChange(tx: Prisma.TransactionClient, args: {
     userId: args.buyerUserId,
     type: NotificationType.ORDER,
     title: `Order update: ${readableStatus}`,
-    body: `${args.farmName} is now ${readableStatus.toLowerCase()} for order group ${args.sellerOrderGroupId}.`,
+    body: `${args.farmName} is now ${readableStatus.toLowerCase()} for order group ${args.sellerOrderGroupId}.${noteSuffix}`,
     targetType: "parentOrder",
     targetId: args.parentOrderId,
     metadata: toJsonValue({
@@ -78,7 +85,45 @@ async function notifyStatusChange(tx: Prisma.TransactionClient, args: {
       sellerName: args.sellerName,
       farmName: args.farmName,
       status: args.nextStatus,
+      description: args.description ?? null,
     }),
+  });
+
+  if (args.logisticsUserId) {
+    await createNotification(tx, {
+      userId: args.logisticsUserId,
+      type: NotificationType.ORDER,
+      title: `Delivery ${readableStatus}`,
+      body: `${args.logisticsCompanyName ?? "Assigned logistics company"} updated delivery ${args.sellerOrderGroupId} to ${readableStatus}.${noteSuffix}`,
+      targetType: "sellerOrderGroup",
+      targetId: args.sellerOrderGroupId,
+      metadata: toJsonValue({
+        parentOrderId: args.parentOrderId,
+        sellerOrderGroupId: args.sellerOrderGroupId,
+        status: args.nextStatus,
+        description: args.description ?? null,
+      }),
+    });
+  }
+}
+
+async function appendOrderGroupStatusHistory(tx: Prisma.TransactionClient, args: {
+  sellerOrderGroupId: string;
+  status: SellerOrderGroupStatus;
+  description?: string | null;
+  updatedByUserId?: string | null;
+  updatedByRole?: UserRole | null;
+}) {
+  const historyId = await reserveSequentialId(tx, "order_group_status_history");
+  await tx.orderGroupStatusHistory.create({
+    data: {
+      id: historyId,
+      sellerOrderGroupId: args.sellerOrderGroupId,
+      status: args.status,
+      description: args.description?.trim() || null,
+      updatedByUserId: args.updatedByUserId ?? null,
+      updatedByRole: args.updatedByRole ?? null,
+    },
   });
 }
 
@@ -389,13 +434,19 @@ export async function reverseCancelledSellerGroup(tx: Prisma.TransactionClient, 
 export async function updateSellerOrderGroupStatus(args: {
   sellerOrderGroupId: string;
   nextStatus: SellerOrderGroupStatus;
-  actorRole: "ADMIN";
-  actorAdminId: string;
+  actorRole: "ADMIN" | "LOGISTICS";
+  actorUserId: string;
+  description?: string | null;
 }) {
   return prisma.$transaction(async (tx) => {
     const group = await tx.sellerOrderGroup.findUnique({
       where: { id: args.sellerOrderGroupId },
       include: {
+        logisticsCompany: {
+          include: {
+            user: true,
+          },
+        },
         items: true,
         seller: {
           include: {
@@ -423,6 +474,19 @@ export async function updateSellerOrderGroupStatus(args: {
         where: { id: group.id },
         include: {
           items: true,
+          logisticsCompany: { include: { user: true } },
+          statusHistory: {
+            include: {
+              updatedByUser: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  role: true,
+                },
+              },
+            },
+            orderBy: { createdAt: "asc" },
+          },
           seller: { include: { user: true } },
           parentOrder: {
             include: {
@@ -446,9 +510,32 @@ export async function updateSellerOrderGroupStatus(args: {
       throw new Error("DELIVERED_GROUP_CANNOT_BE_CANCELLED_HERE");
     }
 
+    if (args.actorRole === "LOGISTICS") {
+      if (!group.logisticsCompanyId || !group.logisticsCompany || group.logisticsCompany.userId !== args.actorUserId) {
+        throw new Error("LOGISTICS_NOT_ASSIGNED_TO_ORDER_GROUP");
+      }
+
+      if (
+        group.status === SellerOrderGroupStatus.PENDING ||
+        args.nextStatus === SellerOrderGroupStatus.PENDING ||
+        args.nextStatus === SellerOrderGroupStatus.CONFIRMED ||
+        args.nextStatus === SellerOrderGroupStatus.REFUNDED
+      ) {
+        throw new Error("INVALID_LOGISTICS_STATUS_TRANSITION");
+      }
+    }
+
     await tx.sellerOrderGroup.update({
       where: { id: group.id },
       data: { status: args.nextStatus },
+    });
+
+    await appendOrderGroupStatusHistory(tx, {
+      sellerOrderGroupId: group.id,
+      status: args.nextStatus,
+      description: args.description,
+      updatedByUserId: args.actorUserId,
+      updatedByRole: args.actorRole === "ADMIN" ? UserRole.ADMIN : UserRole.LOGISTICS,
     });
 
     if (args.nextStatus === SellerOrderGroupStatus.DELIVERED) {
@@ -471,19 +558,28 @@ export async function updateSellerOrderGroupStatus(args: {
       nextStatus: args.nextStatus,
       sellerName: group.sellerNameSnapshot,
       farmName: group.farmNameSnapshot,
+      logisticsUserId: group.logisticsCompany?.userId ?? null,
+      logisticsCompanyName: group.logisticsCompanyNameSnapshot ?? group.logisticsCompany?.companyName ?? null,
+      description: args.description,
+      actorLabel: args.actorRole === "ADMIN"
+        ? "Admin"
+        : (group.logisticsCompanyNameSnapshot ?? group.logisticsCompany?.companyName ?? "Logistics"),
     });
 
-    await createAuditLog(tx, {
-      adminId: args.actorAdminId,
-      action: "order_group.status.update",
-      targetType: "sellerOrderGroup",
-      targetId: group.id,
-      metadata: toJsonValue({
-        parentOrderId: group.parentOrderId,
-        previousStatus: group.status,
-        nextStatus: args.nextStatus,
-      }),
-    });
+    if (args.actorRole === "ADMIN") {
+      await createAuditLog(tx, {
+        adminId: args.actorUserId,
+        action: "order_group.status.update",
+        targetType: "sellerOrderGroup",
+        targetId: group.id,
+        metadata: toJsonValue({
+          parentOrderId: group.parentOrderId,
+          previousStatus: group.status,
+          nextStatus: args.nextStatus,
+          description: args.description ?? null,
+        }),
+      });
+    }
 
     await syncParentOrderStatusFromGroups(tx, group.parentOrderId);
 
@@ -491,6 +587,19 @@ export async function updateSellerOrderGroupStatus(args: {
       where: { id: group.id },
       include: {
         items: true,
+        logisticsCompany: { include: { user: true } },
+        statusHistory: {
+          include: {
+            updatedByUser: {
+              select: {
+                id: true,
+                fullName: true,
+                role: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
         seller: { include: { user: true } },
         parentOrder: {
           include: {
