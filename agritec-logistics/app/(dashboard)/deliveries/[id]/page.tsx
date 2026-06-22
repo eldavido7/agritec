@@ -54,7 +54,7 @@ export default function DeliveryDetailsPage({ params }: DeliveryDetailsPageProps
   useEffect(() => {
     void params.then(async ({ id }) => {
       setDeliveryId(id);
-      await fetchDelivery(id, { force: true }).catch(() => undefined);
+      await fetchDelivery(id).catch(() => undefined);
     });
   }, [fetchDelivery, params]);
 

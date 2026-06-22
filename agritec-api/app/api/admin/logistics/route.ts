@@ -23,6 +23,19 @@ function parseVerificationStatus(value: string | null) {
 }
 
 function serializeLogisticsListItem(company: any) {
+  const coveredStates = Array.from(
+    new Set(
+      company.coverageAreas
+        .map((area: any) => area.state)
+        .filter((state: string | null): state is string => Boolean(state))
+    )
+  ).sort();
+  const coverageType = company.coverageAreas.some(
+    (area: any) => area.coverageType === "NATIONWIDE"
+  )
+    ? "NATIONWIDE"
+    : "REGIONAL";
+
   return {
     id: company.id,
     userId: company.userId,
@@ -44,8 +57,11 @@ function serializeLogisticsListItem(company: any) {
     longitude: company.longitude == null ? null : Number(company.longitude),
     verificationStatus: company.verificationStatus,
     isVerified: company.isVerified,
-    pricingConfigured: Boolean(company.pricingSettings),
+    pricingConfigured: company.pricingSettings.length > 0,
+    coverageType,
+    coveredStates,
     coverageCount: company._count.coverageAreas,
+    pricingCount: company.pricingSettings.length,
     assignedGroupCount: company._count.assignedGroups,
     createdAt: company.createdAt,
     updatedAt: company.updatedAt,
@@ -97,6 +113,10 @@ export async function GET(request: Request) {
               emailVerifiedAt: true,
               lastActiveAt: true,
             },
+          },
+          coverageAreas: {
+            where: { isActive: true },
+            select: { state: true, coverageType: true },
           },
           pricingSettings: {
             select: { id: true },

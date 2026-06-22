@@ -16,6 +16,8 @@ export type CoverageType = "NATIONWIDE" | "REGIONAL";
 
 export type CoverageSelectionType = "STATE" | "LGA" | "CITY" | "AREA";
 
+export type LogisticsPricingScope = "NATIONWIDE" | "STATE";
+
 export type LogisticsAuthUser = {
   id: string;
   email: string;
@@ -45,16 +47,16 @@ export type LogisticsCompanyProfile = {
   isVerified: boolean;
 };
 
-export type LogisticsPricingSettings = {
+export type LogisticsPricingSetting = {
   id: string;
   logisticsCompanyId: string;
-  abujaMinimumFee: number;
-  abujaAdditionalUnitFee: number;
-  outsideMinimumFee: number;
-  outsideAdditionalUnitFee: number;
+  pricingScope: LogisticsPricingScope;
+  state: string | null;
+  minimumFee: number;
+  additionalUnitFee: number;
   weightUnitSizeKg: number;
   volumetricDivisor: number;
-  weeklyAutoPayoutDay: number | null;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -75,7 +77,11 @@ export type LogisticsCoverageArea = {
 
 export type LogisticsProfileResponse = {
   user: LogisticsAuthUser;
-  pricingSettings: LogisticsPricingSettings | null;
+  coverageType: CoverageType;
+  coveredStates: string[];
+  nationwidePricing: LogisticsPricingSetting | null;
+  statePricing: LogisticsPricingSetting[];
+  pricingSettings: LogisticsPricingSetting[];
   coverageAreas: LogisticsCoverageArea[];
 };
 

@@ -3,7 +3,7 @@ import type {
   AssignedDelivery,
   DashboardAnalytics,
   LogisticsCoverageArea,
-  LogisticsPricingSettings,
+  LogisticsPricingSetting,
 } from "@/lib/types";
 
 export const mockDeliveries: AssignedDelivery[] = [];
@@ -27,5 +27,5 @@ export const mockAnalytics: DashboardAnalytics = {
   revenueByDate: [],
   deliveriesByDate: [],
 };
-export const mockPricingTiers: LogisticsPricingSettings[] = [];
+export const mockPricingTiers: LogisticsPricingSetting[] = [];
 export const mockCoverageAreas: LogisticsCoverageArea[] = [];

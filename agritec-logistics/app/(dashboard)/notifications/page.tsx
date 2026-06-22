@@ -28,7 +28,7 @@ export default function NotificationsPage() {
   const markAllAsRead = useLogisticsStore((state) => state.markAllNotificationsAsRead);
 
   useEffect(() => {
-    void fetchNotifications({ force: true }).catch(() => undefined);
+    void fetchNotifications().catch(() => undefined);
   }, [fetchNotifications]);
 
   const containerVariants = {

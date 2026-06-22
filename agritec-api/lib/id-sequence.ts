@@ -40,7 +40,7 @@ async function getExistingMaxId(tx: TxClient, sequenceName: string): Promise<num
     case "payment":
       return extractMax(await tx.payment.findMany({ select: { id: true } }));
     case "logistics_pricing_settings":
-      return extractMax(await tx.logisticsPricingSettings.findMany({ select: { id: true } }));
+      return extractMax(await tx.logisticsPricingSetting.findMany({ select: { id: true } }));
     case "logistics_coverage_area":
       return extractMax(await tx.logisticsCoverageArea.findMany({ select: { id: true } }));
     case "seller_order_group":

@@ -242,7 +242,7 @@ export async function buildCheckoutQuote(args: {
     if (selectedLogisticsCompany) {
       const shippingBreakdown = calculateLogisticsShippingBreakdown({
         totalChargeableWeightKg: group.totalChargeableWeightKg,
-        address,
+        buyerDeliveryRegion: address,
         pricing: selectedLogisticsCompany.pricing,
       });
 
@@ -296,7 +296,10 @@ export async function buildCheckoutQuote(args: {
     const selectedCompany = logisticsCompanies.find(
       (company) => company.id === allGroupsLogisticsCompanyId
     );
-    if (!selectedCompany?.pricingSettings) {
+    const nationwidePricing = selectedCompany?.pricingSettings.find(
+      (pricing) => pricing.pricingScope === "NATIONWIDE" && pricing.isActive
+    );
+    if (!selectedCompany || !nationwidePricing) {
       throw new Error("LOGISTICS_COMPANY_NOT_FOUND");
     }
 
@@ -306,16 +309,11 @@ export async function buildCheckoutQuote(args: {
     );
     const combinedBreakdown = calculateLogisticsShippingBreakdown({
       totalChargeableWeightKg: combinedWeight,
-      address,
+      buyerDeliveryRegion: address,
       pricing: {
-        abujaMinimumFee: selectedCompany.pricingSettings.abujaMinimumFee,
-        abujaAdditionalUnitFee:
-          selectedCompany.pricingSettings.abujaAdditionalUnitFee,
-        outsideMinimumFee: selectedCompany.pricingSettings.outsideMinimumFee,
-        outsideAdditionalUnitFee:
-          selectedCompany.pricingSettings.outsideAdditionalUnitFee,
-        weightUnitSizeKg: selectedCompany.pricingSettings.weightUnitSizeKg,
-        volumetricDivisor: selectedCompany.pricingSettings.volumetricDivisor,
+        minimumFee: nationwidePricing.minimumFee,
+        additionalUnitFee: nationwidePricing.additionalUnitFee,
+        weightUnitSizeKg: nationwidePricing.weightUnitSizeKg,
       },
     });
 

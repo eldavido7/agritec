@@ -14,8 +14,8 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { motion } from 'framer-motion';
-import { DollarSign, MapPin, Save, Search, User, X } from 'lucide-react';
-import { nigerianStates } from '@/lib/data/nigerian-states';
+import { DollarSign, MapPin, Save, Search, User } from 'lucide-react';
+import { nigeriaLocations } from '@/lib/data/nigeria-locations';
 import { useLogisticsStore } from '@/lib/store/logistics-store';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
 import type { CoverageType } from '@/lib/types';
@@ -46,14 +46,22 @@ type ProfileFormState = {
 };
 
 type PricingFormState = {
-  abujaMinimumFee: string;
-  abujaAdditionalUnitFee: string;
-  outsideMinimumFee: string;
-  outsideAdditionalUnitFee: string;
+  minimumFee: string;
+  additionalUnitFee: string;
   weightUnitSizeKg: string;
   volumetricDivisor: string;
-  weeklyAutoPayoutDay: string;
+  isActive: boolean;
 };
+
+type StatePricingForm = Record<string, PricingFormState>;
+
+const defaultPricingForm = (): PricingFormState => ({
+  minimumFee: '2500',
+  additionalUnitFee: '2500',
+  weightUnitSizeKg: '10',
+  volumetricDivisor: '5000',
+  isActive: true,
+});
 
 export default function SettingsPage() {
   const user = useLogisticsAuthStore((state) => state.user);
@@ -62,6 +70,7 @@ export default function SettingsPage() {
   const updateProfile = useLogisticsStore((state) => state.updateProfile);
   const isLoadingProfile = useLogisticsStore((state) => state.isLoadingProfile);
   const isUpdatingProfile = useLogisticsStore((state) => state.isUpdatingProfile);
+
   const [activeTab, setActiveTab] = useState('profile');
   const [savedMessage, setSavedMessage] = useState('');
   const [profileForm, setProfileForm] = useState<ProfileFormState>({
@@ -77,24 +86,16 @@ export default function SettingsPage() {
     area: '',
     description: '',
   });
-  const [pricingForm, setPricingForm] = useState<PricingFormState>({
-    abujaMinimumFee: '2500',
-    abujaAdditionalUnitFee: '2500',
-    outsideMinimumFee: '5000',
-    outsideAdditionalUnitFee: '5000',
-    weightUnitSizeKg: '10',
-    volumetricDivisor: '5000',
-    weeklyAutoPayoutDay: '',
-  });
   const [coverageType, setCoverageType] = useState<CoverageType>('REGIONAL');
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
-  const [selectedState, setSelectedState] = useState('');
-  const [selectedLGAsByState, setSelectedLGAsByState] = useState<Record<string, string[]>>({});
+  const [nationwidePricing, setNationwidePricing] = useState<PricingFormState>(
+    defaultPricingForm()
+  );
+  const [statePricing, setStatePricing] = useState<StatePricingForm>({});
   const [stateSearch, setStateSearch] = useState('');
-  const [lgaSearch, setLgaSearch] = useState('');
 
   useEffect(() => {
-    void fetchProfile({ force: true }).catch(() => undefined);
+    void fetchProfile().catch(() => undefined);
   }, [fetchProfile]);
 
   useEffect(() => {
@@ -116,95 +117,88 @@ export default function SettingsPage() {
       description: user.logisticsProfile.description || '',
     });
 
-    setPricingForm({
-      abujaMinimumFee: String(profile.pricingSettings?.abujaMinimumFee ?? 2500),
-      abujaAdditionalUnitFee: String(profile.pricingSettings?.abujaAdditionalUnitFee ?? 2500),
-      outsideMinimumFee: String(profile.pricingSettings?.outsideMinimumFee ?? 5000),
-      outsideAdditionalUnitFee: String(profile.pricingSettings?.outsideAdditionalUnitFee ?? 5000),
-      weightUnitSizeKg: String(profile.pricingSettings?.weightUnitSizeKg ?? 10),
-      volumetricDivisor: String(profile.pricingSettings?.volumetricDivisor ?? 5000),
-      weeklyAutoPayoutDay:
-        profile.pricingSettings?.weeklyAutoPayoutDay == null
-          ? ''
-          : String(profile.pricingSettings.weeklyAutoPayoutDay),
-    });
+    setCoverageType(profile.coverageType);
+    setSelectedStates(profile.coveredStates);
+    setNationwidePricing(
+      profile.nationwidePricing
+        ? {
+            minimumFee: String(profile.nationwidePricing.minimumFee),
+            additionalUnitFee: String(profile.nationwidePricing.additionalUnitFee),
+            weightUnitSizeKg: String(profile.nationwidePricing.weightUnitSizeKg),
+            volumetricDivisor: String(profile.nationwidePricing.volumetricDivisor),
+            isActive: profile.nationwidePricing.isActive,
+          }
+        : defaultPricingForm()
+    );
 
-    setCoverageType(profile.coverageDraft.coverageType);
-    setSelectedStates(profile.coverageDraft.stateSelections);
-
-    const nextSelectedLGAsByState: Record<string, string[]> = {};
-    for (const selection of profile.coverageDraft.lgaSelections) {
-      nextSelectedLGAsByState[selection.state] = [
-        ...(nextSelectedLGAsByState[selection.state] || []),
-        selection.lga,
-      ];
+    const nextStatePricing: StatePricingForm = {};
+    for (const stateName of profile.coveredStates) {
+      const existingRow = profile.statePricing.find((entry) => entry.state === stateName);
+      nextStatePricing[stateName] = existingRow
+        ? {
+            minimumFee: String(existingRow.minimumFee),
+            additionalUnitFee: String(existingRow.additionalUnitFee),
+            weightUnitSizeKg: String(existingRow.weightUnitSizeKg),
+            volumetricDivisor: String(existingRow.volumetricDivisor),
+            isActive: existingRow.isActive,
+          }
+        : defaultPricingForm();
     }
-    setSelectedLGAsByState(nextSelectedLGAsByState);
+    setStatePricing(nextStatePricing);
   }, [profile, user]);
 
   const filteredStates = useMemo(
     () =>
-      nigerianStates.filter((state) =>
+      nigeriaLocations.filter((state) =>
         state.name.toLowerCase().includes(stateSearch.toLowerCase())
       ),
     [stateSearch]
   );
 
-  const activeStateData = useMemo(
-    () => nigerianStates.find((state) => state.name === selectedState) ?? null,
-    [selectedState]
+  const selectedStateLocations = useMemo(
+    () =>
+      selectedStates
+        .map((stateName) => nigeriaLocations.find((entry) => entry.name === stateName))
+        .filter((entry): entry is (typeof nigeriaLocations)[number] => Boolean(entry)),
+    [selectedStates]
   );
 
-  const filteredLGAs = useMemo(() => {
-    if (!activeStateData) return [];
-    return activeStateData.lgas.filter((lga) =>
-      lga.toLowerCase().includes(lgaSearch.toLowerCase())
-    );
-  }, [activeStateData, lgaSearch]);
-
   const handleStateToggle = (stateName: string) => {
-    setSelectedStates((current) =>
-      current.includes(stateName)
+    setSelectedStates((current) => {
+      const next = current.includes(stateName)
         ? current.filter((state) => state !== stateName)
-        : [...current, stateName].sort()
-    );
+        : [...current, stateName].sort();
+
+      setStatePricing((existing) => {
+        const updated: StatePricingForm = {};
+        for (const state of next) {
+          updated[state] = existing[state] || defaultPricingForm();
+        }
+        return updated;
+      });
+
+      return next;
+    });
   };
 
-  const handleLGAToggle = (stateName: string, lga: string) => {
-    setSelectedLGAsByState((current) => {
-      const existing = current[stateName] || [];
-      const next = existing.includes(lga)
-        ? existing.filter((value) => value !== lga)
-        : [...existing, lga].sort();
-
-      return {
-        ...current,
-        [stateName]: next,
-      };
-    });
+  const updateStatePricing = (
+    stateName: string,
+    field: keyof PricingFormState,
+    value: string | boolean
+  ) => {
+    setStatePricing((current) => ({
+      ...current,
+      [stateName]: {
+        ...(current[stateName] || defaultPricingForm()),
+        [field]: value,
+      },
+    }));
   };
 
   const handleSave = async () => {
     setSavedMessage('');
 
     try {
-      const coverageAreas =
-        coverageType === 'NATIONWIDE'
-          ? []
-          : [
-              ...selectedStates.map((state) => ({
-                selectionType: 'STATE',
-                state,
-              })),
-              ...Object.entries(selectedLGAsByState).flatMap(([state, lgas]) =>
-                lgas.map((lga) => ({
-                  selectionType: 'LGA',
-                  state,
-                  lga,
-                }))
-              ),
-            ];
-
       await updateProfile({
         ...profileForm,
         phone: profileForm.phone || null,
@@ -215,21 +209,31 @@ export default function SettingsPage() {
         lga: profileForm.lga || null,
         area: profileForm.area || null,
         description: profileForm.description || null,
-        pricingSettings: {
-          abujaMinimumFee: Number(pricingForm.abujaMinimumFee || 0),
-          abujaAdditionalUnitFee: Number(pricingForm.abujaAdditionalUnitFee || 0),
-          outsideMinimumFee: Number(pricingForm.outsideMinimumFee || 0),
-          outsideAdditionalUnitFee: Number(pricingForm.outsideAdditionalUnitFee || 0),
-          weightUnitSizeKg: Number(pricingForm.weightUnitSizeKg || 10),
-          volumetricDivisor: Number(pricingForm.volumetricDivisor || 5000),
-          weeklyAutoPayoutDay:
-            pricingForm.weeklyAutoPayoutDay === ''
-              ? null
-              : Number(pricingForm.weeklyAutoPayoutDay),
-        },
         coverage: {
           coverageType,
-          areas: coverageAreas,
+          states: coverageType === 'REGIONAL' ? selectedStates : [],
+        },
+        pricing: {
+          nationwidePricing:
+            coverageType === 'NATIONWIDE'
+              ? {
+                  minimumFee: Number(nationwidePricing.minimumFee || 0),
+                  additionalUnitFee: Number(nationwidePricing.additionalUnitFee || 0),
+                  weightUnitSizeKg: Number(nationwidePricing.weightUnitSizeKg || 10),
+                  volumetricDivisor: Number(nationwidePricing.volumetricDivisor || 5000),
+                }
+              : null,
+          statePricing:
+            coverageType === 'REGIONAL'
+              ? selectedStates.map((state) => ({
+                  state,
+                  minimumFee: Number(statePricing[state]?.minimumFee || 0),
+                  additionalUnitFee: Number(statePricing[state]?.additionalUnitFee || 0),
+                  weightUnitSizeKg: Number(statePricing[state]?.weightUnitSizeKg || 10),
+                  volumetricDivisor: Number(statePricing[state]?.volumetricDivisor || 5000),
+                  isActive: statePricing[state]?.isActive ?? true,
+                }))
+              : [],
         },
       });
 
@@ -256,7 +260,7 @@ export default function SettingsPage() {
       <motion.div variants={itemVariants}>
         <h1 className="text-3xl font-bold text-foreground">Settings</h1>
         <p className="mt-2 text-muted-foreground">
-          Manage your logistics company profile, pricing, and delivery coverage
+          Manage your logistics company profile, coverage, and coverage-based pricing
         </p>
       </motion.div>
 
@@ -328,49 +332,79 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="pricing" className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Abuja Minimum Fee">
-                  <Input type="number" value={pricingForm.abujaMinimumFee} onChange={(event) => setPricingForm((current) => ({ ...current, abujaMinimumFee: event.target.value }))} />
-                </Field>
-                <Field label="Abuja Additional Unit Fee">
-                  <Input type="number" value={pricingForm.abujaAdditionalUnitFee} onChange={(event) => setPricingForm((current) => ({ ...current, abujaAdditionalUnitFee: event.target.value }))} />
-                </Field>
-              </div>
+              <Field label="Coverage Type">
+                <Select value={coverageType} onValueChange={(value) => setCoverageType((value ?? 'REGIONAL') as CoverageType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="REGIONAL">Regional</SelectItem>
+                    <SelectItem value="NATIONWIDE">Nationwide</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Outside Abuja Minimum Fee">
-                  <Input type="number" value={pricingForm.outsideMinimumFee} onChange={(event) => setPricingForm((current) => ({ ...current, outsideMinimumFee: event.target.value }))} />
-                </Field>
-                <Field label="Outside Abuja Additional Unit Fee">
-                  <Input type="number" value={pricingForm.outsideAdditionalUnitFee} onChange={(event) => setPricingForm((current) => ({ ...current, outsideAdditionalUnitFee: event.target.value }))} />
-                </Field>
-              </div>
+              {coverageType === 'NATIONWIDE' ? (
+                <Card className="space-y-4 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    One nationwide rate applies across all supported destinations for this company.
+                  </p>
+                  <PricingFields
+                    value={nationwidePricing}
+                    onChange={(field, value) =>
+                      setNationwidePricing((current) => ({ ...current, [field]: value }))
+                    }
+                    showActive={false}
+                  />
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  <Card className="border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
+                    Configure one pricing row per selected state. Each selected state covers all LGAs and major areas under that state for MVP.
+                  </Card>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <Field label="Weight Unit Size (kg)">
-                  <Input type="number" step="0.001" value={pricingForm.weightUnitSizeKg} onChange={(event) => setPricingForm((current) => ({ ...current, weightUnitSizeKg: event.target.value }))} />
-                </Field>
-                <Field label="Volumetric Divisor">
-                  <Input type="number" value={pricingForm.volumetricDivisor} onChange={(event) => setPricingForm((current) => ({ ...current, volumetricDivisor: event.target.value }))} />
-                </Field>
-                <Field label="Weekly Auto Payout Day">
-                  <Select value={pricingForm.weeklyAutoPayoutDay || 'NONE'} onValueChange={(value) => setPricingForm((current) => ({ ...current, weeklyAutoPayoutDay: value == null || value === 'NONE' ? '' : value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Not set" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NONE">Not set</SelectItem>
-                      <SelectItem value="0">Sunday</SelectItem>
-                      <SelectItem value="1">Monday</SelectItem>
-                      <SelectItem value="2">Tuesday</SelectItem>
-                      <SelectItem value="3">Wednesday</SelectItem>
-                      <SelectItem value="4">Thursday</SelectItem>
-                      <SelectItem value="5">Friday</SelectItem>
-                      <SelectItem value="6">Saturday</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
+                  {selectedStates.length === 0 ? (
+                    <Card className="border-dashed p-6 text-sm text-muted-foreground">
+                      Select covered states in the Coverage tab before configuring regional pricing.
+                    </Card>
+                  ) : (
+                    selectedStates.map((state) => {
+                      const stateMeta = nigeriaLocations.find((entry) => entry.name === state);
+                      const pricingRow = statePricing[state] || defaultPricingForm();
+
+                      return (
+                        <Card key={state} className="space-y-4 p-4">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <h3 className="text-base font-semibold text-foreground">{state}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                Covers {stateMeta?.lgas.length || 0} LGAs
+                                {stateMeta?.majorCities.length
+                                  ? ` • Major areas: ${stateMeta.majorCities.slice(0, 4).join(', ')}`
+                                  : ''}
+                              </p>
+                            </div>
+                            <label className="flex items-center gap-2 text-sm text-foreground">
+                              <Checkbox
+                                checked={pricingRow.isActive}
+                                onCheckedChange={(checked) =>
+                                  updateStatePricing(state, 'isActive', Boolean(checked))
+                                }
+                              />
+                              Active
+                            </label>
+                          </div>
+
+                          <PricingFields
+                            value={pricingRow}
+                            onChange={(field, value) => updateStatePricing(state, field, value)}
+                          />
+                        </Card>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="coverage" className="space-y-4">
@@ -388,100 +422,72 @@ export default function SettingsPage() {
 
               {coverageType === 'NATIONWIDE' ? (
                 <Card className="border-primary/20 bg-primary/5 p-4 text-sm text-foreground">
-                  Nationwide coverage enabled. Your company will be eligible for all supported delivery destinations.
+                  Nationwide coverage enabled. Your company will be eligible across all supported buyer delivery states when verified and active.
                 </Card>
               ) : (
-                <Card className="space-y-4 p-4">
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-foreground">Supported States</label>
-                    <div className="relative mb-3">
-                      <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search states..."
-                        value={stateSearch}
-                        onChange={(event) => setStateSearch(event.target.value)}
-                        className="pl-8"
-                      />
-                    </div>
-                    <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
-                      {filteredStates.map((state) => (
-                        <div key={state.name} className="flex items-center gap-2">
-                          <Checkbox
-                            id={`state-${state.name}`}
-                            checked={selectedStates.includes(state.name)}
-                            onCheckedChange={() => handleStateToggle(state.name)}
-                          />
-                          <label htmlFor={`state-${state.name}`} className="flex-1 cursor-pointer text-sm text-foreground">
-                            {state.name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
+                <div className="space-y-4">
+                  <Card className="border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
+                    For MVP, select covered states only. Every LGA and major area in a selected state is covered by default.
+                  </Card>
+
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search states..."
+                      value={stateSearch}
+                      onChange={(event) => setStateSearch(event.target.value)}
+                      className="pl-9"
+                    />
                   </div>
 
-                  {selectedStates.length > 0 ? (
-                    <div className="space-y-3 border-t border-border pt-4">
-                      <div className="flex flex-wrap gap-2">
-                        {selectedStates.map((state) => (
-                          <div key={state} className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">
-                            {state}
-                            <button type="button" onClick={() => handleStateToggle(state)}>
-                              <X className="h-3 w-3" />
-                            </button>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {filteredStates.map((state) => (
+                      <button
+                        key={state.name}
+                        type="button"
+                        onClick={() => handleStateToggle(state.name)}
+                        className={`rounded-lg border p-4 text-left transition-colors ${
+                          selectedStates.includes(state.name)
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border hover:bg-muted/40'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-foreground">{state.name}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {state.lgas.length} LGAs
+                            </p>
+                            {state.majorCities.length > 0 ? (
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                {state.majorCities.slice(0, 4).join(', ')}
+                              </p>
+                            ) : null}
                           </div>
+                          <Checkbox checked={selectedStates.includes(state.name)} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedStateLocations.length > 0 ? (
+                    <Card className="p-4">
+                      <p className="mb-3 text-sm font-medium text-foreground">
+                        Covered states
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedStateLocations.map((state) => (
+                          <span
+                            key={state.name}
+                            className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary"
+                          >
+                            {state.name}
+                          </span>
                         ))}
                       </div>
-
-                      <Field label="Specific LGAs or cities within selected states">
-                        <Select value={selectedState || 'NONE'} onValueChange={(value) => setSelectedState(value == null || value === 'NONE' ? '' : value)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Choose state for LGA selection" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="NONE">Choose state</SelectItem>
-                            {selectedStates.map((state) => (
-                              <SelectItem key={state} value={state}>
-                                {state}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </Field>
-
-                      {selectedState ? (
-                        <div className="space-y-2">
-                          <div className="relative">
-                            <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              placeholder="Search LGAs..."
-                              value={lgaSearch}
-                              onChange={(event) => setLgaSearch(event.target.value)}
-                              className="pl-8"
-                            />
-                          </div>
-
-                          <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
-                            {filteredLGAs.map((lga) => (
-                              <div key={lga} className="flex items-center gap-2">
-                                <Checkbox
-                                  id={`lga-${selectedState}-${lga}`}
-                                  checked={(selectedLGAsByState[selectedState] || []).includes(lga)}
-                                  onCheckedChange={() => handleLGAToggle(selectedState, lga)}
-                                />
-                                <label
-                                  htmlFor={`lga-${selectedState}-${lga}`}
-                                  className="flex-1 cursor-pointer text-sm text-foreground"
-                                >
-                                  {lga}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
+                    </Card>
                   ) : null}
-                </Card>
+                </div>
               )}
             </TabsContent>
           </Tabs>
@@ -501,6 +507,45 @@ export default function SettingsPage() {
         </Card>
       </motion.div>
     </motion.div>
+  );
+}
+
+function PricingFields({
+  value,
+  onChange,
+  showActive = true,
+}: {
+  value: PricingFormState;
+  onChange: (field: keyof PricingFormState, value: string | boolean) => void;
+  showActive?: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Field label="Minimum Fee">
+          <Input type="number" value={value.minimumFee} onChange={(event) => onChange('minimumFee', event.target.value)} />
+        </Field>
+        <Field label="Additional Unit Fee">
+          <Input type="number" value={value.additionalUnitFee} onChange={(event) => onChange('additionalUnitFee', event.target.value)} />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Field label="Weight Unit Size (kg)">
+          <Input type="number" step="0.001" value={value.weightUnitSizeKg} onChange={(event) => onChange('weightUnitSizeKg', event.target.value)} />
+        </Field>
+        <Field label="Volumetric Divisor">
+          <Input type="number" value={value.volumetricDivisor} onChange={(event) => onChange('volumetricDivisor', event.target.value)} />
+        </Field>
+      </div>
+
+      {showActive ? (
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <Checkbox checked={value.isActive} onCheckedChange={(checked) => onChange('isActive', Boolean(checked))} />
+          Pricing row is active
+        </label>
+      ) : null}
+    </div>
   );
 }
 

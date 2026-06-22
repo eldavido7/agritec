@@ -47,7 +47,7 @@ export default function DeliveriesPage() {
   const [stateFilter, setStateFilter] = useState('ALL');
 
   useEffect(() => {
-    void fetchDeliveries({ force: true }).catch(() => undefined);
+    void fetchDeliveries().catch(() => undefined);
   }, [fetchDeliveries]);
 
   const states = useMemo(

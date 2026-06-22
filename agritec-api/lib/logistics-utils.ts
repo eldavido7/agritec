@@ -1,5 +1,8 @@
 import { Prisma } from "@prisma/client";
-import { calculateShippingBreakdown, decimalToNumber } from "@/lib/checkout-utils";
+import {
+  calculateFlatRateShippingBreakdown,
+  decimalToNumber,
+} from "@/lib/checkout-utils";
 
 type RegionLike = {
   state?: string | null;
@@ -19,13 +22,15 @@ type CoverageAreaRecord = {
   isActive: boolean;
 };
 
-type PricingRecord = {
-  abujaMinimumFee: number;
-  abujaAdditionalUnitFee: number;
-  outsideMinimumFee: number;
-  outsideAdditionalUnitFee: number;
+type PricingSettingRecord = {
+  id: string;
+  pricingScope: "NATIONWIDE" | "STATE";
+  state: string;
+  minimumFee: number;
+  additionalUnitFee: number;
   weightUnitSizeKg: Prisma.Decimal | number;
   volumetricDivisor: number;
+  isActive: boolean;
 };
 
 export type EligibleLogisticsCompany = {
@@ -33,17 +38,20 @@ export type EligibleLogisticsCompany = {
   companyName: string;
   verificationStatus: string;
   pricing: {
-    abujaMinimumFee: number;
-    abujaAdditionalUnitFee: number;
-    outsideMinimumFee: number;
-    outsideAdditionalUnitFee: number;
+    id: string;
+    pricingScope: "NATIONWIDE" | "STATE";
+    state: string | null;
+    minimumFee: number;
+    additionalUnitFee: number;
     weightUnitSizeKg: number;
     volumetricDivisor: number;
-    weeklyAutoPayoutDay: number | null;
+    isActive: boolean;
   };
   coverageSummary: {
+    coverageType: "NATIONWIDE" | "REGIONAL";
     hasNationwideCoverage: boolean;
     matchingRegionalCoverage: boolean;
+    coveredStates: string[];
     coverageAreas: Array<{
       id: string;
       coverageType: "NATIONWIDE" | "REGIONAL";
@@ -58,6 +66,10 @@ export type EligibleLogisticsCompany = {
 
 function normalizeLocationValue(value: string | null | undefined) {
   return value?.trim().toLowerCase() || null;
+}
+
+function normalizeStateKey(value: string | null | undefined) {
+  return value?.trim().toLowerCase() || "";
 }
 
 function matchesCoverageArea(region: RegionLike, coverageArea: CoverageAreaRecord) {
@@ -85,14 +97,46 @@ function matchesCoverageArea(region: RegionLike, coverageArea: CoverageAreaRecor
   }
 }
 
+function resolvePricingForRegion(args: {
+  pricingSettings: PricingSettingRecord[];
+  hasNationwideCoverage: boolean;
+  buyerDeliveryRegion: RegionLike;
+}) {
+  const activePricing = args.pricingSettings.filter((setting) => setting.isActive);
+
+  if (args.hasNationwideCoverage) {
+    return (
+      activePricing.find((setting) => setting.pricingScope === "NATIONWIDE") ?? null
+    );
+  }
+
+  const buyerState = normalizeStateKey(args.buyerDeliveryRegion.state);
+  if (!buyerState) {
+    return null;
+  }
+
+  return (
+    activePricing.find(
+      (setting) =>
+        setting.pricingScope === "STATE" &&
+        normalizeStateKey(setting.state) === buyerState
+    ) ?? null
+  );
+}
+
 export function calculateLogisticsShippingBreakdown(args: {
   totalChargeableWeightKg: number;
-  address: RegionLike;
-  pricing: PricingRecord;
+  buyerDeliveryRegion: RegionLike;
+  pricing: {
+    minimumFee: number;
+    additionalUnitFee: number;
+    weightUnitSizeKg: Prisma.Decimal | number;
+  };
 }) {
-  return calculateShippingBreakdown({
+  const deliveryRegionLabel = args.buyerDeliveryRegion.state?.trim() || "Nationwide";
+  return calculateFlatRateShippingBreakdown({
     totalChargeableWeightKg: args.totalChargeableWeightKg,
-    address: args.address,
+    deliveryRegionLabel,
     settings: args.pricing,
   });
 }
@@ -121,7 +165,9 @@ export function allocateCombinedShippingFees(args: {
     }
 
     const ratio =
-      totalWeight > 0 ? Math.max(0, group.totalChargeableWeightKg) / totalWeight : 1 / groupChargeableWeightsKg.length;
+      totalWeight > 0
+        ? Math.max(0, group.totalChargeableWeightKg) / totalWeight
+        : 1 / groupChargeableWeightsKg.length;
     const allocated = Math.round(totalShippingFee * ratio);
     allocations.set(group.sellerId, allocated);
     allocatedSoFar += allocated;
@@ -143,15 +189,7 @@ export function buildEligibleLogisticsCompanies(args: {
     id: string;
     companyName: string;
     verificationStatus: string;
-    pricingSettings: {
-      abujaMinimumFee: number;
-      abujaAdditionalUnitFee: number;
-      outsideMinimumFee: number;
-      outsideAdditionalUnitFee: number;
-      weightUnitSizeKg: Prisma.Decimal | number;
-      volumetricDivisor: number;
-      weeklyAutoPayoutDay: number | null;
-    } | null;
+    pricingSettings: PricingSettingRecord[];
     coverageAreas: CoverageAreaRecord[];
     user: { isActive: boolean };
     isVerified: boolean;
@@ -159,7 +197,7 @@ export function buildEligibleLogisticsCompanies(args: {
   buyerDeliveryRegion: RegionLike;
 }) {
   const eligibleCompanies = args.companies
-    .filter((company) => company.user.isActive && company.isVerified && company.pricingSettings)
+    .filter((company) => company.user.isActive && company.isVerified)
     .map((company) => {
       const hasNationwideCoverage = isNationwideCompany(company);
       const matchingRegionalCoverageAreas = company.coverageAreas.filter(
@@ -167,16 +205,23 @@ export function buildEligibleLogisticsCompanies(args: {
           coverageArea.coverageType === "REGIONAL" &&
           matchesCoverageArea(args.buyerDeliveryRegion, coverageArea)
       );
+      const resolvedPricing = resolvePricingForRegion({
+        pricingSettings: company.pricingSettings,
+        hasNationwideCoverage,
+        buyerDeliveryRegion: args.buyerDeliveryRegion,
+      });
 
       return {
         company,
         hasNationwideCoverage,
         matchingRegionalCoverageAreas,
+        resolvedPricing,
       };
     })
     .filter(
-      ({ hasNationwideCoverage, matchingRegionalCoverageAreas }) =>
-        hasNationwideCoverage || matchingRegionalCoverageAreas.length > 0
+      ({ hasNationwideCoverage, matchingRegionalCoverageAreas, resolvedPricing }) =>
+        Boolean(resolvedPricing) &&
+        (hasNationwideCoverage || matchingRegionalCoverageAreas.length > 0)
     )
     .sort((left, right) => {
       const leftRegional = left.matchingRegionalCoverageAreas.length > 0 ? 1 : 0;
@@ -193,39 +238,51 @@ export function buildEligibleLogisticsCompanies(args: {
 
       return left.company.companyName.localeCompare(right.company.companyName);
     })
-    .map(({ company, hasNationwideCoverage, matchingRegionalCoverageAreas }) => ({
-      id: company.id,
-      companyName: company.companyName,
-      verificationStatus: company.verificationStatus,
-      pricing: {
-        abujaMinimumFee: company.pricingSettings!.abujaMinimumFee,
-        abujaAdditionalUnitFee: company.pricingSettings!.abujaAdditionalUnitFee,
-        outsideMinimumFee: company.pricingSettings!.outsideMinimumFee,
-        outsideAdditionalUnitFee: company.pricingSettings!.outsideAdditionalUnitFee,
-        weightUnitSizeKg: decimalToNumber(company.pricingSettings!.weightUnitSizeKg) ?? 10,
-        volumetricDivisor: company.pricingSettings!.volumetricDivisor,
-        weeklyAutoPayoutDay: company.pricingSettings!.weeklyAutoPayoutDay,
-      },
-      coverageSummary: {
-        hasNationwideCoverage,
-        matchingRegionalCoverage: matchingRegionalCoverageAreas.length > 0,
-        coverageAreas: company.coverageAreas
-          .filter(
-            (coverageArea) =>
-              coverageArea.coverageType === "NATIONWIDE" ||
-              matchingRegionalCoverageAreas.some((match) => match.id === coverageArea.id)
-          )
-          .map((coverageArea) => ({
-            id: coverageArea.id,
-            coverageType: coverageArea.coverageType,
-            selectionType: coverageArea.selectionType,
-            state: coverageArea.state,
-            lga: coverageArea.lga,
-            city: coverageArea.city,
-            area: coverageArea.area,
-          })),
-      },
-    }));
+    .map(
+      ({ company, hasNationwideCoverage, matchingRegionalCoverageAreas, resolvedPricing }) => ({
+        id: company.id,
+        companyName: company.companyName,
+        verificationStatus: company.verificationStatus,
+        pricing: {
+          id: resolvedPricing!.id,
+          pricingScope: resolvedPricing!.pricingScope,
+          state:
+            resolvedPricing!.pricingScope === "STATE" ? resolvedPricing!.state : null,
+          minimumFee: resolvedPricing!.minimumFee,
+          additionalUnitFee: resolvedPricing!.additionalUnitFee,
+          weightUnitSizeKg: decimalToNumber(resolvedPricing!.weightUnitSizeKg) ?? 10,
+          volumetricDivisor: resolvedPricing!.volumetricDivisor,
+          isActive: resolvedPricing!.isActive,
+        },
+        coverageSummary: {
+          coverageType: hasNationwideCoverage ? "NATIONWIDE" : "REGIONAL",
+          hasNationwideCoverage,
+          matchingRegionalCoverage: matchingRegionalCoverageAreas.length > 0,
+          coveredStates: Array.from(
+            new Set(
+              company.coverageAreas
+                .filter((coverageArea) => coverageArea.isActive && coverageArea.state)
+                .map((coverageArea) => coverageArea.state as string)
+            )
+          ).sort(),
+          coverageAreas: company.coverageAreas
+            .filter(
+              (coverageArea) =>
+                coverageArea.coverageType === "NATIONWIDE" ||
+                matchingRegionalCoverageAreas.some((match) => match.id === coverageArea.id)
+            )
+            .map((coverageArea) => ({
+              id: coverageArea.id,
+              coverageType: coverageArea.coverageType,
+              selectionType: coverageArea.selectionType,
+              state: coverageArea.state,
+              lga: coverageArea.lga,
+              city: coverageArea.city,
+              area: coverageArea.area,
+            })),
+        },
+      })
+    );
 
   return eligibleCompanies;
 }

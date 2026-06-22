@@ -29,6 +29,19 @@ function serializeCoverageArea(area: any) {
 }
 
 function serializeLogisticsDetail(company: any) {
+  const coveredStates = Array.from(
+    new Set(
+      company.coverageAreas
+        .map((area: any) => area.state)
+        .filter((state: string | null): state is string => Boolean(state))
+    )
+  ).sort();
+  const coverageType = company.coverageAreas.some(
+    (area: any) => area.coverageType === "NATIONWIDE"
+  )
+    ? "NATIONWIDE"
+    : "REGIONAL";
+
   return {
     id: company.id,
     userId: company.userId,
@@ -50,15 +63,14 @@ function serializeLogisticsDetail(company: any) {
     longitude: company.longitude == null ? null : Number(company.longitude),
     verificationStatus: company.verificationStatus,
     isVerified: company.isVerified,
-    pricingSettings: company.pricingSettings
-      ? {
-          ...company.pricingSettings,
-          weightUnitSizeKg:
-            company.pricingSettings.weightUnitSizeKg == null
-              ? null
-              : Number(company.pricingSettings.weightUnitSizeKg),
-        }
-      : null,
+    coverageType,
+    coveredStates,
+    pricingSettings: company.pricingSettings.map((pricing: any) => ({
+      ...pricing,
+      state: pricing.pricingScope === "STATE" ? pricing.state : null,
+      weightUnitSizeKg:
+        pricing.weightUnitSizeKg == null ? null : Number(pricing.weightUnitSizeKg),
+    })),
     coverageAreas: company.coverageAreas.map(serializeCoverageArea),
     assignedGroupCount: company._count.assignedGroups,
     createdAt: company.createdAt,
@@ -81,7 +93,9 @@ async function findLogisticsCompany(id: string) {
           lastActiveAt: true,
         },
       },
-      pricingSettings: true,
+      pricingSettings: {
+        orderBy: [{ pricingScope: "asc" }, { state: "asc" }],
+      },
       coverageAreas: {
         orderBy: [{ state: "asc" }, { lga: "asc" }, { city: "asc" }, { area: "asc" }],
       },

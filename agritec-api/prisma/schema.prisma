@@ -168,6 +168,11 @@ enum LogisticsCoverageSelectionType {
   AREA
 }
 
+enum LogisticsPricingScope {
+  NATIONWIDE
+  STATE
+}
+
 enum SupportConversationStatus {
   ACTIVE
   ASSIGNED
@@ -280,7 +285,7 @@ model LogisticsCompanyProfile {
   longitude          Decimal?                           @db.Decimal(10, 7)
   verificationStatus LogisticsCompanyVerificationStatus @default(PENDING_VERIFICATION)
   isVerified         Boolean                            @default(false)
-  pricingSettings    LogisticsPricingSettings?
+  pricingSettings    LogisticsPricingSetting[]
   coverageAreas      LogisticsCoverageArea[]
   assignedGroups     SellerOrderGroup[]
   createdAt          DateTime                           @default(now())
@@ -289,19 +294,23 @@ model LogisticsCompanyProfile {
   @@index([verificationStatus, createdAt])
 }
 
-model LogisticsPricingSettings {
-  id                       String                  @id @default(cuid())
-  logisticsCompanyId       String                  @unique
-  logisticsCompany         LogisticsCompanyProfile @relation(fields: [logisticsCompanyId], references: [id], onDelete: Cascade)
-  abujaMinimumFee          Int                     @default(2500)
-  abujaAdditionalUnitFee   Int                     @default(2500)
-  outsideMinimumFee        Int                     @default(5000)
-  outsideAdditionalUnitFee Int                     @default(5000)
-  weightUnitSizeKg         Decimal                 @default(10) @db.Decimal(10, 3)
-  volumetricDivisor        Int                     @default(5000)
-  weeklyAutoPayoutDay      Int?
-  createdAt                DateTime                @default(now())
-  updatedAt                DateTime                @updatedAt
+model LogisticsPricingSetting {
+  id                 String                  @id @default(cuid())
+  logisticsCompanyId String
+  logisticsCompany   LogisticsCompanyProfile @relation(fields: [logisticsCompanyId], references: [id], onDelete: Cascade)
+  pricingScope       LogisticsPricingScope
+  state              String                  @default("")
+  minimumFee         Int                     @default(2500)
+  additionalUnitFee  Int                     @default(2500)
+  weightUnitSizeKg   Decimal                 @default(10) @db.Decimal(10, 3)
+  volumetricDivisor  Int                     @default(5000)
+  isActive           Boolean                 @default(true)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  @@unique([logisticsCompanyId, pricingScope, state])
+  @@index([logisticsCompanyId, pricingScope, isActive])
+  @@index([state, isActive])
 }
 
 model LogisticsCoverageArea {

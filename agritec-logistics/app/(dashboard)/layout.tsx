@@ -49,7 +49,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [isDesktop, setIsDesktop] = useState(true);
 
   useEffect(() => {
-    void fetchNotifications({ force: true }).catch(() => undefined);
+    void fetchNotifications().catch(() => undefined);
   }, [fetchNotifications]);
 
   useEffect(() => {
@@ -95,17 +95,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        <div className="border-b border-border px-4 py-4">
-          <p className="text-sm font-semibold text-foreground">
-            {user?.logisticsProfile?.companyName || 'Logistics Company'}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {user?.logisticsProfile?.verificationStatus === 'VERIFIED'
-              ? 'Verified delivery partner'
-              : 'Pending verification'}
-          </p>
-        </div>
-
         <nav className="space-y-2 p-4">
           {sidebarItems.map((item) => {
             const Icon = item.icon;
@@ -148,6 +137,19 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <div className="flex-1" />
 
             <div className="flex items-center gap-4">
+              <div className="hidden text-right md:block">
+                <p className="text-sm font-semibold text-foreground">
+                  {user?.logisticsProfile?.companyName || 'Logistics Company'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {user?.fullName || 'Logistics User'}
+                  {' • '}
+                  {user?.logisticsProfile?.verificationStatus === 'VERIFIED'
+                    ? 'Verified'
+                    : 'Pending verification'}
+                </p>
+              </div>
+
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 className="rounded-lg p-2 text-foreground transition-colors hover:bg-muted"

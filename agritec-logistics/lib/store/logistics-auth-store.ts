@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { logisticsApiRequest } from "@/lib/logistics-api";
+import { useLogisticsStore } from "@/lib/store/logistics-store";
 import type {
   LogisticsAuthUser,
   LogisticsSignupPayload,
@@ -27,6 +28,11 @@ type LogisticsAuthState = {
   signOut: () => void;
   clearError: () => void;
 };
+
+function logAuth(event: string, payload?: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "production") return;
+  console.log(`[Logistics Auth] ${event}`, payload || {});
+}
 
 const readStoredSession = (): StoredSession => {
   if (typeof window === "undefined") {
@@ -71,7 +77,12 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
     if (state.isReady || state.isLoading) return;
 
     const stored = readStoredSession();
+    logAuth("Bootstrap start", {
+      hasStoredToken: Boolean(stored.token),
+      storedUserId: stored.user?.id || null,
+    });
     if (!stored.token) {
+      logAuth("Bootstrap skipped", { reason: "no_stored_token" });
       set({ token: null, user: null, isReady: true, isLoading: false, error: null });
       return;
     }
@@ -96,6 +107,10 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         throw new Error("Unauthorized");
       }
 
+      logAuth("Bootstrap success", {
+        userId: response.user.id,
+        companyName: response.user.logisticsProfile?.companyName || null,
+      });
       writeStoredSession({ token: stored.token, user: response.user });
       set({
         token: stored.token,
@@ -104,7 +119,10 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         isLoading: false,
         error: null,
       });
-    } catch {
+    } catch (error) {
+      logAuth("Bootstrap failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       clearStoredSession();
       set({
         token: null,
@@ -118,6 +136,7 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
 
   signIn: async (email, password) => {
     const normalizedEmail = email.trim().toLowerCase();
+    logAuth("Sign-in start", { email: normalizedEmail });
     set({ isLoading: true, error: null });
 
     try {
@@ -133,6 +152,10 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         }),
       });
 
+      logAuth("Sign-in success", {
+        userId: response.user.id,
+        companyName: response.user.logisticsProfile?.companyName || null,
+      });
       writeStoredSession({ token: response.token, user: response.user });
       set({
         token: response.token,
@@ -142,6 +165,10 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         error: null,
       });
     } catch (error) {
+      logAuth("Sign-in failed", {
+        email: normalizedEmail,
+        error: error instanceof Error ? error.message : String(error),
+      });
       clearStoredSession();
       set({
         token: null,
@@ -155,6 +182,10 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
   },
 
   signUp: async (payload) => {
+    logAuth("Sign-up start", {
+      email: payload.email.trim().toLowerCase(),
+      companyName: payload.companyName,
+    });
     set({ isLoading: true, error: null });
 
     try {
@@ -166,6 +197,10 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         body: JSON.stringify(payload),
       });
 
+      logAuth("Sign-up success", {
+        userId: response.user.id,
+        verificationStatus: response.user.logisticsProfile?.verificationStatus || null,
+      });
       set({
         token: null,
         user: response.user,
@@ -174,6 +209,10 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         error: null,
       });
     } catch (error) {
+      logAuth("Sign-up failed", {
+        email: payload.email.trim().toLowerCase(),
+        error: error instanceof Error ? error.message : String(error),
+      });
       clearStoredSession();
       set({
         isLoading: false,
@@ -185,6 +224,7 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
 
   requestPasswordReset: async (email) => {
     const normalizedEmail = email.trim().toLowerCase();
+    logAuth("Forgot-password start", { email: normalizedEmail });
     set({ isLoading: true, error: null });
 
     try {
@@ -196,9 +236,14 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         body: JSON.stringify({ email: normalizedEmail, role: "LOGISTICS" }),
       });
 
+      logAuth("Forgot-password success", { email: normalizedEmail });
       set({ isLoading: false, error: null });
       return response.message;
     } catch (error) {
+      logAuth("Forgot-password failed", {
+        email: normalizedEmail,
+        error: error instanceof Error ? error.message : String(error),
+      });
       set({
         isLoading: false,
         error:
@@ -211,6 +256,11 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
   },
 
   signOut: () => {
+    logAuth("Sign-out", {
+      userId: get().user?.id || null,
+      companyName: get().user?.logisticsProfile?.companyName || null,
+    });
+    useLogisticsStore.getState().resetStore();
     clearStoredSession();
     set({
       token: null,

@@ -11,18 +11,21 @@ import type {
   DashboardAnalytics,
   DeliveryStatus,
   LogisticsCoverageArea,
-  LogisticsPricingSettings,
+  LogisticsPricingSetting,
   LogisticsProfileResponse,
 } from "@/lib/types";
 
 type CoverageDraft = {
   coverageType: CoverageType;
   stateSelections: string[];
-  lgaSelections: Array<{ state: string; lga: string }>;
 };
 
 type LogisticsProfileState = {
-  pricingSettings: LogisticsPricingSettings | null;
+  coverageType: CoverageType;
+  coveredStates: string[];
+  nationwidePricing: LogisticsPricingSetting | null;
+  statePricing: LogisticsPricingSetting[];
+  pricingSettings: LogisticsPricingSetting[];
   coverageAreas: LogisticsCoverageArea[];
   coverageDraft: CoverageDraft;
 };
@@ -33,6 +36,9 @@ type LogisticsStore = {
   unreadCount: number;
   profile: LogisticsProfileState | null;
   analytics: DashboardAnalytics;
+  deliveriesLoaded: boolean;
+  notificationsLoaded: boolean;
+  profileLoaded: boolean;
   isLoadingDeliveries: boolean;
   isLoadingDeliveryDetail: boolean;
   isLoadingNotifications: boolean;
@@ -52,6 +58,7 @@ type LogisticsStore = {
   markAllNotificationsAsRead: () => Promise<void>;
   fetchProfile: (options?: { force?: boolean }) => Promise<void>;
   updateProfile: (payload: Record<string, unknown>) => Promise<void>;
+  resetStore: () => void;
   clearError: () => void;
 };
 
@@ -74,6 +81,11 @@ const emptyAnalytics: DashboardAnalytics = {
   revenueByDate: [],
   deliveriesByDate: [],
 };
+
+function logStore(event: string, payload?: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "production") return;
+  console.log(`[Logistics Store] ${event}`, payload || {});
+}
 
 function ensureToken() {
   const token = useLogisticsAuthStore.getState().token;
@@ -294,47 +306,36 @@ function buildCoverageDraft(
     return {
       coverageType: "NATIONWIDE",
       stateSelections: [],
-      lgaSelections: [],
     };
   }
 
   const states = new Set<string>();
-  const lgaSelections: Array<{ state: string; lga: string }> = [];
 
   for (const area of coverageAreas) {
     if (area.state) {
       states.add(area.state);
-    }
-    if (area.state && area.selectionType === "LGA" && area.lga) {
-      lgaSelections.push({ state: area.state, lga: area.lga });
     }
   }
 
   return {
     coverageType: "REGIONAL",
     stateSelections: Array.from(states.values()).sort(),
-    lgaSelections,
   };
 }
 
-function normalizePricingSettings(settings: any): LogisticsPricingSettings | null {
-  if (!settings) {
-    return null;
-  }
-
+function normalizePricingSetting(settings: any): LogisticsPricingSetting {
   return {
     id: String(settings.id),
     logisticsCompanyId: String(settings.logisticsCompanyId),
-    abujaMinimumFee: toNumber(settings.abujaMinimumFee),
-    abujaAdditionalUnitFee: toNumber(settings.abujaAdditionalUnitFee),
-    outsideMinimumFee: toNumber(settings.outsideMinimumFee),
-    outsideAdditionalUnitFee: toNumber(settings.outsideAdditionalUnitFee),
+    pricingScope: String(settings.pricingScope || "STATE") as
+      | "NATIONWIDE"
+      | "STATE",
+    state: settings.state ? String(settings.state) : null,
+    minimumFee: toNumber(settings.minimumFee),
+    additionalUnitFee: toNumber(settings.additionalUnitFee),
     weightUnitSizeKg: toNumber(settings.weightUnitSizeKg),
     volumetricDivisor: toNumber(settings.volumetricDivisor),
-    weeklyAutoPayoutDay:
-      settings.weeklyAutoPayoutDay == null
-        ? null
-        : toNumber(settings.weeklyAutoPayoutDay),
+    isActive: Boolean(settings.isActive),
     createdAt: String(settings.createdAt || ""),
     updatedAt: String(settings.updatedAt || ""),
   };
@@ -406,6 +407,9 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
   unreadCount: 0,
   profile: null,
   analytics: emptyAnalytics,
+  deliveriesLoaded: false,
+  notificationsLoaded: false,
+  profileLoaded: false,
   isLoadingDeliveries: false,
   isLoadingDeliveryDetail: false,
   isLoadingNotifications: false,
@@ -415,10 +419,15 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
   error: null,
 
   fetchDeliveries: async ({ force = false } = {}) => {
-    if (!force && get().deliveries.length > 0) {
+    if (!force && get().deliveriesLoaded) {
+      logStore("Fetch deliveries skipped", {
+        reason: "cached",
+        count: get().deliveries.length,
+      });
       return;
     }
 
+    logStore("Fetch deliveries start", { force });
     set({ isLoadingDeliveries: true, error: null });
     try {
       const token = ensureToken();
@@ -434,9 +443,14 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
       set({
         deliveries,
         analytics: buildAnalytics(deliveries),
+        deliveriesLoaded: true,
         isLoadingDeliveries: false,
       });
+      logStore("Fetch deliveries success", { count: deliveries.length });
     } catch (error) {
+      logStore("Fetch deliveries failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       set({
         isLoadingDeliveries: false,
         error: error instanceof Error ? error.message : "Failed to load deliveries",
@@ -448,9 +462,11 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
   fetchDelivery: async (id, { force = false } = {}) => {
     const existing = get().deliveries.find((delivery) => delivery.id === id);
     if (existing && !force && existing.parentOrder) {
+      logStore("Fetch delivery skipped", { id, reason: "cached_detail" });
       return existing;
     }
 
+    logStore("Fetch delivery start", { id, force });
     set({ isLoadingDeliveryDetail: true, error: null });
     try {
       const token = ensureToken();
@@ -471,9 +487,14 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
         analytics: buildAnalytics(deliveries),
         isLoadingDeliveryDetail: false,
       });
+      logStore("Fetch delivery success", { id: normalized.id });
 
       return normalized;
     } catch (error) {
+      logStore("Fetch delivery failed", {
+        id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       set({
         isLoadingDeliveryDetail: false,
         error:
@@ -484,6 +505,11 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
   },
 
   updateDeliveryStatus: async (id, status, description) => {
+    logStore("Update delivery status start", {
+      id,
+      status,
+      description: description || null,
+    });
     set({ isUpdatingStatus: true, error: null });
     try {
       const token = ensureToken();
@@ -509,9 +535,17 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
         analytics: buildAnalytics(deliveries),
         isUpdatingStatus: false,
       });
+      logStore("Update delivery status success", {
+        id: normalized.id,
+        status: normalized.status,
+      });
 
       return normalized;
     } catch (error) {
+      logStore("Update delivery status failed", {
+        id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       set({
         isUpdatingStatus: false,
         error:
@@ -522,10 +556,15 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
   },
 
   fetchNotifications: async ({ force = false } = {}) => {
-    if (!force && get().notifications.length > 0) {
+    if (!force && get().notificationsLoaded) {
+      logStore("Fetch notifications skipped", {
+        reason: "cached",
+        count: get().notifications.length,
+      });
       return;
     }
 
+    logStore("Fetch notifications start", { force });
     set({ isLoadingNotifications: true, error: null });
     try {
       const token = ensureToken();
@@ -540,9 +579,17 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
           ? response.notifications.map(normalizeNotification)
           : [],
         unreadCount: toNumber(response.unreadCount),
+        notificationsLoaded: true,
         isLoadingNotifications: false,
       });
+      logStore("Fetch notifications success", {
+        count: Array.isArray(response.notifications) ? response.notifications.length : 0,
+        unreadCount: toNumber(response.unreadCount),
+      });
     } catch (error) {
+      logStore("Fetch notifications failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       set({
         isLoadingNotifications: false,
         error:
@@ -553,6 +600,7 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
   },
 
   markNotificationAsRead: async (id) => {
+    logStore("Mark notification read start", { id });
     const token = ensureToken();
     await logisticsApiRequest(`/api/notifications/${id}/read`, {
       method: "PATCH",
@@ -568,9 +616,11 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
         unreadCount: notifications.filter((notification) => !notification.isRead).length,
       };
     });
+    logStore("Mark notification read success", { id });
   },
 
   markAllNotificationsAsRead: async () => {
+    logStore("Mark all notifications read start");
     const token = ensureToken();
     await logisticsApiRequest("/api/notifications/read-all", {
       method: "PATCH",
@@ -584,13 +634,16 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
       })),
       unreadCount: 0,
     }));
+    logStore("Mark all notifications read success");
   },
 
   fetchProfile: async ({ force = false } = {}) => {
-    if (!force && get().profile) {
+    if (!force && get().profileLoaded) {
+      logStore("Fetch profile skipped", { reason: "cached" });
       return;
     }
 
+    logStore("Fetch profile start", { force });
     set({ isLoadingProfile: true, error: null });
     try {
       const token = ensureToken();
@@ -601,7 +654,15 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
         token,
       });
 
-      const pricingSettings = normalizePricingSettings(response.pricingSettings);
+      const pricingSettings = Array.isArray(response.pricingSettings)
+        ? response.pricingSettings.map(normalizePricingSetting)
+        : [];
+      const nationwidePricing = response.nationwidePricing
+        ? normalizePricingSetting(response.nationwidePricing)
+        : null;
+      const statePricing = Array.isArray(response.statePricing)
+        ? response.statePricing.map(normalizePricingSetting)
+        : [];
       const coverageAreas = Array.isArray(response.coverageAreas)
         ? response.coverageAreas.map(normalizeCoverageArea)
         : [];
@@ -610,13 +671,27 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
 
       set({
         profile: {
+          coverageType: response.coverageType,
+          coveredStates: Array.isArray(response.coveredStates)
+            ? response.coveredStates
+            : [],
+          nationwidePricing,
+          statePricing,
           pricingSettings,
           coverageAreas,
           coverageDraft: buildCoverageDraft(coverageAreas),
         },
+        profileLoaded: true,
         isLoadingProfile: false,
       });
+      logStore("Fetch profile success", {
+        coverageCount: coverageAreas.length,
+        pricingConfigured: pricingSettings.length > 0,
+      });
     } catch (error) {
+      logStore("Fetch profile failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       set({
         isLoadingProfile: false,
         error: error instanceof Error ? error.message : "Failed to load profile",
@@ -626,6 +701,7 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
   },
 
   updateProfile: async (payload) => {
+    logStore("Update profile start", payload as Record<string, unknown>);
     set({ isUpdatingProfile: true, error: null });
     try {
       const token = ensureToken();
@@ -637,7 +713,15 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
         body: JSON.stringify(payload),
       });
 
-      const pricingSettings = normalizePricingSettings(response.pricingSettings);
+      const pricingSettings = Array.isArray(response.pricingSettings)
+        ? response.pricingSettings.map(normalizePricingSetting)
+        : [];
+      const nationwidePricing = response.nationwidePricing
+        ? normalizePricingSetting(response.nationwidePricing)
+        : null;
+      const statePricing = Array.isArray(response.statePricing)
+        ? response.statePricing.map(normalizePricingSetting)
+        : [];
       const coverageAreas = Array.isArray(response.coverageAreas)
         ? response.coverageAreas.map(normalizeCoverageArea)
         : [];
@@ -646,13 +730,27 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
 
       set({
         profile: {
+          coverageType: response.coverageType,
+          coveredStates: Array.isArray(response.coveredStates)
+            ? response.coveredStates
+            : [],
+          nationwidePricing,
+          statePricing,
           pricingSettings,
           coverageAreas,
           coverageDraft: buildCoverageDraft(coverageAreas),
         },
+        profileLoaded: true,
         isUpdatingProfile: false,
       });
+      logStore("Update profile success", {
+        coverageCount: coverageAreas.length,
+        pricingConfigured: pricingSettings.length > 0,
+      });
     } catch (error) {
+      logStore("Update profile failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       set({
         isUpdatingProfile: false,
         error: error instanceof Error ? error.message : "Failed to update profile",
@@ -660,6 +758,25 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
       throw error;
     }
   },
+
+  resetStore: () =>
+    set({
+      deliveries: [],
+      notifications: [],
+      unreadCount: 0,
+      profile: null,
+      analytics: emptyAnalytics,
+      deliveriesLoaded: false,
+      notificationsLoaded: false,
+      profileLoaded: false,
+      isLoadingDeliveries: false,
+      isLoadingDeliveryDetail: false,
+      isLoadingNotifications: false,
+      isLoadingProfile: false,
+      isUpdatingStatus: false,
+      isUpdatingProfile: false,
+      error: null,
+    }),
 
   clearError: () => set({ error: null }),
 }));

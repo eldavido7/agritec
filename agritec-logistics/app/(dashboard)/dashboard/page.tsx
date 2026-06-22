@@ -11,7 +11,7 @@ export default function DashboardPage() {
   const fetchDeliveries = useLogisticsStore((state) => state.fetchDeliveries);
 
   useEffect(() => {
-    void fetchDeliveries({ force: true }).catch(() => undefined);
+    void fetchDeliveries().catch(() => undefined);
   }, [fetchDeliveries]);
 
   const containerVariants = {

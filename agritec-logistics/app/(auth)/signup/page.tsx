@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { motion } from 'framer-motion';
-import { nigerianStates } from '@/lib/data/nigerian-states';
+import { nigeriaLocations } from '@/lib/data/nigeria-locations';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
 
 export default function SignUpPage() {
@@ -43,7 +43,7 @@ export default function SignUpPage() {
   const [submitMessage, setSubmitMessage] = useState('');
 
   const selectedState = useMemo(
-    () => nigerianStates.find((state) => state.name === formData.state) ?? null,
+    () => nigeriaLocations.find((state) => state.name === formData.state) ?? null,
     [formData.state]
   );
 
@@ -194,7 +194,7 @@ export default function SignUpPage() {
                   <SelectValue placeholder="Select state" />
                 </SelectTrigger>
                 <SelectContent>
-                  {nigerianStates.map((state) => (
+                  {nigeriaLocations.map((state) => (
                     <SelectItem key={state.name} value={state.name}>
                       {state.name}
                     </SelectItem>

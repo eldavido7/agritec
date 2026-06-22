@@ -1,5 +1,4 @@
 import {
-  LogisticsCoverageSelectionType,
   LogisticsCoverageType,
   UserRole,
 } from "@prisma/client";
@@ -12,29 +11,28 @@ import {
   requireAuthenticatedUser,
   serializeAuthUser,
 } from "@/lib/auth";
-import { reserveSequentialId, reserveSequentialIds } from "@/lib/id-sequence";
+import { reserveSequentialIds } from "@/lib/id-sequence";
 
-const pricingSettingsSchema = z.object({
-  abujaMinimumFee: z.number().int().min(0),
-  abujaAdditionalUnitFee: z.number().int().min(0),
-  outsideMinimumFee: z.number().int().min(0),
-  outsideAdditionalUnitFee: z.number().int().min(0),
+const pricingConfigSchema = z.object({
+  minimumFee: z.number().int().min(0),
+  additionalUnitFee: z.number().int().min(0),
   weightUnitSizeKg: z.number().positive(),
   volumetricDivisor: z.number().int().positive(),
-  weeklyAutoPayoutDay: z.number().int().min(0).max(6).nullable().optional(),
 });
 
-const coverageAreaInputSchema = z.object({
-  selectionType: z.nativeEnum(LogisticsCoverageSelectionType),
+const statePricingSchema = pricingConfigSchema.extend({
   state: z.string().trim().min(1),
-  lga: z.string().trim().nullable().optional(),
-  city: z.string().trim().nullable().optional(),
-  area: z.string().trim().nullable().optional(),
+  isActive: z.boolean().default(true),
 });
 
 const coverageSettingsSchema = z.object({
   coverageType: z.nativeEnum(LogisticsCoverageType),
-  areas: z.array(coverageAreaInputSchema).default([]),
+  states: z.array(z.string().trim().min(1)).default([]),
+});
+
+const logisticsPricingUpdateSchema = z.object({
+  nationwidePricing: pricingConfigSchema.nullable().optional(),
+  statePricing: z.array(statePricingSchema).default([]),
 });
 
 const logisticsProfileUpdateSchema = z.object({
@@ -51,19 +49,34 @@ const logisticsProfileUpdateSchema = z.object({
   area: z.string().trim().nullable().optional(),
   latitude: z.number().finite().nullable().optional(),
   longitude: z.number().finite().nullable().optional(),
-  pricingSettings: pricingSettingsSchema.optional(),
   coverage: coverageSettingsSchema.optional(),
+  pricing: logisticsPricingUpdateSchema.optional(),
 });
 
-function serializePricingSettings(settings: any) {
-  if (!settings) {
-    return null;
-  }
+function normalizeStateName(state: string) {
+  return state.trim();
+}
 
+function uniqueStates(states: string[]) {
+  return Array.from(new Set(states.map(normalizeStateName))).sort((a, b) =>
+    a.localeCompare(b)
+  );
+}
+
+function serializePricingSetting(settings: any) {
   return {
-    ...settings,
+    id: settings.id,
+    logisticsCompanyId: settings.logisticsCompanyId,
+    pricingScope: settings.pricingScope,
+    state: settings.pricingScope === "STATE" ? settings.state : null,
+    minimumFee: settings.minimumFee,
+    additionalUnitFee: settings.additionalUnitFee,
     weightUnitSizeKg:
       settings.weightUnitSizeKg == null ? null : Number(settings.weightUnitSizeKg),
+    volumetricDivisor: settings.volumetricDivisor,
+    isActive: settings.isActive,
+    createdAt: settings.createdAt,
+    updatedAt: settings.updatedAt,
   };
 }
 
@@ -83,13 +96,37 @@ function serializeCoverageArea(area: any) {
   };
 }
 
+function deriveCoverageType(coverageAreas: any[]) {
+  return coverageAreas.some((area) => area.coverageType === "NATIONWIDE")
+    ? LogisticsCoverageType.NATIONWIDE
+    : LogisticsCoverageType.REGIONAL;
+}
+
 function serializeLogisticsProfile(user: any) {
+  const coverageAreas = Array.isArray(user.logisticsProfile?.coverageAreas)
+    ? user.logisticsProfile.coverageAreas.map(serializeCoverageArea)
+    : [];
+  const pricingSettings = Array.isArray(user.logisticsProfile?.pricingSettings)
+    ? user.logisticsProfile.pricingSettings.map(serializePricingSetting)
+    : [];
+  const coverageType = deriveCoverageType(coverageAreas);
+  const coveredStates = uniqueStates(
+    coverageAreas
+      .map((area: any) => area.state)
+      .filter((state: string | null): state is string => Boolean(state))
+  );
+
   return {
     user: serializeAuthUser(user),
-    pricingSettings: serializePricingSettings(user.logisticsProfile?.pricingSettings ?? null),
-    coverageAreas: Array.isArray(user.logisticsProfile?.coverageAreas)
-      ? user.logisticsProfile.coverageAreas.map(serializeCoverageArea)
-      : [],
+    coverageType,
+    coveredStates,
+    nationwidePricing:
+      pricingSettings.find((entry: any) => entry.pricingScope === "NATIONWIDE") ?? null,
+    statePricing: pricingSettings
+      .filter((entry: any) => entry.pricingScope === "STATE")
+      .sort((left: any, right: any) => (left.state || "").localeCompare(right.state || "")),
+    pricingSettings,
+    coverageAreas,
   };
 }
 
@@ -100,7 +137,10 @@ async function findLogisticsUser(userId: string) {
       ...authUserSelect,
       logisticsProfile: {
         include: {
-          pricingSettings: true,
+          pricingSettings: {
+            where: { isActive: true },
+            orderBy: [{ pricingScope: "asc" }, { state: "asc" }],
+          },
           coverageAreas: {
             where: { isActive: true },
             orderBy: [{ state: "asc" }, { lga: "asc" }, { city: "asc" }, { area: "asc" }],
@@ -111,46 +151,83 @@ async function findLogisticsUser(userId: string) {
   });
 }
 
-function normalizeCoverageAreas(
-  coverageType: LogisticsCoverageType,
-  areas: z.infer<typeof coverageAreaInputSchema>[]
+function buildCoverageAreaRows(
+  logisticsCompanyId: string,
+  coverage: z.infer<typeof coverageSettingsSchema>
 ) {
-  if (coverageType === LogisticsCoverageType.NATIONWIDE) {
+  if (coverage.coverageType === LogisticsCoverageType.NATIONWIDE) {
     return [
       {
+        logisticsCompanyId,
         coverageType: LogisticsCoverageType.NATIONWIDE,
         selectionType: null,
         state: null,
         lga: null,
         city: null,
         area: null,
+        isActive: true,
       },
     ];
   }
 
-  const normalized = areas.map((area) => ({
+  return uniqueStates(coverage.states).map((state) => ({
+    logisticsCompanyId,
     coverageType: LogisticsCoverageType.REGIONAL,
-    selectionType: area.selectionType,
-    state: area.state.trim(),
-    lga: area.lga?.trim() || null,
-    city: area.city?.trim() || null,
-    area: area.area?.trim() || null,
+    selectionType: "STATE" as const,
+    state,
+    lga: null,
+    city: null,
+    area: null,
+    isActive: true,
   }));
+}
 
-  const unique = new Map<string, (typeof normalized)[number]>();
-  for (const area of normalized) {
-    const key = [
-      area.coverageType,
-      area.selectionType,
-      area.state,
-      area.lga,
-      area.city,
-      area.area,
-    ].join("::");
-    unique.set(key, area);
+function buildPricingRows(args: {
+  logisticsCompanyId: string;
+  coverageType: LogisticsCoverageType;
+  pricing: z.infer<typeof logisticsPricingUpdateSchema>;
+  coveredStates: string[];
+}) {
+  if (args.coverageType === LogisticsCoverageType.NATIONWIDE) {
+    if (!args.pricing.nationwidePricing) {
+      return [];
+    }
+
+    return [
+      {
+        logisticsCompanyId: args.logisticsCompanyId,
+        pricingScope: "NATIONWIDE" as const,
+        state: "",
+        minimumFee: args.pricing.nationwidePricing.minimumFee,
+        additionalUnitFee: args.pricing.nationwidePricing.additionalUnitFee,
+        weightUnitSizeKg: args.pricing.nationwidePricing.weightUnitSizeKg,
+        volumetricDivisor: args.pricing.nationwidePricing.volumetricDivisor,
+        isActive: true,
+      },
+    ];
   }
 
-  return Array.from(unique.values());
+  const coveredStateSet = new Set(args.coveredStates.map((state) => state.toLowerCase()));
+  const uniqueStatePricing = new Map<string, z.infer<typeof statePricingSchema>>();
+  for (const row of args.pricing.statePricing) {
+    uniqueStatePricing.set(row.state.trim().toLowerCase(), {
+      ...row,
+      state: row.state.trim(),
+    });
+  }
+
+  return Array.from(uniqueStatePricing.values())
+    .filter((row) => coveredStateSet.has(row.state.toLowerCase()))
+    .map((row) => ({
+      logisticsCompanyId: args.logisticsCompanyId,
+      pricingScope: "STATE" as const,
+      state: row.state,
+      minimumFee: row.minimumFee,
+      additionalUnitFee: row.additionalUnitFee,
+      weightUnitSizeKg: row.weightUnitSizeKg,
+      volumetricDivisor: row.volumetricDivisor,
+      isActive: row.isActive,
+    }));
 }
 
 export async function GET(request: Request) {
@@ -196,6 +273,14 @@ export async function PATCH(request: Request) {
 
     const payload = logisticsProfileUpdateSchema.parse(await request.json());
     const logisticsCompanyId = user.logisticsProfile.id;
+    const currentLogisticsUser: any = await findLogisticsUser(user.id);
+
+    if (!currentLogisticsUser) {
+      return NextResponse.json(
+        { success: false, message: "Logistics profile not found" },
+        { status: 404 }
+      );
+    }
 
     if (payload.email) {
       const existingUser = await prisma.user.findFirst({
@@ -210,6 +295,26 @@ export async function PATCH(request: Request) {
         );
       }
     }
+
+    const nextCoverage =
+      payload.coverage ??
+      (() => {
+        const existingCoverageType = currentLogisticsUser.logisticsProfile?.coverageAreas?.some(
+          (area: any) => area.coverageType === LogisticsCoverageType.NATIONWIDE
+        )
+          ? LogisticsCoverageType.NATIONWIDE
+          : LogisticsCoverageType.REGIONAL;
+        const existingStates = uniqueStates(
+          (currentLogisticsUser.logisticsProfile?.coverageAreas ?? [])
+            .map((area: any) => area.state)
+            .filter((state: string | null): state is string => Boolean(state))
+        );
+
+        return {
+          coverageType: existingCoverageType,
+          states: existingStates,
+        };
+      })();
 
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
@@ -264,61 +369,50 @@ export async function PATCH(request: Request) {
         },
       });
 
-      if (payload.pricingSettings) {
-        const existingPricingSettings = await tx.logisticsPricingSettings.findUnique({
-          where: { logisticsCompanyId },
-          select: { id: true },
-        });
-
-        if (existingPricingSettings) {
-          await tx.logisticsPricingSettings.update({
-            where: { logisticsCompanyId },
-            data: payload.pricingSettings,
-          });
-        } else {
-          const pricingSettingsId = await reserveSequentialId(
-            tx,
-            "logistics_pricing_settings"
-          );
-
-          await tx.logisticsPricingSettings.create({
-            data: {
-              id: pricingSettingsId,
-              logisticsCompanyId,
-              ...payload.pricingSettings,
-            },
-          });
-        }
-      }
-
       if (payload.coverage) {
-        const normalizedCoverageAreas = normalizeCoverageAreas(
-          payload.coverage.coverageType,
-          payload.coverage.areas
-        );
-
+        const coverageRows = buildCoverageAreaRows(logisticsCompanyId, payload.coverage);
         await tx.logisticsCoverageArea.deleteMany({
           where: { logisticsCompanyId },
         });
 
-        if (normalizedCoverageAreas.length > 0) {
-          const coverageAreaIds = await reserveSequentialIds(
+        if (coverageRows.length > 0) {
+          const coverageIds = await reserveSequentialIds(
             tx,
             "logistics_coverage_area",
-            normalizedCoverageAreas.length
+            coverageRows.length
           );
-
           await tx.logisticsCoverageArea.createMany({
-            data: normalizedCoverageAreas.map((area, index) => ({
-              id: coverageAreaIds[index],
-              logisticsCompanyId,
-              coverageType: area.coverageType,
-              selectionType: area.selectionType,
-              state: area.state,
-              lga: area.lga,
-              city: area.city,
-              area: area.area,
-              isActive: true,
+            data: coverageRows.map((row, index) => ({
+              id: coverageIds[index],
+              ...row,
+            })),
+          });
+        }
+      }
+
+      if (payload.pricing) {
+        const coveredStates = uniqueStates(nextCoverage.states);
+        const pricingRows = buildPricingRows({
+          logisticsCompanyId,
+          coverageType: nextCoverage.coverageType,
+          pricing: payload.pricing,
+          coveredStates,
+        });
+
+        await tx.logisticsPricingSetting.deleteMany({
+          where: { logisticsCompanyId },
+        });
+
+        if (pricingRows.length > 0) {
+          const pricingIds = await reserveSequentialIds(
+            tx,
+            "logistics_pricing_settings",
+            pricingRows.length
+          );
+          await tx.logisticsPricingSetting.createMany({
+            data: pricingRows.map((row, index) => ({
+              id: pricingIds[index],
+              ...row,
             })),
           });
         }

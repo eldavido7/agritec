@@ -45,12 +45,6 @@ export default function SettingsPage() {
   const [currencyCode, setCurrencyCode] = useState("NGN");
   const [countryCode, setCountryCode] = useState("NG");
   const [commissionRatePercent, setCommissionRatePercent] = useState("");
-  const [abujaMinimumFee, setAbujaMinimumFee] = useState("");
-  const [abujaAdditionalUnitFee, setAbujaAdditionalUnitFee] = useState("");
-  const [outsideMinimumFee, setOutsideMinimumFee] = useState("");
-  const [outsideAdditionalUnitFee, setOutsideAdditionalUnitFee] = useState("");
-  const [weightUnitSizeKg, setWeightUnitSizeKg] = useState("");
-  const [volumetricDivisor, setVolumetricDivisor] = useState("");
   const [autoPayoutThreshold, setAutoPayoutThreshold] = useState("");
   const [weeklyPayoutDay, setWeeklyPayoutDay] = useState("");
 
@@ -82,12 +76,6 @@ export default function SettingsPage() {
     setCurrencyCode(settings.platform.currencyCode);
     setCountryCode(settings.platform.countryCode);
     setCommissionRatePercent(String(settings.commission.commissionRatePercent));
-    setAbujaMinimumFee(String(settings.shipping.abujaMinimumFee));
-    setAbujaAdditionalUnitFee(String(settings.shipping.abujaAdditionalUnitFee));
-    setOutsideMinimumFee(String(settings.shipping.outsideMinimumFee));
-    setOutsideAdditionalUnitFee(String(settings.shipping.outsideAdditionalUnitFee));
-    setWeightUnitSizeKg(String(settings.shipping.weightUnitSizeKg));
-    setVolumetricDivisor(String(settings.shipping.volumetricDivisor));
     setAutoPayoutThreshold(String(settings.payout.autoPayoutThreshold));
     setWeeklyPayoutDay(
       settings.payout.weeklyPayoutDay == null
@@ -104,12 +92,6 @@ export default function SettingsPage() {
 
   const handleSaveSettings = async () => {
     const commission = Number(commissionRatePercent);
-    const abujaMinimum = Number(abujaMinimumFee);
-    const abujaAdditional = Number(abujaAdditionalUnitFee);
-    const outsideMinimum = Number(outsideMinimumFee);
-    const outsideAdditional = Number(outsideAdditionalUnitFee);
-    const weightUnit = Number(weightUnitSizeKg);
-    const divisor = Number(volumetricDivisor);
     const payoutThreshold = Number(autoPayoutThreshold);
 
     if (!marketplaceName.trim()) {
@@ -120,7 +102,7 @@ export default function SettingsPage() {
       toast.error("Enter a valid support email.");
       return;
     }
-    if ([commission, abujaMinimum, abujaAdditional, outsideMinimum, outsideAdditional, weightUnit, divisor, payoutThreshold].some((value) => Number.isNaN(value))) {
+    if ([commission, payoutThreshold].some((value) => Number.isNaN(value))) {
       toast.error("All numeric settings must be valid numbers.");
       return;
     }
@@ -128,15 +110,6 @@ export default function SettingsPage() {
       toast.error("Commission rate must be between 0 and 100.");
       return;
     }
-    if ([abujaMinimum, abujaAdditional, outsideMinimum, outsideAdditional].some((value) => value < 0)) {
-      toast.error("Shipping fees cannot be negative.");
-      return;
-    }
-    if (weightUnit <= 0 || divisor <= 0) {
-      toast.error("Weight unit size and volumetric divisor must be greater than zero.");
-      return;
-    }
-
     try {
       await updateSettings({
         platform: {
@@ -144,14 +117,6 @@ export default function SettingsPage() {
           supportEmail: supportEmail.trim() ? supportEmail.trim() : null,
           currencyCode: currencyCode.trim().toUpperCase(),
           countryCode: countryCode.trim().toUpperCase(),
-        },
-        shipping: {
-          abujaMinimumFee: abujaMinimum,
-          abujaAdditionalUnitFee: abujaAdditional,
-          outsideMinimumFee: outsideMinimum,
-          outsideAdditionalUnitFee: outsideAdditional,
-          weightUnitSizeKg: weightUnit,
-          volumetricDivisor: divisor,
         },
         commission: {
           commissionRatePercent: commission,
@@ -252,7 +217,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <p className="mt-1 text-muted-foreground">
-          Configure platform, logistics, payout, and admin access settings
+          Configure platform, payout, and admin access settings
         </p>
       </div>
 
@@ -338,75 +303,6 @@ export default function SettingsPage() {
                 Sellers must reach this available balance before automatic weekly payout runs.
               </p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle>Shipping Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <p className="text-sm text-muted-foreground">
-            Delivery is calculated platform-wide from chargeable weight. The first weight unit uses the minimum fee, and each extra unit adds the additional unit fee.
-          </p>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Abuja/FCT Minimum Fee
-              </label>
-              <Input
-                type="number"
-                value={abujaMinimumFee}
-                onChange={(event) => setAbujaMinimumFee(event.target.value)}
-                disabled={isUpdatingSettings}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Abuja/FCT Additional Unit Fee
-              </label>
-              <Input
-                type="number"
-                value={abujaAdditionalUnitFee}
-                onChange={(event) => setAbujaAdditionalUnitFee(event.target.value)}
-                disabled={isUpdatingSettings}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Outside Abuja/FCT Minimum Fee
-              </label>
-              <Input
-                type="number"
-                value={outsideMinimumFee}
-                onChange={(event) => setOutsideMinimumFee(event.target.value)}
-                disabled={isUpdatingSettings}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Outside Abuja/FCT Additional Unit Fee
-              </label>
-              <Input
-                type="number"
-                value={outsideAdditionalUnitFee}
-                onChange={(event) => setOutsideAdditionalUnitFee(event.target.value)}
-                disabled={isUpdatingSettings}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Weight Unit Size (kg)
-              </label>
-              <Input
-                type="number"
-                step="0.1"
-                value={weightUnitSizeKg}
-                onChange={(event) => setWeightUnitSizeKg(event.target.value)}
-                disabled={isUpdatingSettings}
-              />
-            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
                 Weekly Auto Payout Day
@@ -423,26 +319,11 @@ export default function SettingsPage() {
                   </option>
                 ))}
               </select>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-border/50 bg-muted/30 p-4">
-            <div className="space-y-2 max-w-sm">
-              <label className="text-sm font-medium text-foreground">
-                Advanced Logistics: Volumetric Divisor
-              </label>
-              <Input
-                type="number"
-                value={volumetricDivisor}
-                onChange={(event) => setVolumetricDivisor(event.target.value)}
-                disabled={isUpdatingSettings}
-              />
               <p className="text-xs text-muted-foreground">
-                Used internally for volumetric weight: length x width x height / divisor. Normally this should not be changed.
+                Controls the scheduled seller payout day. Logistics companies do not manage this.
               </p>
             </div>
           </div>
-
           <Button
             onClick={() => void handleSaveSettings()}
             className="w-full gap-2 md:w-auto"

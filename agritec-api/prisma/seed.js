@@ -71,7 +71,6 @@ const logisticsCompanies = [
   {
     userId: 'user-logistics-pending-1',
     logisticsId: 'logistics-pending-1',
-    pricingId: 'logistics-pricing-pending-1',
     email: 'pending@greenhaul.ng',
     fullName: 'GreenHaul Logistics Admin',
     phone: '+2347031112233',
@@ -88,15 +87,18 @@ const logisticsCompanies = [
     isActive: false,
     verificationStatus: 'PENDING_VERIFICATION',
     isVerified: false,
-    pricing: {
-      abujaMinimumFee: 2600,
-      abujaAdditionalUnitFee: 2400,
-      outsideMinimumFee: 5400,
-      outsideAdditionalUnitFee: 5100,
-      weightUnitSizeKg: 10,
-      volumetricDivisor: 5000,
-      weeklyAutoPayoutDay: 4,
-    },
+    pricingRows: [
+      {
+        id: 'logistics-pricing-pending-kaduna',
+        pricingScope: 'STATE',
+        state: 'Kaduna',
+        minimumFee: 5400,
+        additionalUnitFee: 5100,
+        weightUnitSizeKg: 10,
+        volumetricDivisor: 5000,
+        isActive: true,
+      },
+    ],
     coverageAreas: [
       {
         id: 'coverage-pending-kaduna-state',
@@ -109,7 +111,6 @@ const logisticsCompanies = [
   {
     userId: 'user-logistics-nationwide-1',
     logisticsId: 'logistics-nationwide-1',
-    pricingId: 'logistics-pricing-nationwide-1',
     email: 'ops@naijafreight.ng',
     fullName: 'Naija Freight Operations',
     phone: '+2347042223344',
@@ -126,15 +127,18 @@ const logisticsCompanies = [
     isActive: true,
     verificationStatus: 'VERIFIED',
     isVerified: true,
-    pricing: {
-      abujaMinimumFee: 2800,
-      abujaAdditionalUnitFee: 2600,
-      outsideMinimumFee: 5600,
-      outsideAdditionalUnitFee: 5300,
-      weightUnitSizeKg: 10,
-      volumetricDivisor: 5000,
-      weeklyAutoPayoutDay: 5,
-    },
+    pricingRows: [
+      {
+        id: 'logistics-pricing-nationwide-standard',
+        pricingScope: 'NATIONWIDE',
+        state: '',
+        minimumFee: 5600,
+        additionalUnitFee: 5300,
+        weightUnitSizeKg: 10,
+        volumetricDivisor: 5000,
+        isActive: true,
+      },
+    ],
     coverageAreas: [
       {
         id: 'coverage-nationwide-all',
@@ -147,7 +151,6 @@ const logisticsCompanies = [
   {
     userId: 'user-logistics-regional-1',
     logisticsId: 'logistics-regional-1',
-    pricingId: 'logistics-pricing-regional-1',
     email: 'dispatch@northfield.ng',
     fullName: 'NorthField Dispatch Admin',
     phone: '+2347053334455',
@@ -164,15 +167,18 @@ const logisticsCompanies = [
     isActive: true,
     verificationStatus: 'VERIFIED',
     isVerified: true,
-    pricing: {
-      abujaMinimumFee: 2550,
-      abujaAdditionalUnitFee: 2350,
-      outsideMinimumFee: 4900,
-      outsideAdditionalUnitFee: 4700,
-      weightUnitSizeKg: 10,
-      volumetricDivisor: 5000,
-      weeklyAutoPayoutDay: 3,
-    },
+    pricingRows: [
+      {
+        id: 'logistics-pricing-regional-kano',
+        pricingScope: 'STATE',
+        state: 'Kano',
+        minimumFee: 4900,
+        additionalUnitFee: 4700,
+        weightUnitSizeKg: 10,
+        volumetricDivisor: 5000,
+        isActive: true,
+      },
+    ],
     coverageAreas: [
       {
         id: 'coverage-regional-kano-state',
@@ -181,11 +187,10 @@ const logisticsCompanies = [
         state: 'Kano',
       },
       {
-        id: 'coverage-regional-kaduna-lga',
+        id: 'coverage-regional-kaduna-state',
         coverageType: 'REGIONAL',
-        selectionType: 'LGA',
+        selectionType: 'STATE',
         state: 'Kaduna',
-        lga: 'Kaduna North',
       },
     ],
   },
@@ -487,7 +492,7 @@ async function clearDatabase() {
   await prisma.buyerProfile.deleteMany();
   await prisma.sellerProfile.deleteMany();
   await prisma.logisticsCoverageArea.deleteMany();
-  await prisma.logisticsPricingSettings.deleteMany();
+  await prisma.logisticsPricingSetting.deleteMany();
   await prisma.logisticsCompanyProfile.deleteMany();
   await prisma.user.deleteMany();
   await prisma.category.deleteMany();
@@ -611,16 +616,16 @@ async function seedUsers() {
             verificationStatus: logistics.verificationStatus,
             isVerified: logistics.isVerified,
             pricingSettings: {
-              create: {
-                id: logistics.pricingId,
-                abujaMinimumFee: logistics.pricing.abujaMinimumFee,
-                abujaAdditionalUnitFee: logistics.pricing.abujaAdditionalUnitFee,
-                outsideMinimumFee: logistics.pricing.outsideMinimumFee,
-                outsideAdditionalUnitFee: logistics.pricing.outsideAdditionalUnitFee,
-                weightUnitSizeKg: decimal(logistics.pricing.weightUnitSizeKg),
-                volumetricDivisor: logistics.pricing.volumetricDivisor,
-                weeklyAutoPayoutDay: logistics.pricing.weeklyAutoPayoutDay,
-              },
+              create: logistics.pricingRows.map((pricing) => ({
+                id: pricing.id,
+                pricingScope: pricing.pricingScope,
+                state: pricing.state,
+                minimumFee: pricing.minimumFee,
+                additionalUnitFee: pricing.additionalUnitFee,
+                weightUnitSizeKg: decimal(pricing.weightUnitSizeKg),
+                volumetricDivisor: pricing.volumetricDivisor,
+                isActive: pricing.isActive,
+              })),
             },
             coverageAreas: {
               create: logistics.coverageAreas.map((coverage) => ({

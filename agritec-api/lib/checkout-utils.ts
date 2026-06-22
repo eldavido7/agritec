@@ -104,6 +104,43 @@ export function calculateShippingBreakdown(args: {
   };
 }
 
+export function calculateFlatRateShippingBreakdown(args: {
+  totalChargeableWeightKg: number;
+  deliveryRegionLabel: string;
+  settings: {
+    minimumFee: number;
+    additionalUnitFee: number;
+    weightUnitSizeKg: Prisma.Decimal | number;
+  };
+}) {
+  const { totalChargeableWeightKg, deliveryRegionLabel, settings } = args;
+  const weightUnitSizeKg = decimalToNumber(settings.weightUnitSizeKg) ?? 10;
+  const minimumFee = settings.minimumFee;
+  const additionalUnitFee = settings.additionalUnitFee;
+  const normalizedChargeableWeight =
+    Number.isFinite(totalChargeableWeightKg) && totalChargeableWeightKg > 0
+      ? totalChargeableWeightKg
+      : 0;
+
+  const shippingUnits =
+    normalizedChargeableWeight <= weightUnitSizeKg
+      ? 1
+      : Math.max(1, Math.ceil(normalizedChargeableWeight / weightUnitSizeKg));
+  const shippingFee =
+    normalizedChargeableWeight <= weightUnitSizeKg
+      ? minimumFee
+      : minimumFee + (shippingUnits - 1) * additionalUnitFee;
+
+  return {
+    deliveryRegion: deliveryRegionLabel,
+    weightUnitSizeKg,
+    minimumFee,
+    additionalUnitFee,
+    shippingUnits,
+    shippingFee,
+  };
+}
+
 export function calculatePlatformShippingBreakdown(args: {
   totalChargeableWeightKg: number;
   address: { city?: string | null; state?: string | null };
