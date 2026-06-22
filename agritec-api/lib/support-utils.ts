@@ -94,6 +94,35 @@ export function deriveCurrentSupportAssignment(
   };
 }
 
+export function deriveSupportTriedAdminIds(
+  assignments: SupportAssignmentLike[],
+) {
+  const triedAdminIds = new Set<string>();
+
+  for (const assignment of assignments) {
+    if (
+      assignment.eventType === SupportAssignmentEventType.REOPEN ||
+      assignment.eventType === SupportAssignmentEventType.RESOLVE
+    ) {
+      break;
+    }
+
+    if (
+      [
+        SupportAssignmentEventType.AUTO_ASSIGN,
+        SupportAssignmentEventType.MANUAL_ASSIGN,
+        SupportAssignmentEventType.CLAIM,
+        SupportAssignmentEventType.REASSIGN,
+      ].includes(assignment.eventType) &&
+      assignment.assignedAdminId
+    ) {
+      triedAdminIds.add(assignment.assignedAdminId);
+    }
+  }
+
+  return Array.from(triedAdminIds);
+}
+
 export function serializeSupportAssignmentEvent(
   assignment: SupportAssignmentLike,
 ) {
@@ -336,6 +365,26 @@ export async function createSupportInternalComment(
       },
     },
   });
+}
+
+export async function lockSupportConversation(
+  tx: TxClient,
+  args: {
+    conversationId: string;
+    updatedAt: Date;
+  },
+) {
+  const result = await tx.conversation.updateMany({
+    where: {
+      id: args.conversationId,
+      updatedAt: args.updatedAt,
+    },
+    data: {
+      updatedAt: new Date(),
+    },
+  });
+
+  return result.count === 1;
 }
 
 export async function assignSupportConversation(

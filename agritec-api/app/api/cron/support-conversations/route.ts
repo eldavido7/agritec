@@ -15,6 +15,7 @@ import {
   SUPPORT_AUTO_REPLY_DELAY_MS,
   assignSupportConversation,
   deriveCurrentSupportAssignment,
+  deriveSupportTriedAdminIds,
   findAvailableSupportAdmin,
   isSupportConversationType,
   unassignSupportConversation,
@@ -134,8 +135,11 @@ async function processOverdueAssignments() {
     ) {
       let queuedAssignmentId: string | null = null;
       const result = await prisma.$transaction(async (tx) => {
+        const triedAdminIds = deriveSupportTriedAdminIds(
+          conversation.assignments as any[],
+        );
         const nextAdmin = await findAvailableSupportAdmin(tx, {
-          excludeUserIds: [currentAssignment.assignedAdminId!],
+          excludeUserIds: triedAdminIds,
         });
 
         if (nextAdmin) {
