@@ -31,6 +31,19 @@ const parentOrderInclude = {
     include: {
       items: true,
       refunds: true,
+      logisticsCompany: {
+        include: {
+          user: true,
+        },
+      },
+      statusHistory: {
+        include: {
+          updatedByUser: {
+            select: { id: true, fullName: true, role: true },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   },
 } satisfies Prisma.ParentOrderInclude;
@@ -310,7 +323,7 @@ export async function createPendingCheckoutOrder(args: {
     }
 
     return createdOrder;
-  });
+  }, { timeout: 15000 });
 }
 
 export async function createPendingAssistedOrder(args: {
@@ -493,7 +506,7 @@ export async function createPendingAssistedOrder(args: {
     }
 
     return createdOrder;
-  });
+  }, { timeout: 15000 });
 }
 
 export async function markPaymentInitializationFailed(args: {

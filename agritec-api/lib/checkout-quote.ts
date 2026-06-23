@@ -249,7 +249,7 @@ export async function buildCheckoutQuote(args: {
           "LOGISTICS" as
             | "LOGISTICS"
             | "PLATFORM_FALLBACK"
-            | "LOGISTICS_NATIONWIDE_COMBINED",
+            | "LOGISTICS_COMBINED",
       };
     }
 
@@ -275,7 +275,7 @@ export async function buildCheckoutQuote(args: {
           "PLATFORM_FALLBACK" as
             | "LOGISTICS"
             | "PLATFORM_FALLBACK"
-            | "LOGISTICS_NATIONWIDE_COMBINED",
+            | "LOGISTICS_COMBINED",
     };
   });
 
@@ -320,7 +320,7 @@ export async function buildCheckoutQuote(args: {
         shippingUnits: combinedBreakdown.shippingUnits,
         minimumFee: combinedBreakdown.minimumFee,
         additionalUnitFee: combinedBreakdown.additionalUnitFee,
-        shippingPricedBy: "LOGISTICS_NATIONWIDE_COMBINED" as const,
+        shippingPricedBy: "LOGISTICS_COMBINED" as const,
       };
     });
   }
