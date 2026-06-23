@@ -211,9 +211,12 @@ export default function SettingsPage() {
     }
 
     try {
+      const currentEmail = profile?.email?.trim().toLowerCase() ?? "";
+      const nextEmail = profileForm.email.trim().toLowerCase();
+
       await updateProfile({
         fullName: profileForm.fullName.trim(),
-        email: profileForm.email.trim().toLowerCase(),
+        ...(nextEmail !== currentEmail ? { email: nextEmail } : {}),
         phone: profileForm.phone.trim() || null,
         farmName: profileForm.farmName.trim(),
         description: profileForm.description.trim() || null,

@@ -57,10 +57,16 @@ export async function PATCH(request: Request) {
     }
 
     const payload = sellerProfileUpdateSchema.parse(await request.json());
+    const normalizedIncomingEmail =
+      payload.email !== undefined ? normalizeEmail(payload.email) : undefined;
+    const normalizedCurrentEmail = normalizeEmail(user.email);
+    const shouldUpdateEmail =
+      normalizedIncomingEmail !== undefined &&
+      normalizedIncomingEmail !== normalizedCurrentEmail;
 
-    if (payload.email) {
+    if (shouldUpdateEmail && normalizedIncomingEmail) {
       const existingUser = await prisma.user.findFirst({
-        where: { email: normalizeEmail(payload.email) },
+        where: { email: normalizedIncomingEmail },
         select: { id: true },
       });
 
@@ -78,8 +84,8 @@ export async function PATCH(request: Request) {
         ...(payload.fullName !== undefined
           ? { fullName: payload.fullName.trim() }
           : {}),
-        ...(payload.email !== undefined
-          ? { email: normalizeEmail(payload.email) }
+        ...(shouldUpdateEmail
+          ? { email: normalizedIncomingEmail }
           : {}),
         ...(payload.phone !== undefined
           ? { phone: payload.phone?.trim() || null }

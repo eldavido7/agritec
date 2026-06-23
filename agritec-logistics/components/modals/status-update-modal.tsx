@@ -13,7 +13,17 @@ import {
 import { useLogisticsStore } from '@/lib/store/logistics-store';
 import type { DeliveryStatus } from '@/lib/types';
 
+const progressionStatuses: DeliveryStatus[] = [
+  'PENDING',
+  'CONFIRMED',
+  'PROCESSING',
+  'SHIPPED',
+  'DELIVERED',
+];
+
 const statusOptions: Array<{ value: DeliveryStatus; label: string }> = [
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'PROCESSING', label: 'Processing' },
   { value: 'SHIPPED', label: 'Shipped' },
   { value: 'DELIVERED', label: 'Delivered' },
@@ -38,6 +48,36 @@ export function StatusUpdateModal({
   const [status, setStatus] = useState<DeliveryStatus>(currentStatus);
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+  const isLockedStatus =
+    currentStatus === 'DELIVERED' ||
+    currentStatus === 'CANCELLED' ||
+    currentStatus === 'REFUNDED';
+  const currentProgressIndex = progressionStatuses.indexOf(currentStatus);
+
+  const isOptionDisabled = (optionStatus: DeliveryStatus) => {
+    if (isLockedStatus) {
+      return optionStatus !== currentStatus;
+    }
+
+    if (optionStatus === currentStatus) {
+      return false;
+    }
+
+    if (optionStatus === 'CANCELLED') {
+      return false;
+    }
+
+    const optionIndex = progressionStatuses.indexOf(optionStatus);
+    if (optionIndex === -1) {
+      return false;
+    }
+
+    if (currentProgressIndex === -1) {
+      return false;
+    }
+
+    return optionIndex < currentProgressIndex;
+  };
 
   useEffect(() => {
     if (!open) {
@@ -50,6 +90,10 @@ export function StatusUpdateModal({
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isLockedStatus) {
+      setError('This delivery status is locked and can no longer be updated.');
+      return;
+    }
     if (status === currentStatus) {
       setError('Select a different status to continue.');
       return;
@@ -85,10 +129,14 @@ export function StatusUpdateModal({
               value={status}
               onChange={(event) => setStatus(event.target.value as DeliveryStatus)}
               className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              disabled={isUpdating}
+              disabled={isUpdating || isLockedStatus}
             >
               {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
+                <option
+                  key={option.value}
+                  value={option.value}
+                  disabled={isOptionDisabled(option.value)}
+                >
                   {option.label}
                   {option.value === currentStatus ? ' (Current)' : ''}
                 </option>
@@ -127,7 +175,7 @@ export function StatusUpdateModal({
             </Button>
             <Button
               type="submit"
-              disabled={isUpdating || status === currentStatus}
+              disabled={isUpdating || isLockedStatus || status === currentStatus}
             >
               {isUpdating ? 'Updating...' : 'Update Status'}
             </Button>

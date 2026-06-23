@@ -62,6 +62,10 @@ export default function DeliveryDetailsPage({ params }: DeliveryDetailsPageProps
     () => deliveries.find((entry) => entry.id === deliveryId) ?? null,
     [deliveries, deliveryId]
   );
+  const isStatusLocked =
+    delivery?.status === 'DELIVERED' ||
+    delivery?.status === 'CANCELLED' ||
+    delivery?.status === 'REFUNDED';
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -123,7 +127,10 @@ export default function DeliveryDetailsPage({ params }: DeliveryDetailsPageProps
             <h1 className="text-3xl font-bold text-foreground">{delivery.id}</h1>
             <p className="mt-1 text-muted-foreground">Parent order: {delivery.parentOrderId}</p>
           </div>
-          <Button onClick={() => setStatusModalOpen(true)}>
+          <Button
+            onClick={() => setStatusModalOpen(true)}
+            disabled={isStatusLocked}
+          >
             Update Status
           </Button>
         </div>
