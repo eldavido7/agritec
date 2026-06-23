@@ -878,7 +878,7 @@ export function AdminAssistedOrderDialog({
               <div>
                 <p className="font-medium text-foreground">Logistics selection</p>
                 <p className="text-sm text-muted-foreground">
-                  Choose one logistics company per seller group, or one nationwide company for all groups.
+                  Choose one logistics company per seller group, or one company that is eligible for all seller groups.
                 </p>
               </div>
               {isQuoteLoading ? (
@@ -898,19 +898,24 @@ export function AdminAssistedOrderDialog({
             {logisticsQuote ? (
               <>
                 {(() => {
-                  const nationwideOptions = Array.from(
+                  const sharedOptions = Array.from(
                     new Map(
                       logisticsQuote.sellerGroups
                         .flatMap((group) => group.eligibleLogisticsCompanies)
-                        .filter((company) => company.coverageType === "NATIONWIDE")
                         .map((company) => [company.id, company]),
                     ).values(),
+                  ).filter((company) =>
+                    logisticsQuote.sellerGroups.every((group) =>
+                      group.eligibleLogisticsCompanies.some(
+                        (candidate) => candidate.id === company.id,
+                      ),
+                    ),
                   );
 
-                  return nationwideOptions.length > 0 ? (
+                  return sharedOptions.length > 0 ? (
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">
-                        Nationwide company for all seller groups
+                        One logistics company for all seller groups
                       </label>
                       <select
                         value={allGroupsLogisticsCompanyId}
@@ -924,9 +929,9 @@ export function AdminAssistedOrderDialog({
                         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                       >
                         <option value="">Select per seller group instead</option>
-                        {nationwideOptions.map((company) => (
+                        {sharedOptions.map((company) => (
                           <option key={company.id} value={company.id}>
-                            {company.companyName}
+                            {company.companyName} - {company.coverageType === "NATIONWIDE" ? "Nationwide" : company.pricing.state || "Regional"}
                           </option>
                         ))}
                       </select>

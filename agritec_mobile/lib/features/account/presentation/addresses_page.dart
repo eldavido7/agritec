@@ -573,7 +573,7 @@ class AddressesPage extends ConsumerWidget {
                                     context: dialogContext,
                                     builder: (alertContext) {
                                       return AlertDialog(
-                                        title: const Text('Error'),
+                                        title: Text(ref.tr('common.error')),
                                         content: Text(
                                           ref.tr('addresses.fillRequired'),
                                         ),
@@ -582,7 +582,7 @@ class AddressesPage extends ConsumerWidget {
                                             onPressed: () => Navigator.of(
                                               alertContext,
                                             ).pop(),
-                                            child: const Text('OK'),
+                                            child: Text(ref.tr('common.ok')),
                                           ),
                                         ],
                                       );

@@ -1,5 +1,6 @@
 ﻿import 'package:agritec_mobile/features/product/presentation/product_details_page.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/wishlist/application/wishlist_providers.dart';
@@ -32,7 +33,7 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
   Widget build(BuildContext context) {
     if (!isBuyerAuthenticated(ref)) {
       return AuthRequiredPage(
-        title: 'Wishlist',
+        title: ref.tr('wishlist.title'),
         message: ref.tr('auth.required.wishlist'),
         onBack: _handleBack,
       );
@@ -77,10 +78,10 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
           ),
         ),
         child: SafeArea(
-          child: products.isEmpty
-              ? const Center(
+              child: products.isEmpty
+              ? Center(
                   child: Text(
-                    'No saved products yet.',
+                    ref.tr('wishlist.empty'),
                     style: TextStyle(color: Color(0xFF65706B)),
                   ),
                 )
@@ -165,7 +166,12 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                             child: Row(
                               children: [
-                                Text('Page $safePage/$totalPages'),
+                                Text(
+                                  trFormat(ref, 'wishlist.page', {
+                                    'page': '$safePage',
+                                    'total': '$totalPages',
+                                  }),
+                                ),
                                 const Spacer(),
                                 IconButton(
                                   onPressed: safePage > 1

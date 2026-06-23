@@ -1,6 +1,7 @@
 ﻿import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/product/presentation/product_details_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -141,8 +142,12 @@ class SellerDetailsPage extends ConsumerWidget {
                     subtitle: Text(
                       product.categorySlug == 'other' &&
                               (product.categoryNote ?? '').isNotEmpty
-                          ? '${product.category} (${product.categoryNote})'
-                          : product.category,
+                          ? '${trCategory(ref, product.categorySlug, product.category)} (${product.categoryNote})'
+                          : trCategory(
+                              ref,
+                              product.categorySlug,
+                              product.category,
+                            ),
                     ),
                     trailing: Text(
                       money.format(product.price),

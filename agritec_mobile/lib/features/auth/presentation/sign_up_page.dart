@@ -1,5 +1,6 @@
 import 'package:agritec_mobile/core/api/mobile_api.dart';
 import 'package:agritec_mobile/core/constants/app_assets.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
 import 'package:agritec_mobile/features/startup/application/startup_controller.dart';
@@ -53,8 +54,8 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       if (!mounted || !context.mounted) return;
       setState(() => _submitting = false);
       await _showSuccessDialog(
-        title: 'Account Created',
-        message: 'Your account has been created successfully. Continue to start shopping.',
+        title: ref.tr('auth.accountCreated'),
+        message: ref.tr('auth.accountCreatedMessage'),
       );
       if (!mounted || !context.mounted) return;
       context.go(MainShellPage.routePath);
@@ -68,7 +69,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       if (!mounted || !context.mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to create your account right now. Try again.')),
+        SnackBar(content: Text(ref.tr('auth.unableCreateAccount'))),
       );
     }
   }
@@ -159,8 +160,8 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Continue',
+                    child: Text(
+                      ref.tr('common.continue'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -201,9 +202,9 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
-                      const _AuthHero(
-                        title: 'Get started',
-                        subtitle: 'Create your buyer account',
+                      _AuthHero(
+                        title: ref.tr('auth.getStarted'),
+                        subtitle: ref.tr('auth.createBuyerAccount'),
                       ),
                       Transform.translate(
                         offset: const Offset(0, -22),
@@ -221,56 +222,56 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _AuthTabs(
-                                  leftLabel: 'Sign in',
-                                  rightLabel: 'Register',
+                                  leftLabel: ref.tr('auth.signIn'),
+                                  rightLabel: ref.tr('auth.register'),
                                   leftActive: false,
                                   onLeftTap: () => context.pop(),
                                   onRightTap: () {},
                                 ),
                                 const SizedBox(height: 16),
-                                _FieldLabel('Full name'),
+                                _FieldLabel(ref.tr('common.fullName')),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: _nameController,
                                   decoration: _fieldDecoration(
-                                    hintText: 'John Doe',
+                                    hintText: ref.tr('auth.fullNameHint'),
                                     leading: CupertinoIcons.person,
                                   ),
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
-                                      return 'Name is required';
+                                      return ref.tr('auth.fullNameRequired');
                                     }
                                     return null;
                                   },
                                 ),
                                 const SizedBox(height: 12),
-                                _FieldLabel('Email address'),
+                                _FieldLabel(ref.tr('common.emailAddress')),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: _emailController,
                                   keyboardType: TextInputType.emailAddress,
                                   decoration: _fieldDecoration(
-                                    hintText: 'you@example.com',
+                                    hintText: ref.tr('auth.emailHint'),
                                     leading: CupertinoIcons.mail,
                                   ),
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
-                                      return 'Email is required';
+                                      return ref.tr('auth.emailRequired');
                                     }
                                     if (!value.contains('@')) {
-                                      return 'Enter a valid email';
+                                      return ref.tr('auth.invalidEmail');
                                     }
                                     return null;
                                   },
                                 ),
                                 const SizedBox(height: 12),
-                                _FieldLabel('Phone number'),
+                                _FieldLabel(ref.tr('common.phoneNumber')),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: _phoneController,
                                   keyboardType: TextInputType.phone,
                                   decoration: _fieldDecoration(
-                                    hintText: '+234 800 000 0000 (optional)',
+                                    hintText: ref.tr('auth.phoneHint'),
                                     leading: CupertinoIcons.phone,
                                   ),
                                   validator: (value) {
@@ -279,19 +280,19 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                                       return null;
                                     }
                                     if (trimmed.length < 10) {
-                                      return 'Enter a valid phone number';
+                                      return ref.tr('auth.validPhone');
                                     }
                                     return null;
                                   },
                                 ),
                                 const SizedBox(height: 12),
-                                _FieldLabel('Password'),
+                                _FieldLabel(ref.tr('common.password')),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: _passwordController,
                                   obscureText: _obscurePassword,
                                   decoration: _fieldDecoration(
-                                    hintText: 'Enter your password',
+                                    hintText: ref.tr('auth.passwordHint'),
                                     leading: CupertinoIcons.lock,
                                     trailing: IconButton(
                                       onPressed: () => setState(
@@ -308,22 +309,22 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                                   ),
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
-                                      return 'Password is required';
+                                      return ref.tr('auth.passwordRequired');
                                     }
                                     if (value.length < 6) {
-                                      return 'Minimum 6 characters';
+                                      return ref.tr('auth.minimumPassword');
                                     }
                                     return null;
                                   },
                                 ),
                                 const SizedBox(height: 12),
-                                _FieldLabel('Confirm password'),
+                                _FieldLabel(ref.tr('auth.confirmPassword')),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: _confirmPasswordController,
                                   obscureText: _obscureConfirmPassword,
                                   decoration: _fieldDecoration(
-                                    hintText: 'Re-enter your password',
+                                    hintText: ref.tr('auth.confirmPasswordHint'),
                                     leading: CupertinoIcons.lock_shield,
                                     trailing: IconButton(
                                       onPressed: () => setState(
@@ -341,10 +342,10 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                                   ),
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
-                                      return 'Please confirm your password';
+                                      return ref.tr('auth.confirmPasswordRequired');
                                     }
                                     if (value != _passwordController.text) {
-                                      return 'Passwords do not match';
+                                      return ref.tr('auth.passwordsDoNotMatch');
                                     }
                                     return null;
                                   },
@@ -378,8 +379,8 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                                           ),
                                     label: Text(
                                       _submitting
-                                          ? 'Creating account'
-                                          : 'Create account',
+                                          ? ref.tr('auth.creatingAccount')
+                                          : ref.tr('auth.createAccountShort'),
                                     ),
                                   ),
                                 ),
@@ -387,16 +388,16 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                                 Center(
                                   child: TextButton(
                                     onPressed: () => context.pop(),
-                                    child: const Text.rich(
+                                    child: Text.rich(
                                       TextSpan(
-                                        text: 'Already have an account? ',
+                                        text: '${ref.tr('auth.alreadyHaveAccount')} ',
                                         style: TextStyle(
                                           color: Color(0xFF7A9E87),
                                           fontSize: 13,
                                         ),
                                         children: [
                                           TextSpan(
-                                            text: 'Sign in',
+                                            text: ref.tr('auth.signIn'),
                                             style: TextStyle(
                                               color: Color(0xFF1A5C38),
                                               fontWeight: FontWeight.w500,

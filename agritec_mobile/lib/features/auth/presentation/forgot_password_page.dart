@@ -1,5 +1,6 @@
 import 'package:agritec_mobile/core/api/mobile_api.dart';
 import 'package:agritec_mobile/core/constants/app_assets.dart';
+import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,8 +45,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       setState(() {
         _submitting = false;
         _sent = true;
-        _successMessage =
-            'If that email exists in our system, a password reset link has been sent.';
+        _successMessage = ref.tr('auth.resetEmailSent');
       });
     } on MobileApiException catch (error) {
       if (!mounted) return;
@@ -57,7 +57,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to send reset email right now. Try again.')),
+        SnackBar(content: Text(ref.tr('auth.unableResetEmail'))),
       );
     }
   }
@@ -89,9 +89,9 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                           children: [
                             Image.asset(AppAssets.logo, width: 52, height: 52),
                             const SizedBox(width: 12),
-                            const Expanded(
+                            Expanded(
                               child: Text(
-                                'Reset Password',
+                                ref.tr('auth.resetPassword'),
                                 style: TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.w700,
@@ -101,8 +101,8 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Enter your account email to receive reset instructions.',
+                        Text(
+                          ref.tr('auth.resetPasswordSubtitle'),
                           style: TextStyle(color: Color(0xFF5B6661)),
                         ),
                         const SizedBox(height: 18),
@@ -110,16 +110,16 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                           key: _formKey,
                           child: TextFormField(
                             controller: _emailController,
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
+                            decoration: InputDecoration(
+                              labelText: ref.tr('common.emailAddress'),
                             ),
                             keyboardType: TextInputType.emailAddress,
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
-                                return 'Email is required';
+                                return ref.tr('auth.emailRequired');
                               }
                               if (!value.contains('@')) {
-                                return 'Enter a valid email';
+                                return ref.tr('auth.invalidEmail');
                               }
                               return null;
                             },
@@ -136,7 +136,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                             ),
                             child: Text(
                               _successMessage ??
-                                  'If that email exists in our system, a password reset link has been sent.',
+                                  ref.tr('auth.resetEmailSent'),
                               style: const TextStyle(
                                 color: Color(0xFF145A46),
                                 fontWeight: FontWeight.w600,
@@ -156,14 +156,14 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Text('Send Reset Link'),
+                                : Text(ref.tr('auth.sendResetLink')),
                           ),
                         ),
                         const SizedBox(height: 8),
                         Center(
                           child: TextButton(
                             onPressed: () => context.pop(),
-                            child: const Text('Back to Sign In'),
+                            child: Text(ref.tr('auth.backToSignIn')),
                           ),
                         ),
                       ],

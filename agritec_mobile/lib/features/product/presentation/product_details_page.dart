@@ -38,6 +38,11 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
     final selectedVariant = variants.isNotEmpty
         ? variants[_selectedVariant.clamp(0, variants.length - 1)]
         : null;
+    final categoryLabel = trCategory(
+      ref,
+      product.categorySlug,
+      product.category,
+    );
     final discount = ref.watch(productDiscountProvider((
       sellerId: product.sellerId,
       productId: product.id,
@@ -188,7 +193,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${seller.farmName} . ${product.category}',
+                        '${seller.farmName} . $categoryLabel',
                         style: const TextStyle(color: Color(0xFF5C6862)),
                       ),
                       const SizedBox(height: 10),

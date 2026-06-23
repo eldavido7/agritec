@@ -47,8 +47,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
       if (!mounted || !context.mounted) return;
       setState(() => _submitting = false);
       await _showSuccessDialog(
-        title: 'Welcome Back',
-        message: "You have signed in successfully. Let's get you back to the market.",
+        title: ref.tr('auth.welcomeBackTitle'),
+        message: ref.tr('auth.welcomeBackMessage'),
       );
       if (!mounted || !context.mounted) return;
       context.go(MainShellPage.routePath);
@@ -62,7 +62,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
       if (!mounted || !context.mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to sign in right now. Try again.')),
+        SnackBar(content: Text(ref.tr('auth.unableSignIn'))),
       );
     }
   }
@@ -153,8 +153,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Continue',
+                    child: Text(
+                      ref.tr('common.continue'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -215,40 +215,40 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _AuthTabs(
-                                  leftLabel: 'Sign in',
-                                  rightLabel: 'Register',
+                                  leftLabel: ref.tr('auth.signIn'),
+                                  rightLabel: ref.tr('auth.register'),
                                   leftActive: true,
                                   onLeftTap: () {},
                                   onRightTap: () => context.push(SignUpPage.routePath),
                                 ),
                                 const SizedBox(height: 16),
-                                _FieldLabel('Email address'),
+                                _FieldLabel(ref.tr('common.emailAddress')),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: _emailController,
                                   keyboardType: TextInputType.emailAddress,
                                   decoration: _fieldDecoration(
-                                    hintText: 'you@example.com',
+                                    hintText: ref.tr('auth.emailHint'),
                                     leading: CupertinoIcons.mail,
                                   ),
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
-                                      return 'Email is required';
+                                      return ref.tr('auth.emailRequired');
                                     }
                                     if (!value.contains('@')) {
-                                      return 'Enter a valid email';
+                                      return ref.tr('auth.invalidEmail');
                                     }
                                     return null;
                                   },
                                 ),
                                 const SizedBox(height: 14),
-                                _FieldLabel('Password'),
+                                _FieldLabel(ref.tr('common.password')),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: _passwordController,
                                   obscureText: _obscure,
                                   decoration: _fieldDecoration(
-                                    hintText: 'Enter your password',
+                                    hintText: ref.tr('auth.passwordHint'),
                                     leading: CupertinoIcons.lock,
                                     trailing: IconButton(
                                       onPressed: () =>
@@ -264,10 +264,10 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                                   ),
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
-                                      return 'Password is required';
+                                      return ref.tr('auth.passwordRequired');
                                     }
                                     if (value.length < 6) {
-                                      return 'Minimum 6 characters';
+                                      return ref.tr('auth.minimumPassword');
                                     }
                                     return null;
                                   },
@@ -286,7 +286,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    child: const Text('Forgot password?'),
+                                    child: Text(ref.tr('auth.forgotPassword')),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -298,8 +298,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(color: const Color(0xFFD0E2D6)),
                                   ),
-                                  child: const Text(
-                                    'Demo login: demo@agritec.app  |  Demo@1234',
+                                  child: Text(
+                                    ref.tr('auth.demoLogin'),
                                     style: TextStyle(
                                       color: Color(0xFF476556),
                                       fontSize: 12,
@@ -334,7 +334,11 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                                             CupertinoIcons.arrow_right,
                                             size: 18,
                                           ),
-                                    label: Text(_submitting ? 'Signing in' : 'Sign in'),
+                                    label: Text(
+                                      _submitting
+                                          ? ref.tr('auth.signingIn')
+                                          : ref.tr('auth.signIn'),
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 18),
@@ -342,16 +346,16 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                                   child: TextButton(
                                     onPressed: () =>
                                         context.push(SignUpPage.routePath),
-                                    child: const Text.rich(
+                                    child: Text.rich(
                                       TextSpan(
-                                        text: 'New buyer? ',
+                                        text: '${ref.tr('auth.newBuyer')} ',
                                         style: TextStyle(
                                           color: Color(0xFF7A9E87),
                                           fontSize: 13,
                                         ),
                                         children: [
                                           TextSpan(
-                                            text: 'Create account',
+                                            text: ref.tr('auth.createAccountShort'),
                                             style: TextStyle(
                                               color: Color(0xFF1A5C38),
                                               fontWeight: FontWeight.w500,

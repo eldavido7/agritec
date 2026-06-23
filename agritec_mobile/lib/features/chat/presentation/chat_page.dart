@@ -69,6 +69,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return "${ref.tr('product.seller')}: ${subtitle.substring(8)}";
       }
 
+      if (subtitle == 'Customer helpdesk') {
+        return ref.tr('chat.supportSubtitle');
+      }
+
       return subtitle;
     }
 
@@ -190,9 +194,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Only images and PDF documents are allowed in chat.'),
-          ),
+          SnackBar(content: Text(ref.tr('chat.invalidAttachmentType'))),
         );
         continue;
       }
@@ -201,9 +203,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Each chat attachment must be 10 MB or less.'),
-          ),
+          SnackBar(content: Text(ref.tr('chat.attachmentTooLarge'))),
         );
         continue;
       }
@@ -319,7 +319,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Failed to send message.')));
+      ).showSnackBar(SnackBar(content: Text(ref.tr('chat.sendFailed'))));
     } finally {
       if (mounted) {
         setState(() => _isUploadingAttachment = false);
@@ -437,7 +437,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           onPressed: chatState.isLoading
                               ? null
                               : () => notifier.startSupportConversation(),
-                          child: const Text('Start support chat'),
+                          child: Text(ref.tr('chat.startSupportChat')),
                         ),
                       ],
                     ],
@@ -944,7 +944,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                             icon: const Icon(
                                               Icons.keyboard_arrow_down_rounded,
                                             ),
-                                            label: const Text('New message'),
+                                            label: Text(ref.tr('chat.newMessage')),
                                           ),
                                         ),
                                       ),

@@ -2,7 +2,11 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
-const mobileApiBaseUrl = 'https://agritec-api.vercel.app';
+const _defaultMobileApiBaseUrl = 'https://agritec-api.vercel.app';
+const mobileApiBaseUrl = String.fromEnvironment(
+  'MOBILE_API_BASE_URL',
+  defaultValue: _defaultMobileApiBaseUrl,
+);
 
 class MobileApiException implements Exception {
   const MobileApiException({
@@ -37,6 +41,15 @@ class MobileApiClient {
           );
 
   final Dio _dio;
+
+  static void validateBaseUrl() {
+    if (mobileApiBaseUrl.trim().isEmpty) {
+      throw const MobileApiException(
+        message:
+            'MOBILE_API_BASE_URL is not configured. Run Flutter with --dart-define=MOBILE_API_BASE_URL=<your-api-base-url>.',
+      );
+    }
+  }
 
   Future<Map<String, dynamic>> get(
     String path, {
@@ -159,6 +172,7 @@ class MobileApiClient {
   Future<Map<String, dynamic>> _request(
     Future<Response<dynamic>> Function() request,
   ) async {
+    validateBaseUrl();
     try {
       final response = await request();
       final data = _normalize(response.data);

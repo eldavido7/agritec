@@ -459,9 +459,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       if (!mounted) return;
       if (!launched) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to open Paystack checkout right now.'),
-          ),
+          SnackBar(content: Text(ref.tr('checkout.paystackOpenFailed'))),
         );
         return;
       }

@@ -1,161 +1,273 @@
-# AgriTec Multivendor Marketplace
+# AgriTec
 
-AgriTec is a multivendor agricultural marketplace made up of four coordinated applications:
+AgriTec is a multi-app agricultural marketplace with a shared backend.
 
-- `agritec-api` - Next.js API backend with Prisma/PostgreSQL.
-- `agritec-seller` - Seller/farmer web dashboard.
-- `agritec-admin` - Admin operations dashboard.
-- `agritec_mobile` - Flutter buyer mobile app.
+Current apps in this repo:
 
-The system is designed around one shared backend. Buyers use the mobile app, sellers use the seller dashboard, and admins use the admin dashboard.
+- `agritec-api` - Next.js API backend with Prisma and PostgreSQL
+- `agritec-admin` - admin operations dashboard
+- `agritec-seller` - seller/farmer dashboard
+- `agritec-logistics` - logistics company dashboard
+- `agritec_mobile` - Flutter buyer app
 
-## Core Marketplace Rules
+The system now includes:
 
-- Buyers can browse as guests, but must sign in for wishlist, addresses, checkout, orders, chat, and account notifications.
-- Sellers manage their own products, variants, discounts, wallet, payout requests, messages, notifications, analytics, and farm/profile settings.
-- Admins manage sellers, buyers, assisted orders, order status updates, payouts, analytics, messages/support, audit logs, admin users, and platform settings.
-- Admins have read-only/contextual access to seller products for moderation and assisted order creation. Admins do not own or directly manage products.
-- Delivery/logistics is platform-controlled, not seller-controlled.
-- Checkout is multivendor: one parent order/payment can contain multiple seller order groups.
-- Each seller order group has its own fulfillment status.
-- Seller earnings are credited after successful payment as pending wallet balance, then released to available balance when that seller group is delivered/completed.
-- Product/order/payment/wallet values are stored as integer money values on the backend.
+- multivendor checkout with one buyer payment and seller-level order groups
+- logistics-company-owned coverage and pricing
+- buyer logistics selection per seller group, plus one-company-for-all when eligible
+- logistics-managed delivery progression with status history
+- admin-managed logistics verification and support assignment workflow
+- seller wallet and payout flow through Paystack
+- buyer, seller, admin, and logistics notifications
+- buyer-seller chat and admin-handled support chat
 
-## Repository Structure
+## Repo Layout
 
 ```text
 agritec/
-  agritec-api/       Backend API, Prisma schema, Paystack, Cloudinary, Firebase Admin
-  agritec-seller/    Seller dashboard, Zustand stores, product/discount/wallet/settings UI
-  agritec-admin/     Admin dashboard, Zustand stores, operations and platform settings UI
-  agritec_mobile/    Flutter buyer app, Riverpod state, caching, FCM, maps, checkout
+  .github/workflows/                  GitHub Actions, including support cron
+  agritec-api/                        Backend API, Prisma schema, seed, Paystack, Cloudinary, Firebase Admin
+  agritec-admin/                      Admin dashboard
+  agritec-seller/                     Seller dashboard
+  agritec-logistics/                  Logistics dashboard
+  agritec_mobile/                     Flutter buyer app
+  README.md
 ```
 
-## Backend Overview (`agritec-api`)
+## Current Product Scope
 
-The API is a Next.js app using Prisma and PostgreSQL. It exposes endpoints for:
+### Buyer
 
-- Auth: buyer, seller, admin sign-in/sign-up, password reset, session lookup, password change.
-- Marketplace reads: products, sellers, platform categories, platform settings.
-- Buyer flows: cart, wishlist, addresses, profile, checkout quote/init, orders.
-- Seller flows: products, discounts, order groups view, wallet, payouts, bank account verification, profile.
-- Admin flows: sellers, buyers, products read-only, orders, assisted orders, order-group status updates, payouts, admins, settings, audit logs, conversations.
-- Payments: Paystack initialize, callback, verify, webhook, payment status polling.
-- Notifications: database notifications, read/read-all, FCM device token registration.
-- Chat: buyer-seller, buyer-support, seller-support/admin support conversations.
-- Uploads: signed Cloudinary uploads for product/chat media.
-- Cron: protected weekly payout endpoint.
+Buyers use only the Flutter app.
 
-### Important Backend Models
+They can:
+
+- browse as guest
+- sign up, sign in, reset password
+- manage wishlist, cart, profile, and delivery addresses
+- checkout through Paystack
+- select logistics company per seller group during checkout
+- see order details, logistics company, and delivery timeline
+- chat with sellers
+- chat with support
+- receive push and in-app notifications
+
+### Seller
+
+Sellers use only the seller dashboard.
+
+They can:
+
+- manage products, variants, and Cloudinary product images
+- manage seller discounts
+- view only their seller order groups
+- view assigned logistics company and delivery timeline
+- manage bank account and request payout of full available balance
+- access seller-support conversations
+- receive notifications
+
+Important seller restrictions:
+
+- sellers do not manage delivery pricing or coverage
+- sellers do not perform normal delivery status updates
+- seller APIs must not expose buyer email or phone
+
+### Admin
+
+Admins use only the admin dashboard.
+
+They can:
+
+- manage sellers, buyers, admins, payouts, audit logs, and platform settings
+- review products in read-only mode
+- create admin-assisted orders
+- manage logistics companies: review, verify, suspend, reactivate, inspect coverage and pricing
+- view logistics assignment and timelines on orders
+- manage support assignment workflow
+- retain cancellation/refund exception authority
+
+### Logistics Company
+
+Logistics companies use only the logistics dashboard.
+
+They can:
+
+- sign up
+- sign in only after admin verification
+- manage own profile, pricing, and coverage
+- view only deliveries assigned to their company
+- update delivery statuses with optional notes
+- view notifications
+
+Important logistics restrictions:
+
+- no product, buyer, seller, payout, or platform-settings management
+- no GPS tracking
+- delivery tracking is status-based only
+
+## Architecture Summary
+
+### Orders
+
+- buyer checkout creates one `ParentOrder`
+- each seller gets one `SellerOrderGroup`
+- buyer pays once for the parent order
+- each seller group can have a different logistics company
+- each seller group stores logistics snapshots and delivery geography snapshots
+- each seller group has status history rows
+
+Current seller-group statuses:
+
+- `PENDING`
+- `CONFIRMED`
+- `PROCESSING`
+- `SHIPPED`
+- `DELIVERED`
+- `CANCELLED`
+- `REFUNDED`
+
+### Inventory
+
+- checkout initialization does not deduct inventory
+- successful payment reserves inventory
+- delivery permanently deducts inventory and clears reservation
+- cancellation/refund before delivery releases reservation
+- variant inventory is used when a variant exists
+
+### Logistics Pricing and Coverage
+
+Shipping is now logistics-company-driven.
+
+Coverage model:
+
+- `NATIONWIDE`
+- `REGIONAL`
+
+MVP eligibility rule:
+
+- verified, active nationwide companies are eligible broadly
+- verified, active regional companies are eligible when buyer delivery state matches their configured coverage
+- seller pickup location is stored and returned for future route-based pricing
+
+Pricing model:
+
+- nationwide company: one nationwide pricing row
+- regional company: pricing rows per covered state
+- all LGAs/cities under a selected state inherit that state pricing for MVP
+
+One-company-for-all behavior:
+
+- if one logistics company is eligible for every seller group in checkout, buyer/admin can apply it to all groups
+- shipping is combined once and allocated back to groups
+- quote responses label this as `LOGISTICS_COMBINED`
+
+Legacy `ShippingSettings` still exists in the backend as fallback/legacy data, but it is no longer the main shipping configuration model.
+
+### Support / Chat
+
+Buyer-seller chat remains unchanged.
+
+Admin-handled support conversations now include:
+
+- buyer-support
+- seller-support
+
+Support workflow includes:
+
+- assigned / unassigned queue state
+- active / resolved lifecycle state
+- claim, assign, reassign, resolve, reopen
+- internal admin-only notes
+- timeout-based reassignment
+- one-time auto acknowledgement for unassigned conversations
+- protected cron sweep endpoint
+
+## Main Backend Models
 
 Key Prisma models include:
 
-- `User`, `BuyerProfile`, `SellerProfile`
-- `Product`, `ProductVariant`, `Category`, `Discount`
-- `Cart`, `CartItem`, `WishlistItem`
-- `ParentOrder`, `SellerOrderGroup`, `OrderItem`, `Payment`, `OrderAddressSnapshot`
-- `SellerWallet`, `WalletTransaction`, `SellerBankAccount`, `WithdrawalRequest`
-- `Conversation`, `ConversationParticipant`, `Message`, `MessageAttachment`
-- `Notification`, `DeviceToken`, `AuditLog`
-- `PlatformSettings`, `ShippingSettings`, `CommissionSettings`, `PayoutSettings`
-
-## Shipping and Logistics
-
-Shipping is platform-wide and calculated server-side.
-
-Product logistics fields:
-
-- `salesUnit`
-- `packageType`
-- `unitWeightKg`
-- optional `unitLengthCm`, `unitWidthCm`, `unitHeightCm`
-
-If all dimensions are present and valid:
-
-```text
-volumetricWeightKg = (length * width * height) / volumetricDivisor
-unitChargeableWeightKg = max(unitWeightKg, volumetricWeightKg)
-```
-
-If any dimension is missing or invalid:
-
-```text
-unitChargeableWeightKg = unitWeightKg
-```
-
-Shipping settings use a minimum-fee plus additional-weight-unit model:
-
-```text
-if totalChargeableWeightKg <= weightUnitSizeKg:
-  shippingFee = minimumFee
-else:
-  shippingUnits = ceil(totalChargeableWeightKg / weightUnitSizeKg)
-  shippingFee = minimumFee + ((shippingUnits - 1) * additionalUnitFee)
-```
-
-Abuja/FCT and outside-Abuja pricing are configured separately in admin settings.
-
-## Payments and Payouts
-
-Paystack is used server-side. The mobile app and dashboards must never contain the Paystack secret key.
-
-Payment flow:
-
-1. Buyer/admin calls checkout initialize endpoint.
-2. Backend recalculates totals and creates a pending parent order/payment.
-3. Backend initializes Paystack with a backend callback URL.
-4. User completes payment on Paystack.
-5. Backend callback/webhook verifies transaction server-side.
-6. Backend marks payment/order paid idempotently.
-7. Successful payment reserves inventory so it is no longer purchasable by other buyers.
-8. Inventory is permanently deducted only when each seller order group is delivered/completed.
-9. If a paid seller order group is cancelled/refunded before delivery, the reservation is released and stock becomes available again.
-10. Seller earnings are credited to pending wallet balance.
-
-Payout flow:
-
-- Sellers verify bank account through backend Paystack endpoints.
-- Backend stores Paystack transfer recipient code.
-- Sellers can request payout of full available balance only.
-- Admin approval initiates Paystack transfer.
-- Weekly automatic payouts use a protected cron endpoint.
-
-## Chat and Notifications
-
-Chat is REST-based for MVP:
-
-- Sender posts message to backend.
-- Backend stores message, updates conversation timestamp, and creates receiver notifications.
-- UI uses optimistic send plus polling for near-real-time updates.
-- Push notification delivery uses Firebase Cloud Messaging where a device token exists.
-- Web users also receive backend-driven email alerts for new chat messages when the recipient is a seller or admin/support user, throttled to at most one email per recipient per conversation every 30 minutes.
-- Chat attachments support images and PDF documents only.
-- Chat attachments are local-first in the UI and upload only when the message is actually sent.
-- Chat media is uploaded to the Cloudinary `agritec/chats` folder.
-- Unread chat badges and notification-driven refresh keep chat state current across the dashboards and mobile app.
-
-Conversation visibility is participant-scoped. Buyer-seller messages are only visible to the buyer and seller involved. Admins see only admin/support conversations where an admin is a participant.
+- `User`
+- `BuyerProfile`
+- `SellerProfile`
+- `LogisticsCompanyProfile`
+- `Product`
+- `ProductVariant`
+- `Category`
+- `Discount`
+- `Cart`
+- `CartItem`
+- `WishlistItem`
+- `ParentOrder`
+- `SellerOrderGroup`
+- `OrderItem`
+- `OrderAddressSnapshot`
+- `OrderGroupStatusHistory`
+- `Payment`
+- `Refund`
+- `SellerWallet`
+- `WalletTransaction`
+- `SellerBankAccount`
+- `WithdrawalRequest`
+- `Conversation`
+- `ConversationParticipant`
+- `Message`
+- `MessageAttachment`
+- `SupportConversationAssignment`
+- `SupportInternalComment`
+- `Notification`
+- `DeviceToken`
+- `AuditLog`
+- `InventoryMovement`
+- `PlatformSettings`
+- `ShippingSettings`
+- `CommissionSettings`
+- `PayoutSettings`
+- `LogisticsPricingSetting`
+- `LogisticsCoverageArea`
 
 ## Prerequisites
 
 Install:
 
-- Node.js 20+ recommended
+- Node.js 20+
 - npm
-- Flutter SDK matching the project SDK constraints
+- Flutter SDK compatible with the project
 - Android Studio / Android SDK for Android builds
 - Xcode for iOS builds on macOS
-- PostgreSQL database, local or hosted
+- PostgreSQL
 - Firebase project for mobile push notifications
-- Paystack account for payments/transfers
-- Cloudinary account for image uploads
-- Google Maps API key for maps and places
+- Paystack account for payments/transfers/refunds
+- Cloudinary account
+- Google Maps API keys
 
-## Environment Files
+## First-Time Setup
 
-Each app has its own environment/configuration. Do not commit real secrets.
+### 1. Clone and install
 
-### `agritec-api/.env`
+From the repo root:
+
+```bash
+cd agritec-api
+npm install
+
+cd ../agritec-admin
+npm install
+
+cd ../agritec-seller
+npm install
+
+cd ../agritec-logistics
+npm install
+
+cd ../agritec_mobile
+flutter pub get
+```
+
+### 2. Create environment files
+
+Do not commit real secrets.
+
+#### `agritec-api/.env`
 
 Create `agritec-api/.env`:
 
@@ -163,91 +275,84 @@ Create `agritec-api/.env`:
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
 JWT_SECRET="replace-with-a-long-random-secret"
 
-# App URLs used by auth emails and redirects
 APP_URL="http://localhost:3000"
-SELLER_APP_URL="http://localhost:3001"
+ADMIN_APP_URL="http://localhost:3001"
+SELLER_APP_URL="http://localhost:3002"
+LOGISTICS_APP_URL="http://localhost:3003"
 BUYER_APP_URL="agritec://auth/reset-password"
-MARKETPLACE_NAME="Agritec"
+MARKETPLACE_NAME="AgriTec"
 
-# Paystack
 PAYSTACK_SECRET_KEY="sk_test_or_live_xxx"
-PAYSTACK_CALLBACK_URL="https://your-api-domain.com/api/paystack/callback"
+PAYSTACK_CALLBACK_URL="http://localhost:3000/api/paystack/callback"
 
-# Cloudinary
 CLOUDINARY_CLOUD_NAME="your-cloud-name"
-CLOUDINARY_API_KEY="your-api-key"
-CLOUDINARY_API_SECRET="your-api-secret"
+CLOUDINARY_API_KEY="your-cloudinary-api-key"
+CLOUDINARY_API_SECRET="your-cloudinary-api-secret"
 
-# Email via Gmail app password
 GMAIL_USER="your-email@gmail.com"
 GMAIL_APP_PASSWORD="your-gmail-app-password"
 
-# Firebase Admin - option A: separate env vars
 FIREBASE_PROJECT_ID="your-firebase-project-id"
 FIREBASE_CLIENT_EMAIL="firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com"
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
-# Firebase Admin - option B: full service account JSON string
+# optional alternative to the three Firebase vars above
 # FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
 
-# Weekly payout cron protection
 CRON_SECRET="replace-with-a-long-random-secret"
 ```
 
-Paystack dashboard URLs:
+Notes:
 
-```text
-Webhook URL:  https://your-api-domain.com/api/paystack/webhook
-Callback URL: https://your-api-domain.com/api/paystack/callback
-```
+- `JWT_SECRET` is required for all authenticated API access
+- `PAYSTACK_SECRET_KEY` is server-side only
+- `CRON_SECRET` protects both cron endpoints
+- email sending is best-effort; failures should not block business actions
 
-For the deployed API currently used by this workspace:
-
-```text
-Webhook URL:  https://agritec-api.vercel.app/api/paystack/webhook
-Callback URL: https://agritec-api.vercel.app/api/paystack/callback
-```
-
-### `agritec-seller/.env`
-
-Create `agritec-seller/.env`:
+#### `agritec-admin/.env`
 
 ```env
-NEXT_PUBLIC_API_BASE_URL="https://agritec-api.vercel.app"
+NEXT_PUBLIC_API_BASE_URL="http://localhost:3000"
+```
+
+#### `agritec-seller/.env`
+
+```env
+NEXT_PUBLIC_API_BASE_URL="http://localhost:3000"
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="your-browser-google-maps-key"
 ```
 
-The Google key is used for seller farm location search/picker. For production, restrict it to the seller dashboard domain and enable Maps JavaScript API and Places API.
+The seller Google Maps key is used for seller location selection. Enable Maps JavaScript API and Places API.
 
-### `agritec-admin/.env`
-
-Create `agritec-admin/.env`:
+#### `agritec-logistics/.env`
 
 ```env
-NEXT_PUBLIC_API_BASE_URL="https://agritec-api.vercel.app"
+NEXT_PUBLIC_API_BASE_URL="http://localhost:3000"
 ```
 
-### `agritec_mobile` Firebase and Local Android Config
+### 3. Mobile setup
 
-The mobile app intentionally ignores account-specific Firebase files:
+The buyer app needs Firebase and Google Maps setup outside normal `.env` files.
+
+#### Firebase
+
+These files are intentionally account-specific and should not be committed:
 
 ```text
 agritec_mobile/android/app/google-services.json
 agritec_mobile/lib/firebase_options.dart
 ```
 
-These should not be committed. Anyone cloning the repo must generate their own Firebase files.
-
-Recommended setup:
+Setup:
 
 1. Create or select a Firebase project.
-2. Add Android app package:
+2. Register the Android app package:
 
 ```text
 com.agritec.marketplace
 ```
 
-3. Download `google-services.json` and place it at:
+3. Put `google-services.json` here:
 
 ```text
 agritec_mobile/android/app/google-services.json
@@ -259,7 +364,7 @@ agritec_mobile/android/app/google-services.json
 dart pub global activate flutterfire_cli
 ```
 
-5. From `agritec_mobile`, run:
+5. From `agritec_mobile` run:
 
 ```bash
 flutterfire configure
@@ -271,49 +376,56 @@ flutterfire configure
 agritec_mobile/lib/firebase_options.dart
 ```
 
-7. Add Google Maps Android key to `agritec_mobile/android/local.properties`:
+#### Google Maps
+
+Add your Android key to:
+
+```text
+agritec_mobile/android/local.properties
+```
+
+Example:
 
 ```properties
 GOOGLE_MAPS_ANDROID_API_KEY=your-android-google-maps-key
 ```
 
-For production, restrict the Android Google Maps key to the app package and signing certificate SHA-1/SHA-256.
+For production, restrict Maps keys to the correct app package, bundle ID, and signing fingerprints.
 
-The mobile app API base URL is currently set in:
+#### Mobile API base URL
+
+The mobile app now supports a Flutter compile-time override for its API base URL:
+
+- [agritec_mobile/lib/core/api/mobile_api.dart](/abs/path/C:/Users/awarr/Desktop/agritec/agritec_mobile/lib/core/api/mobile_api.dart:5)
+
+Primary override:
 
 ```text
-agritec_mobile/lib/core/api/mobile_api.dart
+MOBILE_API_BASE_URL
 ```
 
-Default:
+Default fallback:
 
-```dart
-const mobileApiBaseUrl = 'https://agritec-api.vercel.app';
+```text
+https://agritec-api.vercel.app
 ```
 
-## Installation
-
-From the root folder, install dependencies for each JavaScript app:
+Example local run override:
 
 ```bash
-cd agritec-api
-npm install
-
-cd ../agritec-seller
-npm install
-
-cd ../agritec-admin
-npm install
+flutter run --dart-define=MOBILE_API_BASE_URL=http://10.0.2.2:3000
 ```
 
-For the mobile app:
+Notes:
 
-```bash
-cd ../agritec_mobile
-flutter pub get
-```
+- use `10.0.2.2` for Android emulator talking to a backend on your host machine
+- use your machine's LAN IP for a physical device
+- use your deployed API domain for staging/production builds
+- if you do not pass `MOBILE_API_BASE_URL`, the app falls back to `https://agritec-api.vercel.app`
 
-## Database Setup
+### 4. Database setup
+
+This project does not use Prisma migrations in the normal workflow.
 
 From `agritec-api`:
 
@@ -323,19 +435,52 @@ npx prisma db push
 npm run seed
 ```
 
-This project currently uses `prisma db push`, not migrations.
+If you change the Prisma schema later, the normal flow is still:
 
-The seed is intended to create baseline demo data such as:
+```bash
+npx prisma generate
+npx prisma db push
+```
 
-- one admin user
-- demo sellers
-- one demo buyer
-- platform categories/settings
-- demo products
+Not:
 
-Money-generating records such as real orders, wallet transactions, and payouts should be created through actual app flows.
+```bash
+npx prisma migrate dev
+```
+
+## Seeded Demo Accounts
+
+The seed creates useful local test accounts.
+
+Admin:
+
+- `admin@agritec.com` / `admin123`
+
+Buyer:
+
+- `demo@agritec.app` / `Demo@1234`
+
+Sellers:
+
+- `kingsley@farm.com` / `kingsley123`
+- `amina@farm.com` / `amina123`
+
+Logistics:
+
+- pending verification: `pending@greenhaul.ng` / `greenhaul123`
+- verified nationwide: `ops@naijafreight.ng` / `naijafreight123`
+- verified regional: `dispatch@northfield.ng` / `northfield123`
+
+These are for local/dev use only.
 
 ## Running Locally
+
+Suggested local ports:
+
+- API: `3000`
+- Admin: `3001`
+- Seller: `3002`
+- Logistics: `3003`
 
 ### API
 
@@ -344,151 +489,289 @@ cd agritec-api
 npm run dev
 ```
 
-Default Next.js dev URL:
-
-```text
-http://localhost:3000
-```
-
-If another app is using port `3000`, Next will offer another port. Update frontend env URLs accordingly if testing locally.
-
-### Seller Dashboard
-
-```bash
-cd agritec-seller
-npm run dev
-```
-
-Set `NEXT_PUBLIC_API_BASE_URL` in `.env` to either the deployed API or your local API.
-
-### Admin Dashboard
+### Admin dashboard
 
 ```bash
 cd agritec-admin
-npm run dev
+npm run dev -- --port 3001
 ```
 
-Set `NEXT_PUBLIC_API_BASE_URL` in `.env` to either the deployed API or your local API.
+### Seller dashboard
 
-### Buyer Mobile App
+```bash
+cd agritec-seller
+npm run dev -- --port 3002
+```
+
+### Logistics dashboard
+
+```bash
+cd agritec-logistics
+npm run dev -- --port 3003
+```
+
+### Buyer mobile app
 
 ```bash
 cd agritec_mobile
 flutter run
 ```
 
-Before running, make sure these exist locally:
+To target a different API:
+
+```bash
+flutter run --dart-define=MOBILE_API_BASE_URL=http://10.0.2.2:3000
+```
+
+Before `flutter run`, make sure these exist locally:
 
 ```text
-android/app/google-services.json
-lib/firebase_options.dart
-android/local.properties with GOOGLE_MAPS_ANDROID_API_KEY
+agritec_mobile/android/app/google-services.json
+agritec_mobile/lib/firebase_options.dart
+agritec_mobile/android/local.properties
+```
+
+For a physical device, replace `http://10.0.2.2:3000` with your machine's LAN URL or deployed API URL.
+
+If you only want static validation for mobile, use:
+
+```bash
+flutter analyze
 ```
 
 ## Validation Commands
 
-Backend:
+### Backend
 
 ```bash
 cd agritec-api
 npm run build
-npx tsc --noEmit --incremental false
 ```
 
-Seller dashboard:
-
-```bash
-cd agritec-seller
-npm run build
-npx tsc --noEmit --incremental false
-```
-
-Admin dashboard:
+### Admin
 
 ```bash
 cd agritec-admin
 npm run build
-npx tsc --noEmit --incremental false
 ```
 
-Buyer mobile app:
+### Seller
+
+```bash
+cd agritec-seller
+npm run build
+```
+
+### Logistics
+
+```bash
+cd agritec-logistics
+npm run build
+```
+
+### Mobile
 
 ```bash
 cd agritec_mobile
 flutter analyze
 ```
 
-## Demo/User Flow Checklist
+## Deploying a Fork
 
-A typical MVP test pass:
+### API deployment
 
-1. Start API.
-2. Sign in to seller dashboard.
-3. Create products with logistics metadata and optional variants.
-4. Create seller discounts.
-5. Verify seller bank account if testing payouts.
-6. Sign in to admin dashboard.
-7. Review sellers, buyers, platform settings, and assisted order flow.
-8. Run mobile app as guest and confirm browsing works.
-9. Sign in as buyer.
-10. Add address with map pin.
-11. Add products from multiple sellers to cart.
-12. Checkout once and pay once through Paystack.
-13. Confirm parent order with seller groups appears in buyer orders.
-14. Confirm seller sees their order group.
-15. Confirm admin can update seller group status.
-16. Confirm buyer receives notification/email for order status changes.
-17. Confirm wallet pending/available/payout behavior after status changes.
-18. Confirm buyer-seller and buyer/admin-support chat notifications work.
-19. Confirm chat attachments accept images/PDFs only, show local preview first, and upload only on send.
+Your deployed backend must include:
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `APP_URL`
+- `ADMIN_APP_URL`
+- `SELLER_APP_URL`
+- `LOGISTICS_APP_URL`
+- `BUYER_APP_URL`
+- `MARKETPLACE_NAME`
+- `PAYSTACK_SECRET_KEY`
+- `PAYSTACK_CALLBACK_URL`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `GMAIL_USER`
+- `GMAIL_APP_PASSWORD`
+- either `FIREBASE_SERVICE_ACCOUNT` or the three Firebase Admin vars
+- `CRON_SECRET`
+
+Also configure Paystack with your deployed API URLs:
+
+```text
+Webhook URL:  https://your-api-domain.com/api/paystack/webhook
+Callback URL: https://your-api-domain.com/api/paystack/callback
+```
+
+### Web app deployments
+
+Each web frontend should point at the deployed API:
+
+`agritec-admin/.env`
+
+```env
+NEXT_PUBLIC_API_BASE_URL="https://your-api-domain.com"
+```
+
+`agritec-seller/.env`
+
+```env
+NEXT_PUBLIC_API_BASE_URL="https://your-api-domain.com"
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="your-browser-google-maps-key"
+```
+
+`agritec-logistics/.env`
+
+```env
+NEXT_PUBLIC_API_BASE_URL="https://your-api-domain.com"
+```
+
+### Mobile production configuration
+
+For a fork, you must also regenerate and own:
+
+- Firebase project
+- `google-services.json`
+- `firebase_options.dart`
+- Google Maps mobile keys
+- optionally `MOBILE_API_BASE_URL` passed via `--dart-define` in your run/build pipeline
+- mobile deep-link / callback behavior testing against your API
+
+## Scheduled Jobs
+
+There are currently two cron-style backend endpoints:
+
+- `GET/POST /api/cron/weekly-payouts`
+- `GET/POST /api/cron/support-conversations`
+
+Both are protected with:
+
+```text
+Authorization: Bearer <CRON_SECRET>
+```
+
+### Support conversations scheduler
+
+This repo uses GitHub Actions for the support sweep, not Vercel cron.
+
+Workflow:
+
+- [.github/workflows/support-conversations-cron.yml](/abs/path/C:/Users/awarr/Desktop/agritec/.github/workflows/support-conversations-cron.yml:1)
+
+Required GitHub repository secrets:
+
+- `API_BASE_URL`
+- `CRON_SECRET`
+
+Expected values:
+
+- `API_BASE_URL=https://your-api-domain.com`
+- `CRON_SECRET=<same value used in agritec-api deployment>`
+
+The workflow:
+
+- runs every 5 minutes
+- also supports manual `workflow_dispatch`
+- calls `${API_BASE_URL}/api/cron/support-conversations`
+- sends `Authorization: Bearer ${CRON_SECRET}`
+- fails on non-2xx responses
+
+### Weekly payouts scheduler
+
+The weekly payout endpoint is present and protected, but how you invoke it in production is up to your deployment setup.
+
+If you add an external scheduler for it, use the same `Authorization: Bearer <CRON_SECRET>` pattern.
+
+## Cloudinary Rules
+
+Product images:
+
+- folder: `agritec/products`
+- store both `secureUrl` and `publicId`
+
+Chat attachments:
+
+- folder: `agritec/chats`
+- supported types: images and PDFs
+- store `secureUrl`, `publicId`, and `mimeType`
+
+Important rule:
+
+- delete or replace exact assets by stored `publicId`
+- never derive Cloudinary public IDs from URLs
+- never bulk-delete folders
+
+## Payments, Refunds, and Payouts
+
+### Payments
+
+Buyer and admin-assisted checkout both:
+
+1. build a backend quote
+2. create a pending order/payment
+3. initialize Paystack server-side
+4. verify payment through callback/webhook/status check
+
+### Refunds
+
+- `CANCELLED` means fulfillment stopped
+- `REFUNDED` means Paystack confirmed refund completion
+- logistics cancellation of a paid seller group starts refund workflow
+- final refunded state is system/Paystack-managed, not a manual admin shortcut
+
+### Seller payouts
+
+- seller earnings go to pending balance after successful payment
+- delivered seller groups move earnings to available balance
+- seller can request payout of full available balance only
+- admin approves/rejects/finalizes transfer flow
+
+There is no finalized logistics-wallet payout model in this codebase yet.
+
+## Common Local Test Flow
+
+1. Start `agritec-api`
+2. Start `agritec-admin`
+3. Start `agritec-seller`
+4. Start `agritec-logistics`
+5. Run the buyer mobile app
+6. Sign in with seeded accounts
+7. Verify logistics company sign-in:
+   - pending company should be blocked
+   - verified companies should succeed
+8. Add products from multiple sellers to cart in mobile
+9. Choose logistics per seller group, or one company for all eligible groups
+10. Initialize payment
+11. Confirm order appears:
+   - buyer sees full order
+   - each seller sees only their group
+   - admin sees logistics assignment and timeline
+   - logistics sees only assigned deliveries
+12. Update delivery statuses from the logistics dashboard
+13. Confirm status history and notifications propagate
+14. Test buyer-support and seller-support assignment flow
 
 ## Git and Secret Hygiene
 
 Do not commit:
 
 - `.env` files
-- Firebase Admin service account JSON
+- database credentials
+- Paystack secrets
+- Gmail app password
+- Firebase Admin credentials
 - `agritec_mobile/android/app/google-services.json`
 - `agritec_mobile/lib/firebase_options.dart`
-- local build artifacts
-- platform signing keys
+- local signing keys
 
-Firebase web/mobile API keys in generated client config are not the same as private Firebase Admin credentials, but this project still ignores generated Firebase files because they are account-specific and should be regenerated per owner/fork.
+## Notes for Contributors
 
-## Deployment Notes
-
-Backend deployment must include:
-
-- all `agritec-api` environment variables
-- PostgreSQL connection string
-- Paystack webhook and callback configured to the deployed API domain
-- Firebase Admin credentials in env vars
-- Cloudinary credentials
-- Gmail app password or replacement email provider credentials
-- seller/admin dashboard URLs (SELLER_APP_URL, ADMIN_APP_URL) for chat email deep links
-- `CRON_SECRET` if using weekly payouts
-
-Frontend deployments must include:
-
-- `NEXT_PUBLIC_API_BASE_URL` pointing to the deployed API
-- seller dashboard Google Maps key where needed
-
-Mobile production builds must include:
-
-- regenerated Firebase files for the owner project
-- Android/iOS app IDs registered in Firebase
-- Google Maps keys restricted to package/bundle IDs and signing certificates
-- Paystack callback/deep-link flow tested on a real device
-
-## Current MVP Status
-
-The MVP covers the full marketplace loop:
-
-- buyer browsing, cart, checkout, orders, chat, notifications
-- seller product/discount/settings/wallet/order visibility
-- admin seller/buyer/order/payout/settings/audit/support operations
-- backend multivendor order/payment/wallet/shipping/notification foundation
-
-
-
-
+- inspect the existing app/store patterns before adding new flows
+- use backend/API-backed state in Zustand or Riverpod instead of component-local fetch sprawl
+- this repo currently uses `prisma db push`, not Prisma migrations
+- support scheduling already has a repo-level GitHub Actions pattern; reuse it
+- mobile static verification should use `flutter analyze`

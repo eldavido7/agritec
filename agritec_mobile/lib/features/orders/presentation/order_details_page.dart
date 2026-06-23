@@ -1,5 +1,6 @@
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
@@ -84,7 +85,7 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
             icon: const Icon(Icons.arrow_back_rounded),
             onPressed: handleBack,
           ),
-          title: Text('Order ${order.id}'),
+          title: Text(trFormat(ref, 'orderDetails.orderLabel', {'id': order.id})),
           actions: [
             IconButton(
               icon: const Icon(Icons.home_rounded),
@@ -163,6 +164,7 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
                             LatLng(group.sellerLatitude, group.sellerLongitude),
                         buyerPoint: buyerPoint,
                         farmName: group.farmName,
+                        buyerInfoTitle: ref.tr('orderDetails.deliveryAddress'),
                         sellerAddress:
                             ref.watch(homeSellerByIdProvider(group.sellerId)).location,
                         buyerAddress: order.buyerAddress.fullAddress,
@@ -275,7 +277,7 @@ class _SellerGroupCard extends ConsumerWidget {
                     ],
                   ),
                 ),
-                Chip(label: Text(group.status)),
+                Chip(label: Text(trOrderStatus(ref, group.status))),
               ],
             ),
             const SizedBox(height: 10),
@@ -288,8 +290,8 @@ class _SellerGroupCard extends ConsumerWidget {
               for (var i = 0; i < group.statusHistory.length; i++)
                 _TimelineRow(
                   label: group.timeline.length > i
-                      ? group.timeline[i]
-                      : group.statusHistory[i].status,
+                      ? trOrderTimeline(ref, group.timeline[i])
+                      : trOrderStatus(ref, group.statusHistory[i].status),
                   caption: [
                     if ((group.statusHistory[i].updatedByUserName ?? '').isNotEmpty)
                       group.statusHistory[i].updatedByUserName!,
@@ -303,7 +305,7 @@ class _SellerGroupCard extends ConsumerWidget {
             else
               for (var i = 0; i < group.timeline.length; i++)
                 _TimelineRow(
-                  label: group.timeline[i],
+                  label: trOrderTimeline(ref, group.timeline[i]),
                   isDone: i <= group.currentTimelineStep,
                   showConnector: i < group.timeline.length - 1,
                 ),
@@ -398,6 +400,7 @@ class _RouteMap extends StatefulWidget {
     required this.sellerPoint,
     required this.buyerPoint,
     required this.farmName,
+    required this.buyerInfoTitle,
     required this.sellerAddress,
     required this.buyerAddress,
   });
@@ -405,6 +408,7 @@ class _RouteMap extends StatefulWidget {
   final LatLng sellerPoint;
   final LatLng buyerPoint;
   final String farmName;
+  final String buyerInfoTitle;
   final String sellerAddress;
   final String buyerAddress;
 
@@ -461,7 +465,7 @@ class _RouteMapState extends State<_RouteMap> {
           markerId: const MarkerId('buyer'),
           position: widget.buyerPoint,
           infoWindow: InfoWindow(
-            title: 'Delivery Address',
+            title: widget.buyerInfoTitle,
             snippet: widget.buyerAddress,
           ),
         ),

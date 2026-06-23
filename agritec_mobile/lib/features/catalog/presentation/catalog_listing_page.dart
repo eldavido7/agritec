@@ -32,6 +32,8 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
       symbol: 'N',
       decimalDigits: 0,
     );
+    String categoryLabelFor(product) =>
+        trCategory(ref, product.categorySlug, product.category);
 
     final totalPages = (products.length / _itemsPerPage).ceil().clamp(1, 9999);
     final safePage = _currentPage > totalPages ? totalPages : _currentPage;
@@ -139,7 +141,7 @@ class _CatalogListingPageState extends ConsumerState<CatalogListingPage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${seller.farmName} * ${product.category}${product.categorySlug == 'other' && (product.categoryNote ?? '').isNotEmpty ? ' (${product.categoryNote})' : ''}',
+                                  '${seller.farmName} * ${categoryLabelFor(product)}${product.categorySlug == 'other' && (product.categoryNote ?? '').isNotEmpty ? ' (${product.categoryNote})' : ''}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(

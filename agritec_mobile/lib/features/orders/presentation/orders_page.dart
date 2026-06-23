@@ -1,5 +1,6 @@
 ﻿import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
 import 'package:agritec_mobile/features/orders/application/order_providers.dart';
@@ -114,7 +115,9 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  'Order ${order.id}',
+                                                  trFormat(ref, 'orders.orderLabel', {
+                                                    'id': order.id,
+                                                  }),
                                                   style: const TextStyle(
                                                     fontSize: 14,
                                                     fontWeight: FontWeight.w700,
@@ -134,7 +137,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  '${order.sellerGroups.length} seller group${order.sellerGroups.length == 1 ? '' : 's'} • ${order.itemCount} item${order.itemCount == 1 ? '' : 's'}',
+                                                  '${order.sellerGroups.length} ${order.sellerGroups.length == 1 ? ref.tr('orders.sellerGroupSingular') : ref.tr('orders.sellerGroupPlural')} • ${order.itemCount} ${order.itemCount == 1 ? ref.tr('common.item') : ref.tr('common.items')}',
                                                   style: const TextStyle(
                                                     fontSize: 11,
                                                     color: Color(0xFF7AAD8E),
@@ -156,7 +159,13 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                                                 ),
                                               ),
                                               const SizedBox(height: 6),
-                                              _OrderStatusPill(status: order.statusSummary),
+                                              _OrderStatusPill(
+                                                status: trOrderStatus(
+                                                  ref,
+                                                  order.statusSummary,
+                                                ),
+                                                rawStatus: order.statusSummary,
+                                              ),
                                             ],
                                           ),
                                         ],
@@ -319,14 +328,19 @@ class _TopBarIconButton extends StatelessWidget {
 }
 
 class _OrderStatusPill extends StatelessWidget {
-  const _OrderStatusPill({required this.status, this.compact = false});
+  const _OrderStatusPill({
+    required this.status,
+    this.rawStatus,
+    this.compact = false,
+  });
 
   final String status;
+  final String? rawStatus;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final normalized = status.toLowerCase();
+    final normalized = (rawStatus ?? status).toLowerCase();
     final isDelivered = normalized.contains('delivered');
     final bgColor = isDelivered
         ? const Color(0xFFEAF3DE)

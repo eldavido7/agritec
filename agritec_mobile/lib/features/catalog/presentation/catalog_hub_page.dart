@@ -1,5 +1,6 @@
 import 'package:agritec_mobile/features/catalog/application/catalog_providers.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
+import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/core/ui/category_visuals.dart';
 import 'package:agritec_mobile/features/catalog/presentation/catalog_listing_page.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
@@ -228,7 +229,7 @@ class CatalogHubPage extends ConsumerWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              category.label,
+                              trCategory(ref, category.slug, category.label),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
