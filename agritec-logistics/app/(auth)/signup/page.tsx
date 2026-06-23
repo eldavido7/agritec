@@ -19,6 +19,7 @@ import { motion } from 'framer-motion';
 import { Spinner } from '@/components/ui/spinner';
 import { nigeriaLocations } from '@/lib/data/nigeria-locations';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
+import { toast } from 'sonner';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -94,6 +95,7 @@ export default function SignUpPage() {
     setSubmitMessage('');
 
     if (!validateForm()) {
+      toast.error('Please fix the highlighted signup errors.');
       return;
     }
 

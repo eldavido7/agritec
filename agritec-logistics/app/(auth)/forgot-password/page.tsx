@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, Mail } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
+import { toast } from 'sonner';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -47,6 +48,7 @@ export default function ForgotPasswordPage() {
 
     if (!email.trim()) {
       setMessage('Enter your account email address.');
+      toast.error('Enter your account email address.');
       return;
     }
 

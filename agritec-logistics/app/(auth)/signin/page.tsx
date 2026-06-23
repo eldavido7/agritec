@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { Spinner } from '@/components/ui/spinner';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
+import { toast } from 'sonner';
 
 export default function SignInPage() {
   return (
@@ -55,6 +56,7 @@ function SignInForm() {
 
     if (!email.trim() || !password) {
       setError('Enter your email and password.');
+      toast.error('Enter your email and password.');
       return;
     }
 

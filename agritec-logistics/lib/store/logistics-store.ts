@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { toast } from "sonner";
 import { logisticsApiRequest } from "@/lib/logistics-api";
 import { useLogisticsAuthStore } from "@/lib/store/logistics-auth-store";
 import type {
@@ -539,6 +540,7 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
         id: normalized.id,
         status: normalized.status,
       });
+      toast.success(`Delivery status updated to ${normalized.status}.`);
 
       return normalized;
     } catch (error) {
@@ -551,6 +553,9 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
         error:
           error instanceof Error ? error.message : "Failed to update delivery status",
       });
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update delivery status",
+      );
       throw error;
     }
   },
@@ -601,40 +606,64 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
 
   markNotificationAsRead: async (id) => {
     logStore("Mark notification read start", { id });
-    const token = ensureToken();
-    await logisticsApiRequest(`/api/notifications/${id}/read`, {
-      method: "PATCH",
-      token,
-    });
+    try {
+      const token = ensureToken();
+      await logisticsApiRequest(`/api/notifications/${id}/read`, {
+        method: "PATCH",
+        token,
+      });
 
-    set((state) => {
-      const notifications = state.notifications.map((notification) =>
-        notification.id === id ? { ...notification, isRead: true } : notification
+      set((state) => {
+        const notifications = state.notifications.map((notification) =>
+          notification.id === id ? { ...notification, isRead: true } : notification
+        );
+        return {
+          notifications,
+          unreadCount: notifications.filter((notification) => !notification.isRead).length,
+        };
+      });
+      logStore("Mark notification read success", { id });
+    } catch (error) {
+      logStore("Mark notification read failed", {
+        id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      toast.error(
+        error instanceof Error ? error.message : "Failed to mark notification as read",
       );
-      return {
-        notifications,
-        unreadCount: notifications.filter((notification) => !notification.isRead).length,
-      };
-    });
-    logStore("Mark notification read success", { id });
+      throw error;
+    }
   },
 
   markAllNotificationsAsRead: async () => {
     logStore("Mark all notifications read start");
-    const token = ensureToken();
-    await logisticsApiRequest("/api/notifications/read-all", {
-      method: "PATCH",
-      token,
-    });
+    try {
+      const token = ensureToken();
+      await logisticsApiRequest("/api/notifications/read-all", {
+        method: "PATCH",
+        token,
+      });
 
-    set((state) => ({
-      notifications: state.notifications.map((notification) => ({
-        ...notification,
-        isRead: true,
-      })),
-      unreadCount: 0,
-    }));
-    logStore("Mark all notifications read success");
+      set((state) => ({
+        notifications: state.notifications.map((notification) => ({
+          ...notification,
+          isRead: true,
+        })),
+        unreadCount: 0,
+      }));
+      logStore("Mark all notifications read success");
+      toast.success("All notifications marked as read.");
+    } catch (error) {
+      logStore("Mark all notifications read failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to mark all notifications as read",
+      );
+      throw error;
+    }
   },
 
   fetchProfile: async ({ force = false } = {}) => {
@@ -747,6 +776,7 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
         coverageCount: coverageAreas.length,
         pricingConfigured: pricingSettings.length > 0,
       });
+      toast.success(response.message || "Settings saved successfully.");
     } catch (error) {
       logStore("Update profile failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -755,6 +785,7 @@ export const useLogisticsStore = create<LogisticsStore>((set, get) => ({
         isUpdatingProfile: false,
         error: error instanceof Error ? error.message : "Failed to update profile",
       });
+      toast.error(error instanceof Error ? error.message : "Failed to update profile");
       throw error;
     }
   },

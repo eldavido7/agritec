@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { toast } from "sonner";
 import { logisticsApiRequest } from "@/lib/logistics-api";
 import { useLogisticsStore } from "@/lib/store/logistics-store";
 import type {
@@ -36,32 +37,44 @@ function logAuth(event: string, payload?: Record<string, unknown>) {
 
 const readStoredSession = (): StoredSession => {
   if (typeof window === "undefined") {
+    logAuth("Read stored session skipped", { reason: "server" });
     return { token: null, user: null };
   }
 
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) {
+    logAuth("Read stored session skipped", { reason: "missing_local_storage" });
     return { token: null, user: null };
   }
 
   try {
     const parsed = JSON.parse(raw) as StoredSession;
+    logAuth("Read stored session success", {
+      hasToken: Boolean(parsed.token),
+      userId: parsed.user?.id || null,
+    });
     return {
       token: parsed.token || null,
       user: parsed.user || null,
     };
   } catch {
+    logAuth("Read stored session failed", { reason: "invalid_json" });
     return { token: null, user: null };
   }
 };
 
 const writeStoredSession = (session: StoredSession) => {
   if (typeof window === "undefined") return;
+  logAuth("Write stored session", {
+    hasToken: Boolean(session.token),
+    userId: session.user?.id || null,
+  });
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 };
 
 const clearStoredSession = () => {
   if (typeof window === "undefined") return;
+  logAuth("Clear stored session");
   window.localStorage.removeItem(STORAGE_KEY);
 };
 
@@ -74,7 +87,12 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
 
   bootstrap: async () => {
     const state = get();
-    if (state.isReady || state.isLoading) return;
+    if (state.isReady || state.isLoading) {
+      logAuth("Bootstrap skipped", {
+        reason: state.isReady ? "already_ready" : "already_loading",
+      });
+      return;
+    }
 
     const stored = readStoredSession();
     logAuth("Bootstrap start", {
@@ -164,6 +182,7 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         isLoading: false,
         error: null,
       });
+      toast.success("Signed in successfully.");
     } catch (error) {
       logAuth("Sign-in failed", {
         email: normalizedEmail,
@@ -177,6 +196,7 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         isLoading: false,
         error: error instanceof Error ? error.message : "Unable to sign in",
       });
+      toast.error(error instanceof Error ? error.message : "Unable to sign in");
       throw error;
     }
   },
@@ -208,6 +228,7 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         isLoading: false,
         error: null,
       });
+      toast.success("Signup submitted. Your company is pending admin verification.");
     } catch (error) {
       logAuth("Sign-up failed", {
         email: payload.email.trim().toLowerCase(),
@@ -218,6 +239,7 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
         isLoading: false,
         error: error instanceof Error ? error.message : "Unable to create account",
       });
+      toast.error(error instanceof Error ? error.message : "Unable to create account");
       throw error;
     }
   },
@@ -238,6 +260,7 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
 
       logAuth("Forgot-password success", { email: normalizedEmail });
       set({ isLoading: false, error: null });
+      toast.success(response.message);
       return response.message;
     } catch (error) {
       logAuth("Forgot-password failed", {
@@ -251,6 +274,9 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
             ? error.message
             : "Unable to request password reset",
       });
+      toast.error(
+        error instanceof Error ? error.message : "Unable to request password reset",
+      );
       throw error;
     }
   },
@@ -269,6 +295,7 @@ export const useLogisticsAuthStore = create<LogisticsAuthState>((set, get) => ({
       isLoading: false,
       error: null,
     });
+    toast.success("Signed out successfully.");
   },
 
   clearError: () => set({ error: null }),
