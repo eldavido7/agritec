@@ -240,7 +240,7 @@ class _SellerGroupSection extends ConsumerWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: SizedBox(
-                height: 220,
+                height: 280,
                 child: _RouteMap(
                   sellerPoint: LatLng(sellerLatitude!, sellerLongitude!),
                   buyerPoint: buyerPoint!,
@@ -499,15 +499,15 @@ class _RouteMapState extends State<_RouteMap> {
         _fitBounds();
       },
       gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-        Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
+        Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
       },
-      scrollGesturesEnabled: false,
-      zoomGesturesEnabled: false,
-      rotateGesturesEnabled: false,
-      tiltGesturesEnabled: false,
+      scrollGesturesEnabled: true,
+      zoomGesturesEnabled: true,
+      rotateGesturesEnabled: true,
+      tiltGesturesEnabled: true,
       myLocationButtonEnabled: false,
-      mapToolbarEnabled: false,
-      zoomControlsEnabled: false,
+      mapToolbarEnabled: true,
+      zoomControlsEnabled: true,
       markers: {
         Marker(
           markerId: const MarkerId('seller'),
