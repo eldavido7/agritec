@@ -11,6 +11,7 @@ import {
 } from "@/lib/payment-order-utils";
 import { serializeOrder } from "@/lib/marketplace-serializers";
 import { initializePaystackTransaction } from "@/lib/paystack";
+import { SELLER_LOCATION_REQUIRED_MESSAGE } from "@/lib/seller-location-utils";
 
 const initializeSchema = z.object({
   addressId: z.string().trim().min(1, "Address is required"),
@@ -53,6 +54,8 @@ function checkoutErrorResponse(error: unknown) {
       );
     case "CART_EMPTY":
       return NextResponse.json({ success: false, message: "Cart is empty" }, { status: 400 });
+    case "SELLER_LOCATION_INCOMPLETE":
+      return NextResponse.json({ success: false, message: SELLER_LOCATION_REQUIRED_MESSAGE }, { status: 400 });
     case "PAYSTACK_SECRET_KEY_NOT_CONFIGURED":
       return NextResponse.json(
         { success: false, message: "Paystack is not configured on the server" },

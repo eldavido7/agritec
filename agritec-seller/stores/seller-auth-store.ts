@@ -24,6 +24,8 @@ export type SellerAuthUser = {
     fullAddress?: string | null;
     city?: string | null;
     state?: string | null;
+    lga?: string | null;
+    area?: string | null;
     latitude?: number | null;
     longitude?: number | null;
     autoPayoutEnabled?: boolean;

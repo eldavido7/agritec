@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { parseProductStatus, serializeProduct } from "@/lib/marketplace-serializers";
+import { sellerLocationFilter } from "@/lib/seller-location-utils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +15,12 @@ export async function GET(request: NextRequest) {
 
     const where = {
       isDeleted: false,
-      seller: { user: { isActive: true } },
+      seller: {
+        is: {
+          user: { isActive: true },
+          ...sellerLocationFilter(),
+        },
+      },
       ...(sellerId ? { sellerId } : {}),
       ...(categorySlug ? { categorySlug } : {}),
       ...(search

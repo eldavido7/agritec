@@ -18,6 +18,7 @@ type ProductDraft = ProductFormDraft;
 
 interface EditProductModalProps {
   isOpen: boolean;
+  sellerLocationComplete: boolean;
   formData: ProductDraft;
   onFormDataChange: (data: ProductDraft) => void;
   categories: readonly string[];
@@ -50,6 +51,7 @@ const normalizeVariantLogistics = (
 
 export function EditProductModal({
   isOpen,
+  sellerLocationComplete,
   formData,
   onFormDataChange,
   categories,
@@ -69,6 +71,11 @@ export function EditProductModal({
     (formData.variants && formData.variants.length > 0) || false;
 
   const handleSave = async () => {
+    if (!sellerLocationComplete && (formData.status || "Active") === "Active") {
+      toast.error("Please add your farm/pickup location before listing products.");
+      return;
+    }
+
     if (!formData.name || !formData.category) {
       toast.error("Please fill in all required fields");
       return;
@@ -185,6 +192,7 @@ export function EditProductModal({
             categories={categories}
             uploadingImageIndex={uploadingImageIndex}
             isFormBusy={isFormBusy}
+            sellerLocationComplete={sellerLocationComplete}
             onSelectImage={onSelectImage}
             onRemoveImage={onRemoveImage}
           />
@@ -193,7 +201,10 @@ export function EditProductModal({
             <Button
               className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
               onClick={handleSave}
-              disabled={isFormBusy}
+              disabled={
+                isFormBusy ||
+                (!sellerLocationComplete && (formData.status || "Active") === "Active")
+              }
             >
               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSaving

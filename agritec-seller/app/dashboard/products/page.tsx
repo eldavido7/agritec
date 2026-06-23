@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,25 @@ const itemVariants = {
 
 const ITEMS_PER_PAGE = 10;
 
+function hasCompleteSellerLocation(profile: {
+  fullAddress?: string | null;
+  state?: string | null;
+  city?: string | null;
+  lga?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+} | null | undefined) {
+  if (!profile) return false;
+
+  return Boolean(
+    profile.fullAddress?.trim() &&
+      profile.state?.trim() &&
+      (profile.city?.trim() || profile.lga?.trim()) &&
+      profile.latitude != null &&
+      profile.longitude != null,
+  );
+}
+
 export default function ProductsPage() {
   const sellerProfile = useSellerAuthStore(
     (state) => state.user?.sellerProfile,
@@ -84,6 +104,7 @@ export default function ProductsPage() {
     null,
   );
   const categories = [...PLATFORM_CATEGORIES];
+  const sellerLocationComplete = hasCompleteSellerLocation(sellerProfile);
 
   const displayCategories = ["All", ...categories];
   const isImageUploading = uploadingImageIndex !== null;
@@ -302,12 +323,35 @@ export default function ProductsPage() {
           <Button
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
             onClick={openCreateModal}
+            disabled={!sellerLocationComplete}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Product
           </Button>
         </div>
       </motion.div>
+
+      {!sellerLocationComplete ? (
+        <motion.div initial="hidden" animate="visible" variants={itemVariants}>
+          <Card className="border-amber-300 bg-amber-50 p-4 text-amber-950">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="font-semibold">
+                  Add your farm/pickup location before listing products.
+                </p>
+                <p className="text-sm text-amber-900/80">
+                  Products cannot be created or made buyer-visible until your
+                  seller profile has a complete location with address, state,
+                  city or LGA, and map coordinates.
+                </p>
+              </div>
+              <Button asChild variant="outline" className="border-amber-400 bg-white">
+                <Link href="/dashboard/settings">Complete location</Link>
+              </Button>
+            </div>
+          </Card>
+        </motion.div>
+      ) : null}
 
       {/* Filters */}
       <motion.div
@@ -509,6 +553,7 @@ export default function ProductsPage() {
 
       <CreateProductModal
         isOpen={createModalOpen}
+        sellerLocationComplete={sellerLocationComplete}
         formData={formData}
         onFormDataChange={setFormData}
         categories={categories}
@@ -529,6 +574,7 @@ export default function ProductsPage() {
 
       <EditProductModal
         isOpen={editModalOpen}
+        sellerLocationComplete={sellerLocationComplete}
         formData={formData}
         onFormDataChange={setFormData}
         categories={categories}

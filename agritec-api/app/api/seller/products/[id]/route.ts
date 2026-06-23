@@ -4,6 +4,10 @@ import { v2 as cloudinary } from "cloudinary";
 import prisma from "@/lib/prisma";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { serializeProduct } from "@/lib/marketplace-serializers";
+import {
+  ensureSellerHasCompleteLocation,
+  sellerLocationIncompleteErrorResponseMessage,
+} from "@/lib/seller-location-utils";
 import { buildProductUpdateInput, parseSellerProductPayload } from "@/lib/seller-product-utils";
 import { reserveSequentialIds } from "@/lib/id-sequence";
 import { ZodError } from "zod";
@@ -130,6 +134,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const rawBody = await request.json();
     const payload = await parseSellerProductPayload(rawBody);
+    if (payload.status === "ACTIVE") {
+      ensureSellerHasCompleteLocation(sellerProfile);
+    }
     const existingImages = getNormalizedProductImages(existingProduct.images);
     payload.images = payload.images.map((image, index) => {
       const matchedImage = existingImages.find((existingImage) => existingImage.secureUrl === image.secureUrl);
@@ -182,6 +189,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (error instanceof Error && error.message === "INVALID_CATEGORY") {
       return NextResponse.json({ success: false, message: "Invalid category" }, { status: 400 });
+    }
+    const locationMessage = sellerLocationIncompleteErrorResponseMessage(error);
+    if (locationMessage) {
+      return NextResponse.json({ success: false, message: locationMessage }, { status: 400 });
     }
 
     console.error("[SELLER_PRODUCT_PATCH_ERROR]", error);

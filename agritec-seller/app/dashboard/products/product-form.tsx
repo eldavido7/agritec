@@ -77,6 +77,7 @@ interface ProductFormProps {
   categories: readonly string[];
   uploadingImageIndex: number | null;
   isFormBusy: boolean;
+  sellerLocationComplete?: boolean;
   onSelectImage: (file: File, index: number) => void;
   onRemoveImage: (index: number) => void;
 }
@@ -87,6 +88,7 @@ export function ProductForm({
   categories,
   uploadingImageIndex,
   isFormBusy,
+  sellerLocationComplete = true,
   onSelectImage,
   onRemoveImage,
 }: ProductFormProps) {
@@ -264,9 +266,20 @@ export function ProductForm({
             }
             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option className="bg-background text-foreground">Active</option>
+            <option
+              className="bg-background text-foreground"
+              disabled={!sellerLocationComplete}
+            >
+              Active
+            </option>
             <option className="bg-background text-foreground">Inactive</option>
           </select>
+          {!sellerLocationComplete ? (
+            <p className="mt-1 text-xs text-amber-700">
+              Complete your farm/pickup location in Settings before activating
+              products.
+            </p>
+          ) : null}
         </div>
       </div>
       {formData.category === "Other" && (
@@ -972,6 +985,5 @@ export function ProductForm({
 }
 
 export { defaultLogistics, parseOptionalNumber, buildVariantLogisticsDraft };
-
 
 

@@ -15,6 +15,7 @@ import {
   type EligibleLogisticsCompany,
 } from "@/lib/logistics-utils";
 import { serializeProduct } from "@/lib/marketplace-serializers";
+import { ensureSellerHasCompleteLocation } from "@/lib/seller-location-utils";
 
 type LogisticsSelections = Record<string, string>;
 
@@ -108,6 +109,7 @@ export async function buildCheckoutQuote(args: {
       let totalChargeableWeight = 0;
 
       const seller = sellerItems[0].product.seller;
+      ensureSellerHasCompleteLocation(seller);
       const eligibleLogisticsCompanies = buildEligibleLogisticsCompanies({
         companies: logisticsCompanies,
         buyerDeliveryRegion: address,

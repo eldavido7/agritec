@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { decimalToNumber } from "@/lib/checkout-utils";
 import { buildCheckoutQuote } from "@/lib/checkout-quote";
+import { SELLER_LOCATION_REQUIRED_MESSAGE } from "@/lib/seller-location-utils";
 
 const quoteSchema = z.object({
   addressId: z.string().trim().min(1, "Address is required"),
@@ -44,6 +45,8 @@ function quoteErrorResponse(error: unknown) {
       );
     case "CART_EMPTY":
       return NextResponse.json({ success: false, message: "Cart is empty" }, { status: 400 });
+    case "SELLER_LOCATION_INCOMPLETE":
+      return NextResponse.json({ success: false, message: SELLER_LOCATION_REQUIRED_MESSAGE }, { status: 400 });
     default:
       if (message.startsWith("LOGISTICS_SELECTION_REQUIRED:")) {
         return NextResponse.json(

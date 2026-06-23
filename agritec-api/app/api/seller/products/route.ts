@@ -3,6 +3,10 @@ import { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { serializeProduct } from "@/lib/marketplace-serializers";
+import {
+  ensureSellerHasCompleteLocation,
+  sellerLocationIncompleteErrorResponseMessage,
+} from "@/lib/seller-location-utils";
 import { buildProductCreateInput, parseSellerProductPayload } from "@/lib/seller-product-utils";
 import { reserveSequentialId, reserveSequentialIds } from "@/lib/id-sequence";
 import { ZodError } from "zod";
@@ -71,6 +75,7 @@ export async function POST(request: Request) {
     }
 
     const sellerProfile = user.sellerProfile;
+    ensureSellerHasCompleteLocation(sellerProfile);
     const rawBody = await request.json();
     const payload = await parseSellerProductPayload(rawBody);
 
@@ -97,6 +102,10 @@ export async function POST(request: Request) {
 
     if (error instanceof Error && error.message === "INVALID_CATEGORY") {
       return NextResponse.json({ success: false, message: "Invalid category" }, { status: 400 });
+    }
+    const locationMessage = sellerLocationIncompleteErrorResponseMessage(error);
+    if (locationMessage) {
+      return NextResponse.json({ success: false, message: locationMessage }, { status: 400 });
     }
 
     console.error("[SELLER_PRODUCTS_POST_ERROR]", error);
