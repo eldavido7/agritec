@@ -10,6 +10,10 @@ export type AdminUserRecord = {
   fullName: string;
   phone: string | null;
   isActive: boolean;
+  hasHistoricalRecords: boolean;
+  canDelete: boolean;
+  historicalRecordCount: number;
+  activeAssignedSupportConversationCount: number;
   emailVerifiedAt: string | null;
   lastActiveAt: string | null;
   createdAt: string;
@@ -54,6 +58,12 @@ function normalizeAdmin(admin: any): AdminUserRecord {
     fullName: String(admin.fullName || ""),
     phone: admin.phone ? String(admin.phone) : null,
     isActive: Boolean(admin.isActive),
+    hasHistoricalRecords: Boolean(admin.hasHistoricalRecords),
+    canDelete: Boolean(admin.canDelete),
+    historicalRecordCount: Number(admin.historicalRecordCount || 0),
+    activeAssignedSupportConversationCount: Number(
+      admin.activeAssignedSupportConversationCount || 0,
+    ),
     emailVerifiedAt: admin.emailVerifiedAt ? String(admin.emailVerifiedAt) : null,
     lastActiveAt: admin.lastActiveAt ? String(admin.lastActiveAt) : null,
     createdAt: String(admin.createdAt || ""),

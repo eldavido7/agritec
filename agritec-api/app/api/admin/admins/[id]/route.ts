@@ -2,6 +2,10 @@ import bcrypt from "bcryptjs";
 import { Prisma, UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  getAdminHistorySummary,
+  releaseAdminSupportAssignments,
+} from "@/lib/admin-admin-utils";
 import { normalizeEmail, requireAuthenticatedUser } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createAuditLog } from "@/lib/wallet-utils";
@@ -29,7 +33,37 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, message: "Admin not found" }, { status: 404 });
     }
 
+    if (payload.isActive === false && actor.id === id) {
+      return NextResponse.json(
+        { success: false, message: "Logged in admin cannot disable themselves." },
+        { status: 400 },
+      );
+    }
+
+    if (payload.isActive === false && adminUser.isActive) {
+      const adminCount = await prisma.user.count({
+        where: { role: UserRole.ADMIN, isActive: true },
+      });
+      if (adminCount <= 1) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "At least one active admin account must remain.",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
+      let releasedSupportAssignments = 0;
+      if (payload.isActive === false && adminUser.isActive) {
+        releasedSupportAssignments = await releaseAdminSupportAssignments(tx, {
+          adminUserId: id,
+          actorAdminId: actor.id,
+        });
+      }
+
       const user = await tx.user.update({
         where: { id },
         data: {
@@ -54,13 +88,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
       await createAuditLog(tx, {
         adminId: actor.id,
-        action: "admin.update",
+        action:
+          payload.isActive === false
+            ? "admin.disable"
+            : payload.isActive === true && !adminUser.isActive
+              ? "admin.restore"
+              : "admin.update",
         targetType: "user",
         targetId: user.id,
-        metadata: JSON.parse(JSON.stringify({ changedFields: Object.keys(payload) })) as Prisma.InputJsonValue,
+        metadata: JSON.parse(
+          JSON.stringify({
+            changedFields: Object.keys(payload),
+            releasedSupportAssignments,
+          }),
+        ) as Prisma.InputJsonValue,
       });
 
-      return user;
+      const history = await getAdminHistorySummary(tx, user.id);
+
+      return {
+        ...user,
+        ...history,
+      };
     });
 
     return NextResponse.json({ success: true, admin: updated });
@@ -88,14 +137,33 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ success: false, message: "Logged in admin cannot delete themselves." }, { status: 400 });
     }
 
-    const adminCount = await prisma.user.count({ where: { role: UserRole.ADMIN, isActive: true } });
-    if (adminCount <= 1) {
-      return NextResponse.json({ success: false, message: "At least one active admin account must remain." }, { status: 400 });
-    }
-
     const adminUser = await prisma.user.findFirst({ where: { id, role: UserRole.ADMIN } });
     if (!adminUser) {
       return NextResponse.json({ success: false, message: "Admin not found" }, { status: 404 });
+    }
+
+    if (adminUser.isActive) {
+      const adminCount = await prisma.user.count({
+        where: { role: UserRole.ADMIN, isActive: true },
+      });
+      if (adminCount <= 1) {
+        return NextResponse.json(
+          { success: false, message: "At least one active admin account must remain." },
+          { status: 400 },
+        );
+      }
+    }
+
+    const history = await getAdminHistorySummary(prisma, id);
+    if (!history.canDelete) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "This admin has historical records and cannot be deleted. Disable the account instead.",
+        },
+        { status: 400 },
+      );
     }
 
     await prisma.$transaction(async (tx) => {
@@ -115,15 +183,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return NextResponse.json({ success: true, message: "Admin deleted successfully" });
   } catch (error: any) {
     console.error("[ADMIN_ADMIN_DELETE_ERROR]", error);
-    if (error?.code === "P2003") {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "This admin has historical records and cannot be deleted. Disable the account instead.",
-        },
-        { status: 400 },
-      );
-    }
     return NextResponse.json({ success: false, message: "Failed to delete admin" }, { status: 500 });
   }
 }

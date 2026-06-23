@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DeleteDialog } from "@/components/delete-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminAdminsStore } from "@/stores/admin-admins-store";
 import { useAdminAuthStore } from "@/stores/admin-auth-store";
 import { useAdminSettingsStore } from "@/stores/admin-settings-store";
@@ -62,6 +64,7 @@ export default function SettingsPage() {
     adminId?: string;
     adminName?: string;
     nextIsActive?: boolean;
+    activeSupportAssignments?: number;
   }>({ open: false });
 
   useEffect(() => {
@@ -85,10 +88,15 @@ export default function SettingsPage() {
   }, [settings]);
 
   const isBootstrapping = isLoadingSettings && !settings;
-  const activeAdminCount = useMemo(
-    () => admins.filter((admin) => admin.isActive).length,
+  const activeAdmins = useMemo(
+    () => admins.filter((admin) => admin.isActive),
     [admins],
   );
+  const disabledAdmins = useMemo(
+    () => admins.filter((admin) => !admin.isActive),
+    [admins],
+  );
+  const activeAdminCount = activeAdmins.length;
 
   const handleSaveSettings = async () => {
     const commission = Number(commissionRatePercent);
@@ -110,6 +118,7 @@ export default function SettingsPage() {
       toast.error("Commission rate must be between 0 and 100.");
       return;
     }
+
     try {
       await updateSettings({
         platform: {
@@ -192,7 +201,7 @@ export default function SettingsPage() {
       setDisableDialog({ open: false });
       toast.success(
         disableDialog.nextIsActive
-          ? "Admin account enabled successfully"
+          ? "Admin account restored successfully"
           : "Admin account disabled successfully",
       );
     } catch (error) {
@@ -202,6 +211,120 @@ export default function SettingsPage() {
           : "Failed to update admin account status",
       );
     }
+  };
+
+  const renderAdminRow = (
+    admin: (typeof admins)[number],
+    mode: "active" | "disabled",
+  ) => {
+    const isCurrentAdmin = currentAdmin?.id === admin.id;
+
+    return (
+      <div
+        key={admin.id}
+        className="flex items-center justify-between gap-4 rounded-lg border border-border/50 p-3"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium text-foreground">{admin.fullName}</p>
+            <Badge variant={admin.isActive ? "default" : "secondary"}>
+              {admin.isActive ? "Active" : "Disabled"}
+            </Badge>
+            {admin.hasHistoricalRecords ? (
+              <Badge variant="secondary">Historical records</Badge>
+            ) : (
+              <Badge variant="outline">No history</Badge>
+            )}
+            {admin.activeAssignedSupportConversationCount > 0 ? (
+              <Badge variant="outline">
+                {admin.activeAssignedSupportConversationCount} active support assignment
+                {admin.activeAssignedSupportConversationCount === 1 ? "" : "s"}
+              </Badge>
+            ) : null}
+          </div>
+          <p className="truncate text-xs text-muted-foreground">
+            {admin.email}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {admin.lastActiveAt
+              ? `Last active ${new Date(admin.lastActiveAt).toLocaleDateString("en-NG")}`
+              : admin.isActive
+                ? "No recent activity recorded"
+                : "Disabled admins cannot sign in or receive support assignments."}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {mode === "active" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isUpdatingAdmin}
+              onClick={() => {
+                if (isCurrentAdmin) {
+                  toast.error("Logged in user cannot disable themselves.");
+                  return;
+                }
+                if (activeAdminCount <= 1) {
+                  toast.error("At least one active admin account must remain.");
+                  return;
+                }
+                setDisableDialog({
+                  open: true,
+                  adminId: admin.id,
+                  adminName: admin.fullName,
+                  nextIsActive: false,
+                  activeSupportAssignments:
+                    admin.activeAssignedSupportConversationCount,
+                });
+              }}
+            >
+              Disable
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isUpdatingAdmin}
+              onClick={() => {
+                if (isCurrentAdmin) {
+                  toast.error("Logged in user cannot restore themselves here.");
+                  return;
+                }
+                setDisableDialog({
+                  open: true,
+                  adminId: admin.id,
+                  adminName: admin.fullName,
+                  nextIsActive: true,
+                });
+              }}
+            >
+              Restore
+            </Button>
+          )}
+          {admin.canDelete ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={isUpdatingAdmin}
+              onClick={() => {
+                if (isCurrentAdmin) {
+                  toast.error("Logged in user cannot delete themselves.");
+                  return;
+                }
+                setDeleteDialog({
+                  open: true,
+                  adminId: admin.id,
+                  adminName: admin.fullName,
+                });
+              }}
+              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
   };
 
   if (isBootstrapping) {
@@ -289,7 +412,7 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                Auto Payout Threshold (₦)
+                Auto Payout Threshold (NGN)
               </label>
               <Input
                 type="number"
@@ -352,79 +475,36 @@ export default function SettingsPage() {
                 <span>Loading admins...</span>
               </div>
             ) : (
-              <div className="space-y-2">
-                {admins.map((admin) => (
-                  <div
-                    key={admin.id}
-                    className="flex items-center justify-between gap-4 rounded-lg border border-border/50 p-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-foreground">
-                        {admin.fullName}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {admin.email}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {admin.isActive ? "Active" : "Disabled"}
-                        {admin.lastActiveAt
-                          ? ` · Last active ${new Date(
-                              admin.lastActiveAt,
-                            ).toLocaleDateString("en-NG")}`
-                          : ""}
-                      </p>
+              <Tabs defaultValue="active" className="space-y-4">
+                <TabsList>
+                  <TabsTrigger value="active">
+                    Active Admins ({activeAdmins.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="disabled">
+                    Disabled Admins ({disabledAdmins.length})
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="active" className="space-y-2">
+                  {activeAdmins.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
+                      No active admins.
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={isUpdatingAdmin}
-                        onClick={() => {
-                          if (currentAdmin?.id === admin.id) {
-                            toast.error(
-                              admin.isActive
-                                ? "Logged in user cannot disable themselves."
-                                : "Logged in user cannot enable or disable themselves here.",
-                            );
-                            return;
-                          }
-                          if (admin.isActive && activeAdminCount <= 1) {
-                            toast.error("At least one active admin account must remain.");
-                            return;
-                          }
-                          setDisableDialog({
-                            open: true,
-                            adminId: admin.id,
-                            adminName: admin.fullName,
-                            nextIsActive: !admin.isActive,
-                          });
-                        }}
-                      >
-                        {admin.isActive ? "Disable" : "Enable"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={isUpdatingAdmin}
-                        onClick={() => {
-                          if (currentAdmin?.id === admin.id) {
-                            toast.error("Logged in user cannot delete themselves.");
-                            return;
-                          }
-                          setDeleteDialog({
-                            open: true,
-                            adminId: admin.id,
-                            adminName: admin.fullName,
-                          });
-                        }}
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  ) : (
+                    activeAdmins.map((admin) => renderAdminRow(admin, "active"))
+                  )}
+                </TabsContent>
+                <TabsContent value="disabled" className="space-y-2">
+                  {disabledAdmins.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
+                      No disabled admins.
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ) : (
+                    disabledAdmins.map((admin) =>
+                      renderAdminRow(admin, "disabled"),
+                    )
+                  )}
+                </TabsContent>
+              </Tabs>
             )}
           </div>
 
@@ -439,9 +519,7 @@ export default function SettingsPage() {
                 </label>
                 <Input
                   value={newAdminFullName}
-                  onChange={(event) =>
-                    setNewAdminFullName(event.target.value)
-                  }
+                  onChange={(event) => setNewAdminFullName(event.target.value)}
                   disabled={isCreatingAdmin}
                 />
               </div>
@@ -473,9 +551,7 @@ export default function SettingsPage() {
                 <Input
                   type="password"
                   value={newAdminPassword}
-                  onChange={(event) =>
-                    setNewAdminPassword(event.target.value)
-                  }
+                  onChange={(event) => setNewAdminPassword(event.target.value)}
                   disabled={isCreatingAdmin}
                 />
               </div>
@@ -499,20 +575,28 @@ export default function SettingsPage() {
 
       <DeleteDialog
         open={deleteDialog.open}
-        onOpenChange={(open) => setDeleteDialog((current) => ({ ...current, open }))}
+        onOpenChange={(open) =>
+          setDeleteDialog((current) => ({ ...current, open }))
+        }
         title="Delete Admin Account"
-        description={`Are you sure you want to permanently delete ${deleteDialog.adminName}?`}
+        description={`Are you sure you want to permanently delete ${deleteDialog.adminName}? This is only available for admins with no historical records or related activity.`}
         onConfirm={handleDeleteAdmin}
         isLoading={isUpdatingAdmin}
       />
       <DeleteDialog
         open={disableDialog.open}
-        onOpenChange={(open) => setDisableDialog((current) => ({ ...current, open }))}
-        title={disableDialog.nextIsActive ? "Enable Admin Account" : "Disable Admin Account"}
+        onOpenChange={(open) =>
+          setDisableDialog((current) => ({ ...current, open }))
+        }
+        title={
+          disableDialog.nextIsActive
+            ? "Restore Admin Account"
+            : "Disable Admin Account"
+        }
         description={
           disableDialog.nextIsActive
-            ? `Are you sure you want to enable ${disableDialog.adminName}?`
-            : `Are you sure you want to disable ${disableDialog.adminName}? This admin will not be able to sign in.`
+            ? `Are you sure you want to restore ${disableDialog.adminName}? They will be able to sign in and receive support assignments again.`
+            : `Are you sure you want to disable ${disableDialog.adminName}? This admin will not be able to sign in, and ${disableDialog.activeSupportAssignments ?? 0} active support conversation${disableDialog.activeSupportAssignments === 1 ? "" : "s"} assigned to them will be returned to the unassigned queue.`
         }
         onConfirm={handleToggleAdminStatus}
         isLoading={isUpdatingAdmin}

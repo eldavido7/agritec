@@ -223,6 +223,19 @@ export async function POST(
         { status: 409 },
       );
     }
+    if (
+      error instanceof Error &&
+      error.message === "ASSIGNED_ADMIN_NOT_AVAILABLE"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Selected admin is not active and cannot receive support assignments.",
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
       { success: false, message: "Failed to update support assignment" },
       { status: 500 },

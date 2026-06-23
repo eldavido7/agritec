@@ -108,12 +108,10 @@ export function deriveSupportTriedAdminIds(
     }
 
     if (
-      [
-        SupportAssignmentEventType.AUTO_ASSIGN,
-        SupportAssignmentEventType.MANUAL_ASSIGN,
-        SupportAssignmentEventType.CLAIM,
-        SupportAssignmentEventType.REASSIGN,
-      ].includes(assignment.eventType) &&
+      (assignment.eventType === "AUTO_ASSIGN" ||
+        assignment.eventType === "MANUAL_ASSIGN" ||
+        assignment.eventType === "CLAIM" ||
+        assignment.eventType === "REASSIGN") &&
       assignment.assignedAdminId
     ) {
       triedAdminIds.add(assignment.assignedAdminId);
@@ -394,13 +392,25 @@ export async function assignSupportConversation(
     assignedAdminId: string;
     assignedByUserId: string | null;
     eventType:
-      | SupportAssignmentEventType.AUTO_ASSIGN
-      | SupportAssignmentEventType.MANUAL_ASSIGN
-      | SupportAssignmentEventType.CLAIM
-      | SupportAssignmentEventType.REASSIGN;
+      | "AUTO_ASSIGN"
+      | "MANUAL_ASSIGN"
+      | "CLAIM"
+      | "REASSIGN";
     note?: string | null;
   },
 ) {
+  const assignedAdmin = await tx.user.findFirst({
+    where: {
+      id: args.assignedAdminId,
+      role: UserRole.ADMIN,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+  if (!assignedAdmin) {
+    throw new Error("ASSIGNED_ADMIN_NOT_AVAILABLE");
+  }
+
   await tx.conversation.update({
     where: { id: args.conversationId },
     data: { supportStatus: SupportConversationStatus.ACTIVE },

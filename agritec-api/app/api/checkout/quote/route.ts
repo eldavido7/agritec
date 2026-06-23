@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       discountCodes: payload.discountCodes,
       logisticsSelections: payload.logisticsSelections,
       allGroupsLogisticsCompanyId: payload.allGroupsLogisticsCompanyId ?? null,
-      allowPlatformFallbackWithoutSelection: true,
+      allowUnpricedWithoutSelection: true,
     });
 
     return NextResponse.json({
@@ -105,6 +105,7 @@ export async function POST(request: Request) {
           discountTotal: group.discountTotal,
           shippingFee: group.shippingFee,
           groupTotal: group.groupTotal,
+          logisticsSelectionPending: group.logisticsSelectionPending,
           totalChargeableWeightKg: group.totalChargeableWeightKg,
           weightUnitSizeKg: group.weightUnitSizeKg,
           shippingUnits: group.shippingUnits,

@@ -25,6 +25,7 @@ export async function buildCheckoutQuote(args: {
   logisticsSelections?: LogisticsSelections;
   allGroupsLogisticsCompanyId?: string | null;
   allowPlatformFallbackWithoutSelection?: boolean;
+  allowUnpricedWithoutSelection?: boolean;
 }) {
   const {
     buyerId,
@@ -33,6 +34,7 @@ export async function buildCheckoutQuote(args: {
     logisticsSelections = {},
     allGroupsLogisticsCompanyId = null,
     allowPlatformFallbackWithoutSelection = false,
+    allowUnpricedWithoutSelection = false,
   } = args;
 
   const [address, cart, shippingSettings, logisticsCompanies] = await Promise.all([
@@ -222,7 +224,11 @@ export async function buildCheckoutQuote(args: {
       throw new Error(`LOGISTICS_COMPANY_NOT_ELIGIBLE:${group.sellerId}`);
     }
 
-    if (!allowPlatformFallbackWithoutSelection && !selectedLogisticsCompany) {
+    if (
+      !allowPlatformFallbackWithoutSelection &&
+      !allowUnpricedWithoutSelection &&
+      !selectedLogisticsCompany
+    ) {
       throw new Error(`LOGISTICS_SELECTION_REQUIRED:${group.sellerId}`);
     }
 
@@ -249,7 +255,35 @@ export async function buildCheckoutQuote(args: {
           "LOGISTICS" as
             | "LOGISTICS"
             | "PLATFORM_FALLBACK"
-            | "LOGISTICS_COMBINED",
+            | "LOGISTICS_COMBINED"
+            | "PENDING_SELECTION",
+        logisticsSelectionPending: false,
+      };
+    }
+
+    if (allowUnpricedWithoutSelection) {
+      return {
+        ...group,
+        logisticsCompanyId: null,
+        logisticsCompanyName: null,
+        deliveryRegion:
+          [address.city, address.state].filter(Boolean).join(", ") ||
+          address.state ||
+          address.city ||
+          "Selected delivery region",
+        shippingFee: 0,
+        groupTotal: group.productSubtotal - group.discountTotal,
+        weightUnitSizeKg: null,
+        shippingUnits: null,
+        minimumFee: null,
+        additionalUnitFee: null,
+        shippingPricedBy:
+          "PENDING_SELECTION" as
+            | "LOGISTICS"
+            | "PLATFORM_FALLBACK"
+            | "LOGISTICS_COMBINED"
+            | "PENDING_SELECTION",
+        logisticsSelectionPending: true,
       };
     }
 
@@ -271,11 +305,13 @@ export async function buildCheckoutQuote(args: {
       shippingUnits: shippingBreakdown.shippingUnits,
       minimumFee: shippingBreakdown.minimumFee,
       additionalUnitFee: shippingBreakdown.additionalUnitFee,
-        shippingPricedBy:
-          "PLATFORM_FALLBACK" as
-            | "LOGISTICS"
-            | "PLATFORM_FALLBACK"
-            | "LOGISTICS_COMBINED",
+      shippingPricedBy:
+        "PLATFORM_FALLBACK" as
+          | "LOGISTICS"
+          | "PLATFORM_FALLBACK"
+          | "LOGISTICS_COMBINED"
+          | "PENDING_SELECTION",
+      logisticsSelectionPending: false,
     };
   });
 
@@ -321,6 +357,7 @@ export async function buildCheckoutQuote(args: {
         minimumFee: combinedBreakdown.minimumFee,
         additionalUnitFee: combinedBreakdown.additionalUnitFee,
         shippingPricedBy: "LOGISTICS_COMBINED" as const,
+        logisticsSelectionPending: false,
       };
     });
   }

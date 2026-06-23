@@ -25,6 +25,7 @@ class CheckoutSellerGroupQuote {
     this.logisticsCompanyName,
     this.discountCode,
     required this.discountApplied,
+    required this.logisticsSelectionPending,
   });
 
   final String sellerId;
@@ -41,6 +42,7 @@ class CheckoutSellerGroupQuote {
   final String? logisticsCompanyName;
   final String? discountCode;
   final bool discountApplied;
+  final bool logisticsSelectionPending;
 }
 
 class CheckoutEligibleLogisticsCompany {
@@ -577,6 +579,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
           logisticsCompanyName: groupJson['logisticsCompanyName'] as String?,
           discountCode: groupJson['discountCode'] as String?,
           discountApplied: groupJson['discountApplied'] as bool? ?? false,
+          logisticsSelectionPending:
+              groupJson['logisticsSelectionPending'] as bool? ?? false,
         );
       }).toList(),
     );

@@ -714,7 +714,9 @@ export default function MessagesPage() {
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="">Select admin</option>
-                  {admins.map((admin) => (
+                  {admins
+                    .filter((admin) => admin.isActive)
+                    .map((admin) => (
                     <option key={admin.id} value={admin.id}>
                       {admin.fullName}
                     </option>

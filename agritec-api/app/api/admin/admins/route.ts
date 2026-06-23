@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { Prisma, UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getAdminHistorySummary } from "@/lib/admin-admin-utils";
 import { normalizeEmail, requireAuthenticatedUser } from "@/lib/auth";
 import { reserveSequentialId } from "@/lib/id-sequence";
 import prisma from "@/lib/prisma";
@@ -37,7 +38,17 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json({ success: true, admins });
+    const adminsWithHistory = await Promise.all(
+      admins.map(async (item) => {
+        const history = await getAdminHistorySummary(prisma, item.id);
+        return {
+          ...item,
+          ...history,
+        };
+      }),
+    );
+
+    return NextResponse.json({ success: true, admins: adminsWithHistory });
   } catch (error) {
     console.error("[ADMIN_ADMINS_GET_ERROR]", error);
     return NextResponse.json({ success: false, message: "Failed to fetch admins" }, { status: 500 });

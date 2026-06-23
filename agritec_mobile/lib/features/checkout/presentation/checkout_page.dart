@@ -30,6 +30,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   String? _selectedAddressId;
   String? _lastQuoteKey;
   bool _openingPaymentStatus = false;
+  bool _isApplyingDiscount = false;
   final Map<String, String> _sellerLogisticsSelections = <String, String>{};
   String? _allGroupsLogisticsCompanyId;
 
@@ -189,11 +190,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             ),
             const SizedBox(height: 8),
             OutlinedButton(
-              onPressed: checkoutState.isLoadingQuote || address == null
+              onPressed: _isApplyingDiscount || address == null
                   ? null
                   : () => _applyDiscount(address!.id),
               child: Text(
-                checkoutState.isLoadingQuote
+                _isApplyingDiscount
                     ? ref.tr('checkout.validating')
                     : ref.tr('checkout.applyCoupon'),
               ),
@@ -230,18 +231,45 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                 ),
               )
             else if (quote != null) ...[
+              Builder(
+                builder: (context) {
+                  final hasPendingLogisticsSelection = quote.sellerGroups.any(
+                    (group) => group.logisticsSelectionPending,
+                  );
+                  return Column(
+                    children: [
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Text(
-                  ref.tr('checkout.shippingHelper'),
-                  style: const TextStyle(color: Color(0xFF65706B)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ref.tr('checkout.shippingHelper'),
+                      style: const TextStyle(color: Color(0xFF65706B)),
+                    ),
+                    if (_buildSharedLogisticsChoices(quote).isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        ref.tr('checkout.sharedLogisticsLabel'),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        ref.tr('checkout.sharedLogisticsHint'),
+                        style: const TextStyle(color: Color(0xFF65706B)),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               if (_buildSharedLogisticsChoices(quote).isNotEmpty) ...[
                 DropdownButtonFormField<String>(
                   isExpanded: true,
+                  key: ValueKey<String>(
+                    'all-groups-${_allGroupsLogisticsCompanyId ?? ''}',
+                  ),
                   initialValue: _allGroupsLogisticsCompanyId ?? '',
-                  hint: Text(ref.tr('checkout.selectNationwideAll')),
+                  hint: Text(ref.tr('checkout.sharedLogisticsLabel')),
                   items: [
                     DropdownMenuItem<String>(
                       value: '',
@@ -261,11 +289,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     setState(() {
                       _allGroupsLogisticsCompanyId =
                           (value == null || value.isEmpty) ? null : value;
-                      if (_allGroupsLogisticsCompanyId != null) {
-                        _sellerLogisticsSelections.clear();
-                      }
+                      _sellerLogisticsSelections.clear();
                       _lastQuoteKey = null;
                     });
+                    ref.read(checkoutProvider.notifier).clearQuote();
                   },
                 ),
                 const SizedBox(height: 10),
@@ -307,7 +334,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       ),
                       _line(
                         ref.tr('checkout.totalShippingFee'),
-                        money.format(quote.totalShippingFee),
+                        hasPendingLogisticsSelection
+                            ? ref.tr('checkout.shippingPending')
+                            : money.format(quote.totalShippingFee),
                       ),
                       _line(
                         '${ref.tr('checkout.discountTotal')}${_appliedDiscountCode != null ? ' ($_appliedDiscountCode)' : ''}',
@@ -316,12 +345,18 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                       const Divider(),
                       _line(
                         ref.tr('checkout.finalTotalPayable'),
-                        money.format(quote.grandTotal),
+                        hasPendingLogisticsSelection
+                            ? ref.tr('checkout.totalPending')
+                            : money.format(quote.grandTotal),
                         bold: true,
                       ),
                     ],
                   ),
                 ),
+              ),
+                    ],
+                  );
+                },
               ),
             ] else
               const SizedBox.shrink(),
@@ -413,6 +448,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     }
 
     try {
+      setState(() {
+        _isApplyingDiscount = true;
+      });
       final quote = await ref.read(checkoutProvider.notifier).refreshQuote(
             addressId: addressId,
             discountCode: code,
@@ -436,6 +474,12 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       setState(() {
         _discountMessage = '$error';
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isApplyingDiscount = false;
+        });
+      }
     }
   }
 
@@ -495,19 +539,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
   void _synchronizeLogisticsSelections(CheckoutQuoteData? quote) {
     if (quote == null) return;
-    if (_allGroupsLogisticsCompanyId == null &&
-        quote.allGroupsLogisticsCompanyId != null &&
-        quote.allGroupsLogisticsCompanyId!.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        setState(() {
-          _allGroupsLogisticsCompanyId = quote.allGroupsLogisticsCompanyId;
-          _sellerLogisticsSelections.clear();
-        });
-      });
-      return;
-    }
-
     final updates = <String, String>{};
     for (final group in quote.sellerGroups) {
       if (_sellerLogisticsSelections[group.sellerId] == null &&
@@ -630,6 +661,9 @@ class _SellerCheckoutCard extends ConsumerWidget {
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               isExpanded: true,
+              key: ValueKey<String>(
+                '${group.sellerId}-${selectedLogisticsCompanyId ?? ''}-${logisticsLockedByNationwide ? 'locked' : 'open'}',
+              ),
               initialValue: selectedLogisticsCompanyId,
               hint: Text(ref.tr('checkout.selectLogistics')),
               items: [
@@ -683,20 +717,33 @@ class _SellerCheckoutCard extends ConsumerWidget {
               ref.tr('checkout.chargeableWeight'),
               '${group.shippingQuote.totalChargeableWeightKg.toStringAsFixed(1)} kg',
             ),
-            _breakdownLine(
-              ref.tr('checkout.shippingFee'),
-              currency.format(group.shippingFee),
-            ),
+            if (group.logisticsSelectionPending)
+              _breakdownLine(
+                ref.tr('checkout.shippingFee'),
+                ref.tr('checkout.shippingPending'),
+              )
+            else
+              _breakdownLine(
+                ref.tr('checkout.shippingFee'),
+                currency.format(group.shippingFee),
+              ),
             _breakdownLine(
               ref.tr('checkout.discount'),
               '- ${currency.format(group.discountTotal)}',
             ),
             const Divider(),
-            _breakdownLine(
-              ref.tr('checkout.groupTotal'),
-              currency.format(group.groupTotal),
-              bold: true,
-            ),
+            if (group.logisticsSelectionPending)
+              _breakdownLine(
+                ref.tr('checkout.groupTotal'),
+                ref.tr('checkout.totalPending'),
+                bold: true,
+              )
+            else
+              _breakdownLine(
+                ref.tr('checkout.groupTotal'),
+                currency.format(group.groupTotal),
+                bold: true,
+              ),
           ],
         ),
       ),
