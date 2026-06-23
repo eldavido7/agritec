@@ -1,7 +1,6 @@
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/core/localization/localized_text.dart';
-import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
 import 'package:agritec_mobile/features/orders/application/order_providers.dart';
@@ -9,6 +8,7 @@ import 'package:agritec_mobile/features/orders/presentation/orders_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
@@ -65,6 +65,9 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
     final buyerPoint = hasBuyerCoords
         ? LatLng(order.buyerAddress.latitude!, order.buyerAddress.longitude!)
         : null;
+    final needsBuyerMapLocation =
+        !hasBuyerCoords &&
+        (order.buyerAddress.isManualAddress || order.buyerAddress.isAdminAssisted);
     final money = NumberFormat.currency(
       locale: 'en_NG',
       symbol: 'NGN ',
@@ -165,18 +168,13 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
                         buyerPoint: buyerPoint,
                         farmName: group.farmName,
                         buyerInfoTitle: ref.tr('orderDetails.deliveryAddress'),
-                        sellerAddress:
-                            ref.watch(homeSellerByIdProvider(group.sellerId)).location,
+                        sellerAddress: group.sellerAddress,
                         buyerAddress: order.buyerAddress.fullAddress,
                       ),
                     ),
                   ),
                 ),
-              if (!hasBuyerCoords ||
-                  !_hasValidCoordinates(
-                    group.sellerLatitude,
-                    group.sellerLongitude,
-                  ))
+              if (needsBuyerMapLocation)
                 Card(
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -188,6 +186,24 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
                     trailing: TextButton(
                       onPressed: () => context.goNamed('addresses'),
                       child: Text(ref.tr('orderDetails.editAddress')),
+                    ),
+                  ),
+                ),
+              if (!needsBuyerMapLocation &&
+                  (buyerPoint == null ||
+                      !_hasValidCoordinates(
+                        group.sellerLatitude,
+                        group.sellerLongitude,
+                      )))
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ListTile(
+                    title: Text(ref.tr('orderDetails.mapUnavailable')),
+                    subtitle: Text(
+                      'Route map is unavailable for this order right now.',
                     ),
                   ),
                 ),
@@ -239,7 +255,7 @@ class _SellerGroupCard extends ConsumerWidget {
   final NumberFormat currency;
 
   String _formatStatusDate(DateTime value) {
-    return DateFormat('d MMM, y • h:mm a', 'en_NG').format(value);
+    return DateFormat('d MMM, y - h:mm a').format(value);
   }
 
   @override
@@ -440,14 +456,14 @@ class _RouteMapState extends State<_RouteMap> {
         _fitBounds();
       },
       gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-        Factory<PanGestureRecognizer>(() => PanGestureRecognizer()),
-        Factory<ScaleGestureRecognizer>(() => ScaleGestureRecognizer()),
+        Factory<TapGestureRecognizer>(() => TapGestureRecognizer()),
       },
-      scrollGesturesEnabled: true,
-      zoomGesturesEnabled: true,
-      rotateGesturesEnabled: true,
-      tiltGesturesEnabled: true,
+      scrollGesturesEnabled: false,
+      zoomGesturesEnabled: false,
+      rotateGesturesEnabled: false,
+      tiltGesturesEnabled: false,
       myLocationButtonEnabled: false,
+      mapToolbarEnabled: false,
       zoomControlsEnabled: false,
       markers: {
         Marker(
@@ -498,16 +514,30 @@ class _RouteMapState extends State<_RouteMap> {
     final east = widget.sellerPoint.longitude > widget.buyerPoint.longitude
         ? widget.sellerPoint.longitude
         : widget.buyerPoint.longitude;
-    await controller.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(south, west),
-          northeast: LatLng(north, east),
+    try {
+      final latDelta = (north - south).abs();
+      final lngDelta = (east - west).abs();
+      if (latDelta < 0.0001 && lngDelta < 0.0001) {
+        await controller.animateCamera(
+          CameraUpdate.newLatLngZoom(widget.buyerPoint, 13),
+        );
+        return;
+      }
+      await controller.animateCamera(
+        CameraUpdate.newLatLngBounds(
+          LatLngBounds(
+            southwest: LatLng(south, west),
+            northeast: LatLng(north, east),
+          ),
+          56,
         ),
-        56,
-      ),
-    );
-    await controller.animateCamera(CameraUpdate.zoomBy(0.5));
+      );
+      await controller.animateCamera(CameraUpdate.zoomBy(0.5));
+    } on PlatformException {
+      await controller.animateCamera(
+        CameraUpdate.newLatLngZoom(widget.buyerPoint, 10),
+      );
+    }
   }
 }
 class _TimelineRow extends StatelessWidget {
@@ -587,3 +617,4 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 }
+

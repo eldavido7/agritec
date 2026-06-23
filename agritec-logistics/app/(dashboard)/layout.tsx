@@ -49,7 +49,24 @@ function DashboardShell({ children, onNavigate }: { children: React.ReactNode; o
   const [isDesktop, setIsDesktop] = useState(true);
 
   useEffect(() => {
-    void fetchNotifications().catch(() => undefined);
+    void fetchNotifications({ force: true }).catch(() => undefined);
+
+    const intervalId = window.setInterval(() => {
+      void fetchNotifications({ force: true }).catch(() => undefined);
+    }, 15000);
+
+    const handleFocus = () => {
+      void fetchNotifications({ force: true }).catch(() => undefined);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
   }, [fetchNotifications]);
 
   useEffect(() => {

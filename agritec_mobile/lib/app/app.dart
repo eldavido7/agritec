@@ -75,7 +75,7 @@ class _AgritecBuyerAppState extends ConsumerState<AgritecBuyerApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      refreshBuyerScopedStateFromWidget(ref);
+      syncBuyerScopedStateFromWidget(ref);
       _maybeOpenPendingPayment();
     }
   }

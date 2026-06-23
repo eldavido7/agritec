@@ -184,7 +184,6 @@ class CartNotifier extends Notifier<CartState> {
   static const _guestCacheKey = 'cache_cart_v3-guest';
 
   String? _sessionStamp;
-  bool _didPrime = false;
   bool _isPriming = false;
 
   @override
@@ -194,7 +193,6 @@ class CartNotifier extends Notifier<CartState> {
     final stamp = '${userId ?? 'guest'}:${token ?? 'none'}';
     if (_sessionStamp != stamp) {
       _sessionStamp = stamp;
-      _didPrime = false;
       _isPriming = false;
     }
     _prime();
@@ -206,8 +204,7 @@ class CartNotifier extends Notifier<CartState> {
   String _currentCacheKey() => _cacheKeyForUser(ref.read(currentBuyerUserIdProvider));
 
   Future<void> _prime() async {
-    if (_didPrime || _isPriming) return;
-    _didPrime = true;
+    if (_isPriming) return;
     _isPriming = true;
 
     try {

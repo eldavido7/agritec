@@ -705,41 +705,36 @@ export default function MessagesPage() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-                <select
-                  value={assignmentTargetAdminId}
-                  onChange={(event) =>
-                    setAssignmentTargetAdminId(event.target.value)
-                  }
-                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="">Select admin</option>
-                  {admins
-                    .filter((admin) => admin.isActive)
-                    .map((admin) => (
-                    <option key={admin.id} value={admin.id}>
-                      {admin.fullName}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  disabled={!assignmentTargetAdminId || isUpdatingSupport}
-                  onClick={() =>
-                    void handleSupportAction(
-                      currentConversation.support?.queueState === "ASSIGNED"
-                        ? "reassign"
-                        : "assign",
-                    )
-                  }
-                >
-                  <UserPlus className="h-4 w-4" />
-                  {currentConversation.support?.queueState === "ASSIGNED"
-                    ? "Reassign"
-                    : "Assign"}
-                </Button>
-              </div>
+              {currentConversation.support?.queueState === "UNASSIGNED" &&
+              currentConversation.support.lifecycleStatus === "ACTIVE" ? (
+                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                  <select
+                    value={assignmentTargetAdminId}
+                    onChange={(event) =>
+                      setAssignmentTargetAdminId(event.target.value)
+                    }
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Select admin</option>
+                    {admins
+                      .filter((admin) => admin.isActive)
+                      .map((admin) => (
+                        <option key={admin.id} value={admin.id}>
+                          {admin.fullName}
+                        </option>
+                      ))}
+                  </select>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    disabled={!assignmentTargetAdminId || isUpdatingSupport}
+                    onClick={() => void handleSupportAction("assign")}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Assign
+                  </Button>
+                </div>
+              ) : null}
             </CardHeader>
 
             <CardContent className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(0,1fr)_320px]">

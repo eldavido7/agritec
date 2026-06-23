@@ -418,7 +418,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     }
     final nextKey =
         '${address.id}|${_appliedDiscountCode ?? ''}|${_allGroupsLogisticsCompanyId ?? ''}|${groups.map((item) => item.sellerId).join(',')}|${_sellerLogisticsSelections.entries.map((entry) => '${entry.key}:${entry.value}').join(',')}';
-    if (_lastQuoteKey == nextKey) return;
+    if (_lastQuoteKey == nextKey && checkoutState.quote != null) return;
     _lastQuoteKey = nextKey;
     scheduleMicrotask(() async {
       try {
@@ -695,7 +695,12 @@ class _SellerCheckoutCard extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(currency.format(item.lineTotal)),
+                    Flexible(
+                      child: Text(
+                        currency.format(item.lineTotal),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -754,20 +759,26 @@ class _SellerCheckoutCard extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Text(
               label,
+              softWrap: true,
               style: TextStyle(
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
               ),
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+          Flexible(
+            child: Text(
+              value,
+              softWrap: true,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              ),
             ),
           ),
         ],

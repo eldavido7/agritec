@@ -14,6 +14,7 @@ class SellerOrderGroup {
     required this.sellerId,
     required this.sellerName,
     required this.farmName,
+    required this.sellerAddress,
     required this.sellerLatitude,
     required this.sellerLongitude,
     required this.status,
@@ -34,6 +35,7 @@ class SellerOrderGroup {
   final String sellerId;
   final String sellerName;
   final String farmName;
+  final String sellerAddress;
   final double sellerLatitude;
   final double sellerLongitude;
   final String status;
@@ -54,6 +56,7 @@ class SellerOrderGroup {
         'sellerId': sellerId,
         'sellerName': sellerName,
         'farmName': farmName,
+        'sellerAddress': sellerAddress,
         'sellerLatitude': sellerLatitude,
         'sellerLongitude': sellerLongitude,
         'status': status,
@@ -323,6 +326,7 @@ MarketplaceOrder _marketplaceOrderFromJson(Map<String, dynamic> json) {
             sellerId: group['sellerId'] as String,
             sellerName: group['sellerName'] as String,
             farmName: group['farmName'] as String,
+            sellerAddress: group['sellerAddress'] as String? ?? '',
             sellerLatitude: (group['sellerLatitude'] as num?)?.toDouble() ?? 0,
             sellerLongitude: (group['sellerLongitude'] as num?)?.toDouble() ?? 0,
             status: group['status'] as String,
@@ -469,12 +473,18 @@ MarketplaceOrder orderFromApiJson(
       final liveSeller = fallbackSellers
           .where((item) => item.id == sellerId)
           .firstOrNull;
+      final sellerJson = groupJson['seller'] as Map<String, dynamic>?;
       final parsedSellerLat = _parseDouble(groupJson['sellerLatitude']);
       final parsedSellerLng = _parseDouble(groupJson['sellerLongitude']);
+      final sellerAddress = (sellerJson?['fullAddress'] as String?)?.trim() ??
+          liveSeller?.location ??
+          '';
       final sellerLatitude = parsedSellerLat ??
+          _parseDouble(sellerJson?['latitude']) ??
           liveSeller?.latitude ??
           0;
       final sellerLongitude = parsedSellerLng ??
+          _parseDouble(sellerJson?['longitude']) ??
           liveSeller?.longitude ??
           0;
 
@@ -483,6 +493,7 @@ MarketplaceOrder orderFromApiJson(
         sellerId: sellerId,
         sellerName: (groupJson['sellerNameSnapshot'] as String?) ?? 'Seller',
         farmName: (groupJson['farmNameSnapshot'] as String?) ?? 'Farm',
+        sellerAddress: sellerAddress,
         sellerLatitude: sellerLatitude,
         sellerLongitude: sellerLongitude,
         status: status,

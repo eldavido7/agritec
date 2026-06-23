@@ -197,14 +197,10 @@ class CheckoutState {
 
 class CheckoutNotifier extends Notifier<CheckoutState> {
   static const _pendingPaymentCacheKey = 'cache_pending_payment_v1';
-  bool _didPrimePendingPayment = false;
 
   @override
   CheckoutState build() {
-    if (!_didPrimePendingPayment) {
-      _didPrimePendingPayment = true;
-      _primePendingPayment();
-    }
+    _primePendingPayment();
     return const CheckoutState();
   }
 

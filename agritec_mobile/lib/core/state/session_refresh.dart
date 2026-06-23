@@ -41,3 +41,12 @@ void refreshBuyerScopedStateFromWidget(WidgetRef ref) {
   ref.invalidate(wishlistProvider);
   ref.invalidate(wishlistProductsProvider);
 }
+
+void syncBuyerScopedStateFromWidget(WidgetRef ref) {
+  ref.read(addressBookProvider.notifier).refresh();
+  ref.read(cartProvider.notifier).refresh();
+  ref.read(ordersProvider.notifier).refresh();
+  ref.read(chatProvider.notifier).refreshConversations();
+  ref.read(notificationsProvider.notifier).refresh();
+  ref.read(wishlistProvider.notifier).refresh();
+}

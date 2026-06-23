@@ -95,6 +95,13 @@ export function serializeOrder(order: any) {
                 longitude: decimalToNumber(group.logisticsCompany.longitude),
               }
             : null,
+          seller: group.seller
+            ? {
+                ...group.seller,
+                latitude: decimalToNumber(group.seller.latitude),
+                longitude: decimalToNumber(group.seller.longitude),
+              }
+            : null,
           statusHistory: Array.isArray(group.statusHistory)
             ? group.statusHistory.map(serializeStatusHistoryEntry)
             : [],

@@ -29,6 +29,14 @@ export async function GET(
           include: {
             items: true,
             refunds: true,
+            seller: {
+              select: {
+                id: true,
+                fullAddress: true,
+                latitude: true,
+                longitude: true,
+              },
+            },
             logisticsCompany: { include: { user: true } },
             statusHistory: {
               include: {

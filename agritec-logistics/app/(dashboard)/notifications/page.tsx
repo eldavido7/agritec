@@ -28,7 +28,23 @@ export default function NotificationsPage() {
   const markAllAsRead = useLogisticsStore((state) => state.markAllNotificationsAsRead);
 
   useEffect(() => {
-    void fetchNotifications().catch(() => undefined);
+    void fetchNotifications({ force: true }).catch(() => undefined);
+
+    const refresh = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchNotifications({ force: true }).catch(() => undefined);
+      }
+    };
+
+    const interval = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [fetchNotifications]);
 
   const containerVariants = {

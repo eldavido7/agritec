@@ -31,6 +31,15 @@ const parentOrderInclude = {
     include: {
       items: true,
       refunds: true,
+      seller: {
+        select: {
+          id: true,
+          fullAddress: true,
+          latitude: true,
+          longitude: true,
+          userId: true,
+        },
+      },
       logisticsCompany: {
         include: {
           user: true,
@@ -706,6 +715,23 @@ export async function finalizeSuccessfulPayment(args: {
             parentOrderId: payment.parentOrderId,
             sellerOrderGroupId: group.id,
             status: SellerOrderGroupStatus.CONFIRMED,
+          }),
+        });
+      }
+
+      if (group.logisticsCompany?.userId) {
+        await createNotification(tx, {
+          userId: group.logisticsCompany.userId,
+          type: NotificationType.ORDER,
+          title: "New assigned delivery",
+          body: `A new paid order for ${group.farmNameSnapshot} has been assigned to ${group.logisticsCompanyNameSnapshot ?? group.logisticsCompany.companyName}.`,
+          targetType: "sellerOrderGroup",
+          targetId: group.id,
+          metadata: toJsonValue({
+            parentOrderId: payment.parentOrderId,
+            sellerOrderGroupId: group.id,
+            status: SellerOrderGroupStatus.CONFIRMED,
+            logisticsCompanyId: group.logisticsCompanyId,
           }),
         });
       }

@@ -1,15 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -42,19 +35,23 @@ export function StatusUpdateModal({
 }: StatusUpdateModalProps) {
   const updateDeliveryStatus = useLogisticsStore((state) => state.updateDeliveryStatus);
   const isUpdating = useLogisticsStore((state) => state.isUpdatingStatus);
-  const [status, setStatus] = useState<DeliveryStatus | ''>('');
+  const [status, setStatus] = useState<DeliveryStatus>(currentStatus);
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
 
-  const availableStatuses = useMemo(
-    () => statusOptions.filter((option) => option.value !== currentStatus),
-    [currentStatus]
-  );
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setStatus(currentStatus);
+    setDescription('');
+    setError('');
+  }, [currentStatus, open]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!status) {
-      setError('Select a status to continue.');
+    if (status === currentStatus) {
+      setError('Select a different status to continue.');
       return;
     }
 
@@ -62,7 +59,7 @@ export function StatusUpdateModal({
 
     try {
       await updateDeliveryStatus(deliveryId, status, description);
-      setStatus('');
+      setStatus(currentStatus);
       setDescription('');
       onOpenChange(false);
     } catch (submitError) {
@@ -76,7 +73,7 @@ export function StatusUpdateModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent onInteractOutside={(e) => e.preventDefault()} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Update Delivery Status</DialogTitle>
         </DialogHeader>
@@ -84,18 +81,19 @@ export function StatusUpdateModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-sm font-medium text-foreground">New Status</label>
-            <Select value={status} onValueChange={(value) => setStatus(value as DeliveryStatus)}>
-              <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Select delivery status" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableStatuses.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as DeliveryStatus)}
+              className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              disabled={isUpdating}
+            >
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                  {option.value === currentStatus ? ' (Current)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -127,7 +125,10 @@ export function StatusUpdateModal({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isUpdating || !status}>
+            <Button
+              type="submit"
+              disabled={isUpdating || status === currentStatus}
+            >
               {isUpdating ? 'Updating...' : 'Update Status'}
             </Button>
           </DialogFooter>

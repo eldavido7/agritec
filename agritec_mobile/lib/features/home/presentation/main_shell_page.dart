@@ -88,7 +88,7 @@ class _MainShellPageState extends ConsumerState<MainShellPage> {
       final wasOnline = previous?.asData?.value ?? false;
       final nowOnline = next.asData?.value ?? false;
       if (!wasOnline && nowOnline) {
-        refreshBuyerScopedStateFromWidget(ref);
+        syncBuyerScopedStateFromWidget(ref);
       }
     });
 

@@ -180,6 +180,8 @@ class PushNotificationService {
     final type = (message.data['type'] ?? '').toString().toUpperCase();
     if (type == 'ORDER') {
       await ref.read(ordersProvider.notifier).refresh();
+    } else if (type == 'MESSAGE') {
+      await ref.read(chatProvider.notifier).refreshConversations();
     }
 
     final title = message.notification?.title ?? (message.data['title']?.toString() ?? 'AgriTec');
