@@ -75,8 +75,8 @@ async function notifyStatusChange(tx: Prisma.TransactionClient, args: {
   await createNotification(tx, {
     userId: args.buyerUserId,
     type: NotificationType.ORDER,
-    title: `Order update: ${readableStatus}`,
-    body: `${args.farmName} is now ${readableStatus.toLowerCase()} for order group ${args.sellerOrderGroupId}.${noteSuffix}`,
+    title: `Order ${args.parentOrderId}: ${readableStatus}`,
+    body: `Order ${args.parentOrderId} is now ${readableStatus.toLowerCase()} for seller group ${args.sellerOrderGroupId}.${noteSuffix}`,
     targetType: "parentOrder",
     targetId: args.parentOrderId,
     metadata: toJsonValue({

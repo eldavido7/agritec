@@ -48,6 +48,7 @@ class PushNotificationService {
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
   StreamSubscription<String>? _tokenRefreshSubscription;
+  final Map<String, DateTime> _recentNotificationEvents = {};
 
   Future<void> initialize(WidgetRef ref) async {
     if (_initialized) return;
@@ -176,6 +177,10 @@ class PushNotificationService {
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message, WidgetRef ref) async {
+    if (_shouldSuppressDuplicate(message)) {
+      return;
+    }
+
     await ref.read(notificationsProvider.notifier).refresh();
     final type = (message.data['type'] ?? '').toString().toUpperCase();
     if (type == 'ORDER') {
@@ -207,7 +212,43 @@ class PushNotificationService {
   }
 
   Future<void> _handleRemoteMessageTap(RemoteMessage message, WidgetRef ref) async {
+    if (_shouldSuppressDuplicate(message, recordOnly: true)) {
+      return;
+    }
     await _routeFromPayload(ref, Map<String, dynamic>.from(message.data));
+  }
+
+  bool _shouldSuppressDuplicate(
+    RemoteMessage message, {
+    bool recordOnly = false,
+  }) {
+    final notificationId = (message.data['notificationId'] ?? '').toString().trim();
+    final fallbackKey = [
+      notificationId,
+      (message.data['type'] ?? '').toString(),
+      (message.data['targetType'] ?? '').toString(),
+      (message.data['targetId'] ?? '').toString(),
+      message.notification?.title ?? '',
+      message.notification?.body ?? '',
+    ].join('|');
+    final key = notificationId.isNotEmpty ? notificationId : fallbackKey;
+    final now = DateTime.now();
+
+    _recentNotificationEvents.removeWhere(
+      (_, timestamp) => now.difference(timestamp) > const Duration(seconds: 30),
+    );
+
+    final previous = _recentNotificationEvents[key];
+    if (previous != null &&
+        now.difference(previous) < const Duration(seconds: 8)) {
+      return true;
+    }
+
+    if (!recordOnly || previous == null) {
+      _recentNotificationEvents[key] = now;
+    }
+
+    return false;
   }
 
   Future<void> _handleLocalNotificationTap(String? payload, WidgetRef ref) async {
