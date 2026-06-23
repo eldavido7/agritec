@@ -1,6 +1,7 @@
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/core/localization/localized_text.dart';
+import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/home/presentation/main_shell_page.dart';
 import 'package:agritec_mobile/features/orders/application/order_providers.dart';
@@ -150,66 +151,13 @@ class _OrderDetailsPageState extends ConsumerState<OrderDetailsPage> {
               ),
             ),
             const SizedBox(height: 10),
-            for (final group in order.sellerGroups) ...[
-              if (buyerPoint != null &&
-                  _hasValidCoordinates(
-                    group.sellerLatitude,
-                    group.sellerLongitude,
-                  ))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: SizedBox(
-                      height: 220,
-                      child: _RouteMap(
-                        sellerPoint:
-                            LatLng(group.sellerLatitude, group.sellerLongitude),
-                        buyerPoint: buyerPoint,
-                        farmName: group.farmName,
-                        buyerInfoTitle: ref.tr('orderDetails.deliveryAddress'),
-                        sellerAddress: group.sellerAddress,
-                        buyerAddress: order.buyerAddress.fullAddress,
-                      ),
-                    ),
-                  ),
-                ),
-              if (needsBuyerMapLocation)
-                Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: ListTile(
-                    title: Text(ref.tr('orderDetails.mapUnavailable')),
-                    subtitle: Text(ref.tr('orderDetails.mapUnavailableHint')),
-                    trailing: TextButton(
-                      onPressed: () => context.goNamed('addresses'),
-                      child: Text(ref.tr('orderDetails.editAddress')),
-                    ),
-                  ),
-                ),
-              if (!needsBuyerMapLocation &&
-                  (buyerPoint == null ||
-                      !_hasValidCoordinates(
-                        group.sellerLatitude,
-                        group.sellerLongitude,
-                      )))
-                Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: ListTile(
-                    title: Text(ref.tr('orderDetails.mapUnavailable')),
-                    subtitle: Text(
-                      'Route map is unavailable for this order right now.',
-                    ),
-                  ),
-                ),
-              _SellerGroupCard(group: group, currency: money),
-              const SizedBox(height: 10),
-            ],
+            for (final group in order.sellerGroups)
+              _SellerGroupSection(
+                group: group,
+                buyerPoint: buyerPoint,
+                buyerAddress: order.buyerAddress.fullAddress,
+                needsBuyerMapLocation: needsBuyerMapLocation,
+              ),
           ],
         ),
       ),
@@ -246,6 +194,101 @@ bool _hasValidCoordinates(double? latitude, double? longitude) {
   if (latitude == null || longitude == null) return false;
   if (latitude.abs() < 0.000001 && longitude.abs() < 0.000001) return false;
   return true;
+}
+
+double? _resolveCoordinate(double? stored, double? fallback) {
+  if (stored != null && stored.abs() >= 0.000001) {
+    return stored;
+  }
+  if (fallback != null && fallback.abs() >= 0.000001) {
+    return fallback;
+  }
+  return null;
+}
+
+class _SellerGroupSection extends ConsumerWidget {
+  const _SellerGroupSection({
+    required this.group,
+    required this.buyerPoint,
+    required this.buyerAddress,
+    required this.needsBuyerMapLocation,
+  });
+
+  final SellerOrderGroup group;
+  final LatLng? buyerPoint;
+  final String buyerAddress;
+  final bool needsBuyerMapLocation;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liveSeller = ref.watch(homeSellerByIdProvider(group.sellerId));
+    final sellerLatitude =
+        _resolveCoordinate(group.sellerLatitude, liveSeller.latitude);
+    final sellerLongitude =
+        _resolveCoordinate(group.sellerLongitude, liveSeller.longitude);
+    final sellerAddress = group.sellerAddress.trim().isNotEmpty
+        ? group.sellerAddress
+        : liveSeller.location;
+    final hasSellerCoords =
+        _hasValidCoordinates(sellerLatitude, sellerLongitude);
+
+    return Column(
+      children: [
+        if (buyerPoint != null && hasSellerCoords)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: SizedBox(
+                height: 220,
+                child: _RouteMap(
+                  sellerPoint: LatLng(sellerLatitude!, sellerLongitude!),
+                  buyerPoint: buyerPoint!,
+                  farmName: group.farmName,
+                  buyerInfoTitle: ref.tr('orderDetails.deliveryAddress'),
+                  sellerAddress: sellerAddress,
+                  buyerAddress: buyerAddress,
+                ),
+              ),
+            ),
+          ),
+        if (needsBuyerMapLocation)
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ListTile(
+              title: Text(ref.tr('orderDetails.mapUnavailable')),
+              subtitle: Text(ref.tr('orderDetails.mapUnavailableHint')),
+              trailing: TextButton(
+                onPressed: () => context.goNamed('addresses'),
+                child: Text(ref.tr('orderDetails.editAddress')),
+              ),
+            ),
+          ),
+        if (!needsBuyerMapLocation && (buyerPoint == null || !hasSellerCoords))
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const ListTile(
+              title: Text('Map unavailable'),
+              subtitle: Text(
+                'Route map is unavailable for this order right now.',
+              ),
+            ),
+          ),
+        _SellerGroupCard(group: group, currency: NumberFormat.currency(
+          locale: 'en_NG',
+          symbol: 'NGN ',
+          decimalDigits: 0,
+        )),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
 }
 
 class _SellerGroupCard extends ConsumerWidget {

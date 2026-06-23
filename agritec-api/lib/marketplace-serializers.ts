@@ -85,6 +85,9 @@ export function serializeOrder(order: any) {
       : null,
     sellerGroups: Array.isArray(order.sellerGroups)
       ? order.sellerGroups.map((group: any) => ({
+          sellerLatitude: decimalToNumber(group.seller?.latitude),
+          sellerLongitude: decimalToNumber(group.seller?.longitude),
+          sellerAddress: group.seller?.fullAddress ?? null,
           ...group,
           totalChargeableWeightKg: decimalToNumber(group.totalChargeableWeightKg),
           weightUnitSizeKg: decimalToNumber(group.weightUnitSizeKg),

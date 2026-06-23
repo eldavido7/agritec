@@ -476,7 +476,8 @@ MarketplaceOrder orderFromApiJson(
       final sellerJson = groupJson['seller'] as Map<String, dynamic>?;
       final parsedSellerLat = _parseDouble(groupJson['sellerLatitude']);
       final parsedSellerLng = _parseDouble(groupJson['sellerLongitude']);
-      final sellerAddress = (sellerJson?['fullAddress'] as String?)?.trim() ??
+      final sellerAddress = (groupJson['sellerAddress'] as String?)?.trim() ??
+          (sellerJson?['fullAddress'] as String?)?.trim() ??
           liveSeller?.location ??
           '';
       final sellerLatitude = parsedSellerLat ??
