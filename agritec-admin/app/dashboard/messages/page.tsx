@@ -519,7 +519,7 @@ export default function MessagesPage() {
         <Button
           variant="outline"
           size="sm"
-          className="gap-2"
+          className="gap-2 dark:hover:text-white dark:hover:bg-primary/50"
           onClick={() => setNewChatMode((current) => !current)}
         >
           <Plus className="h-4 w-4" />
@@ -535,19 +535,20 @@ export default function MessagesPage() {
 
           <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden pt-4">
             <div className="mb-3 flex flex-wrap gap-2">
-              {(["assigned", "unassigned", "resolved", "all"] as QueueTab[]).map(
-                (tab) => (
-                  <Button
-                    key={tab}
-                    type="button"
-                    size="sm"
-                    variant={queueTab === tab ? "default" : "outline"}
-                    onClick={() => setQueueTab(tab)}
-                  >
-                    {tab}
-                  </Button>
-                ),
-              )}
+              {(
+                ["assigned", "unassigned", "resolved", "all"] as QueueTab[]
+              ).map((tab) => (
+                <Button
+                  key={tab}
+                  type="button"
+                  size="sm"
+                  variant={queueTab === tab ? "default" : "outline"}
+                  onClick={() => setQueueTab(tab)}
+                  className="gap-2 dark:hover:text-white dark:hover:bg-secondary/90"
+                >
+                  {tab}
+                </Button>
+              ))}
             </div>
 
             {newChatMode ? (
@@ -620,14 +621,18 @@ export default function MessagesPage() {
                           {getConversationTitle(conversation)}
                         </p>
                         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {conversation.latestMessage?.body || "No messages yet"}
+                          {conversation.latestMessage?.body ||
+                            "No messages yet"}
                         </p>
                         <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
-                          <span>{getQueueLabel(conversation, currentAdminId)}</span>
+                          <span>
+                            {getQueueLabel(conversation, currentAdminId)}
+                          </span>
                           <span>•</span>
                           <span>
                             {formatTimestamp(
-                              conversation.lastMessageAt || conversation.updatedAt,
+                              conversation.lastMessageAt ||
+                                conversation.updatedAt,
                             )}
                           </span>
                         </div>
@@ -716,7 +721,8 @@ export default function MessagesPage() {
                       </Button>
                     </>
                   ) : null}
-                  {currentConversation.support?.lifecycleStatus === "RESOLVED" ? (
+                  {currentConversation.support?.lifecycleStatus ===
+                  "RESOLVED" ? (
                     <Button
                       size="sm"
                       onClick={() => void handleSupportAction("reopen")}
@@ -854,8 +860,8 @@ export default function MessagesPage() {
                 <div className="border-t border-border/50 bg-background p-4">
                   {!canReplyPublicly ? (
                     <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700">
-                      This thread is assigned to another admin. Add an internal note
-                      or reassign it before sending a public reply.
+                      This thread is assigned to another admin. Add an internal
+                      note or reassign it before sending a public reply.
                     </div>
                   ) : null}
 
@@ -944,7 +950,8 @@ export default function MessagesPage() {
                         isSending ||
                         isUploadingAttachment ||
                         !canReplyPublicly ||
-                        (!messageInput.trim() && pendingAttachments.length === 0)
+                        (!messageInput.trim() &&
+                          pendingAttachments.length === 0)
                       }
                     >
                       {isSending || isUploadingAttachment ? (
@@ -1020,7 +1027,9 @@ export default function MessagesPage() {
                   <textarea
                     rows={3}
                     value={internalCommentInput}
-                    onChange={(event) => setInternalCommentInput(event.target.value)}
+                    onChange={(event) =>
+                      setInternalCommentInput(event.target.value)
+                    }
                     placeholder="Add internal note..."
                     className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none"
                   />

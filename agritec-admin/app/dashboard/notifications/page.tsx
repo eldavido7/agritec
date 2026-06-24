@@ -134,13 +134,15 @@ export default function NotificationsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="mt-1 text-muted-foreground">System alerts and updates</p>
+          <p className="mt-1 text-muted-foreground">
+            System alerts and updates
+          </p>
         </div>
         {unreadCount > 0 ? (
           <Button
             onClick={() => void handleMarkAllAsRead()}
             variant="outline"
-            className="w-full md:w-auto"
+            className="w-full md:w-auto dark:hover:text-white dark:hover:bg-primary/50"
             disabled={isUpdating}
           >
             {isUpdating ? <Spinner className="mr-2 size-4" /> : null}
@@ -150,10 +152,42 @@ export default function NotificationsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-sm text-muted-foreground">Total</p><p className="text-3xl font-bold text-foreground">{notifications.length}</p></CardContent></Card>
-        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-sm text-muted-foreground">Unread</p><p className="text-3xl font-bold text-orange-600">{unreadCount}</p></CardContent></Card>
-        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-sm text-muted-foreground">Read</p><p className="text-3xl font-bold text-green-600">{notifications.filter((notification) => notification.isRead).length}</p></CardContent></Card>
-        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-sm text-muted-foreground">Types</p><p className="text-3xl font-bold text-blue-600">{new Set(notifications.map((notification) => notification.type)).size}</p></CardContent></Card>
+        <Card className="border-border/50">
+          <CardContent className="pt-6">
+            <p className="mb-1 text-sm text-muted-foreground">Total</p>
+            <p className="text-3xl font-bold text-foreground">
+              {notifications.length}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="pt-6">
+            <p className="mb-1 text-sm text-muted-foreground">Unread</p>
+            <p className="text-3xl font-bold text-orange-600">{unreadCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="pt-6">
+            <p className="mb-1 text-sm text-muted-foreground">Read</p>
+            <p className="text-3xl font-bold text-green-600">
+              {
+                notifications.filter((notification) => notification.isRead)
+                  .length
+              }
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="pt-6">
+            <p className="mb-1 text-sm text-muted-foreground">Types</p>
+            <p className="text-3xl font-bold text-blue-600">
+              {
+                new Set(notifications.map((notification) => notification.type))
+                  .size
+              }
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="border-border/50">
@@ -162,22 +196,26 @@ export default function NotificationsPage() {
             <div>
               <p className="mb-3 text-sm font-semibold text-foreground">Type</p>
               <div className="flex flex-wrap gap-2">
-                {(["all", "ORDER", "PAYOUT", "MESSAGE", "SYSTEM"] as const).map((type) => (
-                  <Button
-                    key={type}
-                    variant={filterType === type ? "default" : "outline"}
-                    onClick={() => setFilterType(type)}
-                    size="sm"
-                    className="capitalize"
-                  >
-                    {type === "all" ? "All Types" : type.toLowerCase()}
-                  </Button>
-                ))}
+                {(["all", "ORDER", "PAYOUT", "MESSAGE", "SYSTEM"] as const).map(
+                  (type) => (
+                    <Button
+                      key={type}
+                      variant={filterType === type ? "default" : "outline"}
+                      onClick={() => setFilterType(type)}
+                      size="sm"
+                      className="capitalize text-white dark:hover:text-white dark:hover:bg-secondary/50"
+                    >
+                      {type === "all" ? "All Types" : type.toLowerCase()}
+                    </Button>
+                  ),
+                )}
               </div>
             </div>
 
             <div>
-              <p className="mb-3 text-sm font-semibold text-foreground">Status</p>
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Status
+              </p>
               <div className="flex gap-2">
                 {(["all", "unread", "read"] as const).map((status) => (
                   <Button
@@ -185,7 +223,7 @@ export default function NotificationsPage() {
                     variant={filterRead === status ? "default" : "outline"}
                     onClick={() => setFilterRead(status)}
                     size="sm"
-                    className="capitalize"
+                    className="capitalize text-white dark:hover:text-white dark:hover:bg-secondary/50"
                   >
                     {status === "all" ? "All" : status}
                   </Button>
@@ -210,7 +248,9 @@ export default function NotificationsPage() {
                   <div
                     className={`shrink-0 rounded-lg border p-2 ${notificationColors[notification.type] || notificationColors.SYSTEM}`}
                   >
-                    {notificationIcons[notification.type] || <Bell className="w-4 h-4" />}
+                    {notificationIcons[notification.type] || (
+                      <Bell className="w-4 h-4" />
+                    )}
                   </div>
 
                   <div className="flex-1">
@@ -265,10 +305,26 @@ export default function NotificationsPage() {
 
       {filteredNotifications.length > pageSize ? (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
+          <p className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</Button>
-            <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((current) => current + 1)}>Next</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 1}
+              onClick={() => setPage((current) => current - 1)}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === totalPages}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              Next
+            </Button>
           </div>
         </div>
       ) : null}

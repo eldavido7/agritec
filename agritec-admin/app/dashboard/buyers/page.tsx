@@ -177,7 +177,7 @@ export default function BuyersPage() {
               <Button
                 variant={filterActive === "all" ? "default" : "outline"}
                 onClick={() => setFilterActive("all")}
-                className="gap-2"
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 <Filter className="h-4 w-4" />
                 All
@@ -185,12 +185,14 @@ export default function BuyersPage() {
               <Button
                 variant={filterActive === "active" ? "default" : "outline"}
                 onClick={() => setFilterActive("active")}
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 Active
               </Button>
               <Button
                 variant={filterActive === "suspended" ? "default" : "outline"}
                 onClick={() => setFilterActive("suspended")}
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 Suspended
               </Button>
@@ -257,6 +259,7 @@ export default function BuyersPage() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <Badge
+                          className="text-white"
                           variant={buyer.isActive ? "default" : "secondary"}
                         >
                           {buyer.isActive ? "Active" : "Suspended"}
@@ -380,7 +383,9 @@ export default function BuyersPage() {
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedBuyer?.fullName || "Buyer Details"}</DialogTitle>
+            <DialogTitle>
+              {selectedBuyer?.fullName || "Buyer Details"}
+            </DialogTitle>
           </DialogHeader>
           {isDetailLoading ? (
             <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
@@ -401,11 +406,15 @@ export default function BuyersPage() {
               </div>
               <div className="rounded-md border border-border/50 p-3">
                 <p className="text-muted-foreground">Joined</p>
-                <p className="font-medium">{formatDate(selectedBuyer.createdAt)}</p>
+                <p className="font-medium">
+                  {formatDate(selectedBuyer.createdAt)}
+                </p>
               </div>
               <div className="rounded-md border border-border/50 p-3">
                 <p className="text-muted-foreground">Contact</p>
-                <p className="font-medium">{selectedBuyer.phone || "No phone"}</p>
+                <p className="font-medium">
+                  {selectedBuyer.phone || "No phone"}
+                </p>
                 <p>{selectedBuyer.email}</p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -423,19 +432,29 @@ export default function BuyersPage() {
                 <div className="space-y-3">
                   {selectedBuyer.addresses.length > 0 ? (
                     selectedBuyer.addresses.map((address) => (
-                      <div key={address.id} className="rounded-md border border-border/40 p-3">
+                      <div
+                        key={address.id}
+                        className="rounded-md border border-border/40 p-3"
+                      >
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium text-foreground">
                             {address.displayName || "Saved address"}
                           </p>
-                          {address.isDefault ? <Badge variant="default">Default</Badge> : null}
-                          {address.isManualAddress || address.isAdminAssisted ? (
+                          {address.isDefault ? (
+                            <Badge variant="default">Default</Badge>
+                          ) : null}
+                          {address.isManualAddress ||
+                          address.isAdminAssisted ? (
                             <Badge variant="secondary">Manual</Badge>
                           ) : null}
                         </div>
-                        <p className="mt-2 text-foreground">{address.fullAddress}</p>
+                        <p className="mt-2 text-foreground">
+                          {address.fullAddress}
+                        </p>
                         {address.landmark ? (
-                          <p className="text-muted-foreground">Landmark: {address.landmark}</p>
+                          <p className="text-muted-foreground">
+                            Landmark: {address.landmark}
+                          </p>
                         ) : null}
                         <p className="text-xs text-muted-foreground">
                           Added {formatDateTime(address.createdAt)}
@@ -452,15 +471,22 @@ export default function BuyersPage() {
                 <div className="space-y-3">
                   {selectedBuyer.recentOrders.length > 0 ? (
                     selectedBuyer.recentOrders.map((order) => (
-                      <div key={order.id} className="flex items-center justify-between gap-4 rounded-md border border-border/40 p-3">
+                      <div
+                        key={order.id}
+                        className="flex items-center justify-between gap-4 rounded-md border border-border/40 p-3"
+                      >
                         <div>
-                          <p className="font-medium text-foreground">Order #{order.id}</p>
+                          <p className="font-medium text-foreground">
+                            Order #{order.id}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {formatDateTime(order.createdAt)}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-foreground">{formatCurrency(order.grandTotal)}</p>
+                          <p className="font-semibold text-foreground">
+                            {formatCurrency(order.grandTotal)}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {order.status} / {order.paymentStatus}
                           </p>

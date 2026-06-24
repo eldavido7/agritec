@@ -173,10 +173,42 @@ export default function OrdersPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-sm text-muted-foreground">Parent Orders</p><p className="text-3xl font-bold text-foreground">{orders.length}</p></CardContent></Card>
-        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-sm text-muted-foreground">Completed Groups</p><p className="text-3xl font-bold text-green-600">{completedGroups}</p></CardContent></Card>
-        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-sm text-muted-foreground">In Transit Groups</p><p className="text-3xl font-bold text-blue-600">{inTransitGroups}</p></CardContent></Card>
-        <Card className="border-border/50"><CardContent className="pt-6"><p className="mb-1 text-sm text-muted-foreground">Pending Groups</p><p className="text-3xl font-bold text-yellow-600">{pendingGroups}</p></CardContent></Card>
+        <Card className="border-border/50">
+          <CardContent className="pt-6">
+            <p className="mb-1 text-sm text-muted-foreground">Parent Orders</p>
+            <p className="text-3xl font-bold text-foreground">
+              {orders.length}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="pt-6">
+            <p className="mb-1 text-sm text-muted-foreground">
+              Completed Groups
+            </p>
+            <p className="text-3xl font-bold text-green-600">
+              {completedGroups}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="pt-6">
+            <p className="mb-1 text-sm text-muted-foreground">
+              In Transit Groups
+            </p>
+            <p className="text-3xl font-bold text-blue-600">
+              {inTransitGroups}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="pt-6">
+            <p className="mb-1 text-sm text-muted-foreground">Pending Groups</p>
+            <p className="text-3xl font-bold text-yellow-600">
+              {pendingGroups}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="border-border/50">
@@ -192,10 +224,35 @@ export default function OrdersPage() {
               />
             </div>
             <div className="flex gap-2">
-              <Button variant={filterStatus === "all" ? "default" : "outline"} onClick={() => setFilterStatus("all")} className="gap-2"><Filter className="w-4 h-4" />All</Button>
-              <Button variant={filterStatus === "PENDING" ? "default" : "outline"} onClick={() => setFilterStatus("PENDING")}>Pending</Button>
-              <Button variant={filterStatus === "SHIPPED" ? "default" : "outline"} onClick={() => setFilterStatus("SHIPPED")}>Shipped</Button>
-              <Button variant={filterStatus === "DELIVERED" ? "default" : "outline"} onClick={() => setFilterStatus("DELIVERED")}>Delivered</Button>
+              <Button
+                variant={filterStatus === "all" ? "default" : "outline"}
+                onClick={() => setFilterStatus("all")}
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
+              >
+                <Filter className="w-4 h-4" />
+                All
+              </Button>
+              <Button
+                variant={filterStatus === "PENDING" ? "default" : "outline"}
+                onClick={() => setFilterStatus("PENDING")}
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
+              >
+                Pending
+              </Button>
+              <Button
+                variant={filterStatus === "SHIPPED" ? "default" : "outline"}
+                onClick={() => setFilterStatus("SHIPPED")}
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
+              >
+                Shipped
+              </Button>
+              <Button
+                variant={filterStatus === "DELIVERED" ? "default" : "outline"}
+                onClick={() => setFilterStatus("DELIVERED")}
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
+              >
+                Delivered
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -210,47 +267,133 @@ export default function OrdersPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/30 bg-muted/30">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Order ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Buyer</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Seller Groups</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Items</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Product Subtotal</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Shipping</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Grand Total</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Order ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Buyer
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Seller Groups
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Items
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Product Subtotal
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Shipping
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Grand Total
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Date
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground"></th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedOrders.map((order) => {
-                  const statusSummary = buildStatusSummary(order.sellerGroups.map((group) => group.status));
-                  const firstItems = order.sellerGroups.flatMap((group) => group.items.map((item) => item.productTitleSnapshot));
-                  const itemSummary = firstItems.slice(0, 2).join(", ") + (firstItems.length > 2 ? ` +${firstItems.length - 2} more` : "");
+                  const statusSummary = buildStatusSummary(
+                    order.sellerGroups.map((group) => group.status),
+                  );
+                  const firstItems = order.sellerGroups.flatMap((group) =>
+                    group.items.map((item) => item.productTitleSnapshot),
+                  );
+                  const itemSummary =
+                    firstItems.slice(0, 2).join(", ") +
+                    (firstItems.length > 2
+                      ? ` +${firstItems.length - 2} more`
+                      : "");
                   return (
-                    <tr key={order.id} className="border-b border-border/30 transition-colors hover:bg-muted/30">
-                      <td className="px-6 py-4"><p className="font-mono text-sm font-semibold text-foreground">{order.id}</p></td>
-                      <td className="px-6 py-4 text-sm text-foreground">{order.buyerNameSnapshot}</td>
-                      <td className="px-6 py-4 text-sm text-foreground">{order.sellerGroups.length} seller{order.sellerGroups.length > 1 ? "s" : ""}</td>
-                      <td className="max-w-[16rem] break-words px-6 py-4 text-sm text-foreground">{itemSummary}</td>
-                      <td className="px-6 py-4 text-sm text-foreground">{formatCurrency(order.productSubtotal)}</td>
-                      <td className="px-6 py-4 text-sm text-foreground">{formatCurrency(order.totalShippingFee)}</td>
-                      <td className="px-6 py-4"><p className="text-sm font-semibold text-foreground">{formatCurrency(order.grandTotal)}</p></td>
-                      <td className="px-6 py-4"><Badge variant="outline" className={getStatusColor(statusSummary === "MIXED" ? "SHIPPED" : statusSummary)}>{statusSummary === "MIXED" ? "Mixed" : statusSummary.replaceAll("_", " ")}</Badge></td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground">{formatDate(order.createdAt)}</td>
+                    <tr
+                      key={order.id}
+                      className="border-b border-border/30 transition-colors hover:bg-muted/30"
+                    >
+                      <td className="px-6 py-4">
+                        <p className="font-mono text-sm font-semibold text-foreground">
+                          {order.id}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        {order.buyerNameSnapshot}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        {order.sellerGroups.length} seller
+                        {order.sellerGroups.length > 1 ? "s" : ""}
+                      </td>
+                      <td className="max-w-[16rem] wrap-break-word px-6 py-4 text-sm text-foreground">
+                        {itemSummary}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        {formatCurrency(order.productSubtotal)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        {formatCurrency(order.totalShippingFee)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-semibold text-foreground">
+                          {formatCurrency(order.grandTotal)}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge
+                          variant="outline"
+                          className={getStatusColor(
+                            statusSummary === "MIXED"
+                              ? "SHIPPED"
+                              : statusSummary,
+                          )}
+                        >
+                          {statusSummary === "MIXED"
+                            ? "Mixed"
+                            : statusSummary.replaceAll("_", " ")}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                        {formatDate(order.createdAt)}
+                      </td>
                       <td className="px-6 py-4">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                            >
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => void handleOpenOrder(order.id)}>View Details</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => void handleOpenOrder(order.id)}
+                            >
+                              View Details
+                            </DropdownMenuItem>
                             {order.sellerGroups.map((group) => (
-                              <DropdownMenuItem key={group.id} onClick={() => router.push(`/dashboard/messages?participantType=seller&participantId=${group.sellerId}`)}>
+                              <DropdownMenuItem
+                                key={group.id}
+                                onClick={() =>
+                                  router.push(
+                                    `/dashboard/messages?participantType=seller&participantId=${group.sellerId}`,
+                                  )
+                                }
+                              >
                                 Contact {group.sellerNameSnapshot}
                               </DropdownMenuItem>
                             ))}
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/messages?participantType=buyer&participantId=${order.buyerId}`)}>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                router.push(
+                                  `/dashboard/messages?participantType=buyer&participantId=${order.buyerId}`,
+                                )
+                              }
+                            >
                               Contact Buyer
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -270,24 +413,49 @@ export default function OrdersPage() {
             </div>
           ) : null}
           {filteredOrders.length === 0 && (!isLoading || loaded) ? (
-            <div className="py-12 text-center"><p className="text-muted-foreground">No orders found</p></div>
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">No orders found</p>
+            </div>
           ) : null}
           {filteredOrders.length > pageSize ? (
             <div className="flex items-center justify-between border-t border-border/30 py-4">
-              <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
+              <p className="text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+              </p>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((current) => current + 1)}>Next</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1}
+                  onClick={() => setPage((current) => current - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((current) => current + 1)}
+                >
+                  Next
+                </Button>
               </div>
             </div>
           ) : null}
         </CardContent>
       </Card>
 
-      <Dialog open={!!selectedOrderDetail} onOpenChange={(open) => !open && clearSelectedOrderDetail()}>
+      <Dialog
+        open={!!selectedOrderDetail}
+        onOpenChange={(open) => !open && clearSelectedOrderDetail()}
+      >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{selectedOrderDetail ? `Order ${selectedOrderDetail.id}` : "Order Details"}</DialogTitle>
+            <DialogTitle>
+              {selectedOrderDetail
+                ? `Order ${selectedOrderDetail.id}`
+                : "Order Details"}
+            </DialogTitle>
           </DialogHeader>
           {isDetailLoading ? (
             <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
@@ -297,16 +465,43 @@ export default function OrdersPage() {
           ) : selectedOrderDetail ? (
             <div className="space-y-4 text-sm">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-md border border-border/50 p-3"><p className="text-muted-foreground">Buyer</p><p className="font-semibold">{selectedOrderDetail.buyerNameSnapshot}</p></div>
-                <div className="rounded-md border border-border/50 p-3"><p className="text-muted-foreground">Payment</p><p className="font-semibold">{selectedOrderDetail.paymentStatus}</p></div>
-                <div className="rounded-md border border-border/50 p-3"><p className="text-muted-foreground">Grand Total</p><p className="font-semibold">{formatCurrency(selectedOrderDetail.grandTotal)}</p></div>
-                <div className="rounded-md border border-border/50 p-3"><p className="text-muted-foreground">Created</p><p className="font-semibold">{formatDate(selectedOrderDetail.createdAt)}</p></div>
+                <div className="rounded-md border border-border/50 p-3">
+                  <p className="text-muted-foreground">Buyer</p>
+                  <p className="font-semibold">
+                    {selectedOrderDetail.buyerNameSnapshot}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/50 p-3">
+                  <p className="text-muted-foreground">Payment</p>
+                  <p className="font-semibold">
+                    {selectedOrderDetail.paymentStatus}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/50 p-3">
+                  <p className="text-muted-foreground">Grand Total</p>
+                  <p className="font-semibold">
+                    {formatCurrency(selectedOrderDetail.grandTotal)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border/50 p-3">
+                  <p className="text-muted-foreground">Created</p>
+                  <p className="font-semibold">
+                    {formatDate(selectedOrderDetail.createdAt)}
+                  </p>
+                </div>
               </div>
 
               <div className="rounded-md border border-border/50 p-3">
                 <p className="mb-2 text-muted-foreground">Delivery Address</p>
-                <p className="font-medium">{selectedOrderDetail.addressSnapshot?.fullAddress || "No address snapshot"}</p>
-                {selectedOrderDetail.addressSnapshot?.landmark ? <p>Landmark: {selectedOrderDetail.addressSnapshot.landmark}</p> : null}
+                <p className="font-medium">
+                  {selectedOrderDetail.addressSnapshot?.fullAddress ||
+                    "No address snapshot"}
+                </p>
+                {selectedOrderDetail.addressSnapshot?.landmark ? (
+                  <p>
+                    Landmark: {selectedOrderDetail.addressSnapshot.landmark}
+                  </p>
+                ) : null}
               </div>
 
               <div className="rounded-md border border-border/50 p-3">
@@ -314,13 +509,23 @@ export default function OrdersPage() {
                 <div className="space-y-3">
                   {selectedOrderDetail.sellerGroups.map((group) => {
                     return (
-                      <div key={group.id} className="rounded-md border border-border/40 p-3">
+                      <div
+                        key={group.id}
+                        className="rounded-md border border-border/40 p-3"
+                      >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <p className="font-semibold text-foreground">{group.farmNameSnapshot}</p>
-                            <p className="text-muted-foreground">{group.sellerNameSnapshot}</p>
+                            <p className="font-semibold text-foreground">
+                              {group.farmNameSnapshot}
+                            </p>
+                            <p className="text-muted-foreground">
+                              {group.sellerNameSnapshot}
+                            </p>
                             <p className="text-xs text-muted-foreground">
-                              {group.deliveryRegion} . {group.totalChargeableWeightKg?.toFixed?.(1) ?? "0.0"}kg chargeable . {group.shippingUnits} unit(s)
+                              {group.deliveryRegion} .{" "}
+                              {group.totalChargeableWeightKg?.toFixed?.(1) ??
+                                "0.0"}
+                              kg chargeable . {group.shippingUnits} unit(s)
                             </p>
                           </div>
                           <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -331,26 +536,46 @@ export default function OrdersPage() {
                               {group.status.replaceAll("_", " ")}
                             </Badge>
                             <p className="text-xs text-muted-foreground">
-                              Delivery progression is logistics-managed. Admin remains view-only here.
+                              Delivery progression is logistics-managed. Admin
+                              remains view-only here.
                             </p>
                           </div>
                         </div>
                         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                          <div className="rounded-md bg-muted/40 p-3"><p className="text-muted-foreground">Products</p><p className="font-semibold">{formatCurrency(group.productSubtotal)}</p></div>
-                          <div className="rounded-md bg-muted/40 p-3"><p className="text-muted-foreground">Shipping</p><p className="font-semibold">{formatCurrency(group.shippingFee)}</p></div>
-                          <div className="rounded-md bg-muted/40 p-3"><p className="text-muted-foreground">Group Total</p><p className="font-semibold">{formatCurrency(group.groupTotal)}</p></div>
+                          <div className="rounded-md bg-muted/40 p-3">
+                            <p className="text-muted-foreground">Products</p>
+                            <p className="font-semibold">
+                              {formatCurrency(group.productSubtotal)}
+                            </p>
+                          </div>
+                          <div className="rounded-md bg-muted/40 p-3">
+                            <p className="text-muted-foreground">Shipping</p>
+                            <p className="font-semibold">
+                              {formatCurrency(group.shippingFee)}
+                            </p>
+                          </div>
+                          <div className="rounded-md bg-muted/40 p-3">
+                            <p className="text-muted-foreground">Group Total</p>
+                            <p className="font-semibold">
+                              {formatCurrency(group.groupTotal)}
+                            </p>
+                          </div>
                         </div>
                         <div className="mt-3 grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-3">
                           <div className="rounded-md border border-border/50 p-3">
                             <p>Assigned logistics</p>
                             <p className="mt-1 font-semibold text-foreground">
-                              {group.logisticsCompanyNameSnapshot || "Not assigned"}
+                              {group.logisticsCompanyNameSnapshot ||
+                                "Not assigned"}
                             </p>
                           </div>
                           <div className="rounded-md border border-border/50 p-3">
                             <p>Shipping source</p>
                             <p className="mt-1 font-semibold text-foreground">
-                              {(group.shippingPricedBy || "Unknown").replaceAll("_", " ")}
+                              {(group.shippingPricedBy || "Unknown").replaceAll(
+                                "_",
+                                " ",
+                              )}
                             </p>
                           </div>
                           <div className="rounded-md border border-border/50 p-3">
@@ -363,34 +588,50 @@ export default function OrdersPage() {
                         <div className="mt-3 grid grid-cols-1 gap-3 text-xs text-muted-foreground sm:grid-cols-4">
                           <div className="rounded-md border border-border/50 p-3">
                             <p>Weight Unit Size</p>
-                            <p className="mt-1 font-semibold text-foreground">{group.weightUnitSizeKg?.toFixed?.(1) ?? "0.0"}kg</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {group.weightUnitSizeKg?.toFixed?.(1) ?? "0.0"}kg
+                            </p>
                           </div>
                           <div className="rounded-md border border-border/50 p-3">
                             <p>Minimum Fee</p>
-                            <p className="mt-1 font-semibold text-foreground">{formatCurrency(group.minimumFee)}</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {formatCurrency(group.minimumFee)}
+                            </p>
                           </div>
                           <div className="rounded-md border border-border/50 p-3">
                             <p>Additional Unit Fee</p>
-                            <p className="mt-1 font-semibold text-foreground">{formatCurrency(group.additionalUnitFee)}</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {formatCurrency(group.additionalUnitFee)}
+                            </p>
                           </div>
                           <div className="rounded-md border border-border/50 p-3">
                             <p>Chargeable Weight</p>
-                            <p className="mt-1 font-semibold text-foreground">{group.totalChargeableWeightKg?.toFixed?.(1) ?? "0.0"}kg</p>
+                            <p className="mt-1 font-semibold text-foreground">
+                              {group.totalChargeableWeightKg?.toFixed?.(1) ??
+                                "0.0"}
+                              kg
+                            </p>
                           </div>
                         </div>
                         <div className="mt-3 rounded-md border border-border/50 p-3">
-                          <p className="mb-3 text-muted-foreground">Delivery timeline</p>
+                          <p className="mb-3 text-muted-foreground">
+                            Delivery timeline
+                          </p>
                           {group.statusHistory.length > 0 ? (
                             <div className="space-y-3">
                               {group.statusHistory.map((entry) => (
-                                <div key={entry.id} className="rounded-md border border-border/30 p-3">
+                                <div
+                                  key={entry.id}
+                                  className="rounded-md border border-border/30 p-3"
+                                >
                                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                     <div>
                                       <p className="font-medium text-foreground">
                                         {entry.status.replaceAll("_", " ")}
                                       </p>
                                       <p className="text-xs text-muted-foreground">
-                                        {(entry.updatedByUser?.fullName || "System")}{" "}
+                                        {entry.updatedByUser?.fullName ||
+                                          "System"}{" "}
                                         {entry.updatedByRole
                                           ? `(${entry.updatedByRole.replaceAll("_", " ")})`
                                           : ""}
@@ -401,25 +642,38 @@ export default function OrdersPage() {
                                     </p>
                                   </div>
                                   {entry.description ? (
-                                    <p className="mt-2 text-sm text-foreground">{entry.description}</p>
+                                    <p className="mt-2 text-sm text-foreground">
+                                      {entry.description}
+                                    </p>
                                   ) : null}
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="text-muted-foreground">No status history recorded yet.</p>
+                            <p className="text-muted-foreground">
+                              No status history recorded yet.
+                            </p>
                           )}
                         </div>
                         <div className="mt-3 space-y-2">
                           {group.items.map((item) => (
-                            <div key={item.id} className="flex items-center justify-between gap-4 rounded-md border border-border/30 p-3">
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between gap-4 rounded-md border border-border/30 p-3"
+                            >
                               <div>
-                                <p className="font-medium text-foreground">{item.productTitleSnapshot}</p>
+                                <p className="font-medium text-foreground">
+                                  {item.productTitleSnapshot}
+                                </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {item.variantTitleSnapshot || item.salesUnitSnapshot} . Qty {item.quantity}
+                                  {item.variantTitleSnapshot ||
+                                    item.salesUnitSnapshot}{" "}
+                                  . Qty {item.quantity}
                                 </p>
                               </div>
-                              <p className="font-semibold text-foreground">{formatCurrency(item.lineTotal)}</p>
+                              <p className="font-semibold text-foreground">
+                                {formatCurrency(item.lineTotal)}
+                              </p>
                             </div>
                           ))}
                         </div>

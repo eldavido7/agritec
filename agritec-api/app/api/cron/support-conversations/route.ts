@@ -128,13 +128,23 @@ async function processOverdueAssignments() {
       conversation.assignments as any[],
     );
     const latestAssignment = currentAssignment.latest;
+    const adminReplySinceAssignment =
+      latestAssignment && currentAssignment.assignedAdminId
+        ? await prisma.message.findFirst({
+            where: {
+              conversationId: conversation.id,
+              sender: { role: UserRole.ADMIN },
+              createdAt: { gte: latestAssignment.createdAt },
+            },
+            select: { id: true },
+          })
+        : null;
 
-      if (
-      latestMessage &&
+    if (
       currentAssignment.assignedAdminId &&
       currentAssignment.responseDueAt &&
       currentAssignment.responseDueAt.getTime() <= now.getTime() &&
-      latestMessage.sender.role !== UserRole.ADMIN
+      !adminReplySinceAssignment
     ) {
       let queuedAssignmentId: string | null = null;
       const result = await prisma.$transaction(async (tx) => {

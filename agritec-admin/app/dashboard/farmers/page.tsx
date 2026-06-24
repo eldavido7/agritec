@@ -166,7 +166,7 @@ export default function FarmersPage() {
               <Button
                 variant={filterActive === "all" ? "default" : "outline"}
                 onClick={() => setFilterActive("all")}
-                className="gap-2"
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 <Filter className="h-4 w-4" />
                 All
@@ -174,12 +174,14 @@ export default function FarmersPage() {
               <Button
                 variant={filterActive === "active" ? "default" : "outline"}
                 onClick={() => setFilterActive("active")}
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 Active
               </Button>
               <Button
                 variant={filterActive === "suspended" ? "default" : "outline"}
                 onClick={() => setFilterActive("suspended")}
+                className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 Suspended
               </Button>
@@ -247,6 +249,7 @@ export default function FarmersPage() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <Badge
+                          className="text-white"
                           variant={farmer.isActive ? "default" : "secondary"}
                         >
                           {farmer.isActive ? "Active" : "Suspended"}

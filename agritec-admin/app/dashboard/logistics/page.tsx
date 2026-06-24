@@ -108,7 +108,8 @@ export default function LogisticsPage() {
     <div className="space-y-6">
       <div>
         <p className="mt-1 text-muted-foreground">
-          Review, verify, suspend, and reactivate marketplace logistics companies
+          Review, verify, suspend, and reactivate marketplace logistics
+          companies
         </p>
       </div>
 
@@ -116,12 +117,16 @@ export default function LogisticsPage() {
         <Card className="border-border/50">
           <CardContent className="pt-6">
             <p className="mb-1 text-sm text-muted-foreground">Companies</p>
-            <p className="text-3xl font-bold text-foreground">{logisticsCompanies.length}</p>
+            <p className="text-3xl font-bold text-foreground">
+              {logisticsCompanies.length}
+            </p>
           </CardContent>
         </Card>
         <Card className="border-border/50">
           <CardContent className="pt-6">
-            <p className="mb-1 text-sm text-muted-foreground">Pending Verification</p>
+            <p className="mb-1 text-sm text-muted-foreground">
+              Pending Verification
+            </p>
             <p className="text-3xl font-bold text-yellow-600">{pendingCount}</p>
           </CardContent>
         </Card>
@@ -155,48 +160,90 @@ export default function LogisticsPage() {
 
       <Card className="overflow-hidden border-border/50">
         <CardHeader className="border-b border-border/30 pb-4">
-          <CardTitle>Logistics Companies ({filteredCompanies.length})</CardTitle>
+          <CardTitle>
+            Logistics Companies ({filteredCompanies.length})
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/30 bg-muted/30">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Owner</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Location</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Coverage</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Assigned Groups</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Created</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Company
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Owner
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Location
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Coverage
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Assigned Groups
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Created
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-muted-foreground"></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredCompanies.map((company) => (
-                  <tr key={company.id} className="border-b border-border/30 transition-colors hover:bg-muted/30">
+                  <tr
+                    key={company.id}
+                    className="border-b border-border/30 transition-colors hover:bg-muted/30"
+                  >
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-semibold text-foreground">{company.companyName}</p>
-                        <p className="text-sm text-muted-foreground">{company.email}</p>
+                        <p className="font-semibold text-foreground">
+                          {company.companyName}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {company.email}
+                        </p>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-foreground">{company.fullName}</td>
                     <td className="px-6 py-4 text-sm text-foreground">
-                      {[company.city, company.state].filter(Boolean).join(", ") || "Unspecified"}
+                      {company.fullName}
                     </td>
                     <td className="px-6 py-4 text-sm text-foreground">
-                      {company.coverageCount} area{company.coverageCount === 1 ? "" : "s"}
+                      {[company.city, company.state]
+                        .filter(Boolean)
+                        .join(", ") || "Unspecified"}
                     </td>
-                    <td className="px-6 py-4 text-sm text-foreground">{company.assignedGroupCount}</td>
+                    <td className="px-6 py-4 text-sm text-foreground">
+                      {company.coverageCount} area
+                      {company.coverageCount === 1 ? "" : "s"}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-foreground">
+                      {company.assignedGroupCount}
+                    </td>
                     <td className="px-6 py-4">
-                      <Badge variant="outline" className={verificationBadge(company.verificationStatus)}>
+                      <Badge
+                        variant="outline"
+                        className={verificationBadge(
+                          company.verificationStatus,
+                        )}
+                      >
                         {company.verificationStatus.replaceAll("_", " ")}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">{formatDate(company.createdAt)}</td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                      {formatDate(company.createdAt)}
+                    </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="outline" size="sm" onClick={() => void handleOpenDetail(company.id)}>
+                      <Button
+                        variant="outline"
+                        className="gap-2 dark:hover:text-white dark:hover:bg-secondary/50"
+                        size="sm"
+                        onClick={() => void handleOpenDetail(company.id)}
+                      >
                         View
                       </Button>
                     </td>
@@ -220,11 +267,16 @@ export default function LogisticsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!selectedLogistics} onOpenChange={(open) => !open && clearSelectedLogistics()}>
+      <Dialog
+        open={!!selectedLogistics}
+        onOpenChange={(open) => !open && clearSelectedLogistics()}
+      >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>
-              {selectedLogistics ? selectedLogistics.companyName : "Logistics Company"}
+              {selectedLogistics
+                ? selectedLogistics.companyName
+                : "Logistics Company"}
             </DialogTitle>
           </DialogHeader>
 
@@ -237,24 +289,62 @@ export default function LogisticsPage() {
             <div className="space-y-4 text-sm">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Metric label="Owner" value={selectedLogistics.fullName} />
-                <Metric label="Status" value={selectedLogistics.verificationStatus.replaceAll("_", " ")} />
-                <Metric label="Coverage" value={selectedLogistics.coverageType === "NATIONWIDE" ? "Nationwide" : `${selectedLogistics.coveredStates.length} state(s)`} />
-                <Metric label="Assigned Groups" value={String(selectedLogistics.assignedGroupCount)} />
+                <Metric
+                  label="Status"
+                  value={selectedLogistics.verificationStatus.replaceAll(
+                    "_",
+                    " ",
+                  )}
+                />
+                <Metric
+                  label="Coverage"
+                  value={
+                    selectedLogistics.coverageType === "NATIONWIDE"
+                      ? "Nationwide"
+                      : `${selectedLogistics.coveredStates.length} state(s)`
+                  }
+                />
+                <Metric
+                  label="Assigned Groups"
+                  value={String(selectedLogistics.assignedGroupCount)}
+                />
               </div>
 
               <div className="rounded-md border border-border/50 p-3">
                 <p className="mb-2 text-muted-foreground">Company Details</p>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <p><span className="text-muted-foreground">Email:</span> {selectedLogistics.email}</p>
-                  <p><span className="text-muted-foreground">Phone:</span> {selectedLogistics.phone || "N/A"}</p>
-                  <p><span className="text-muted-foreground">Contact Person:</span> {selectedLogistics.contactPersonName || "N/A"}</p>
-                  <p><span className="text-muted-foreground">Location:</span> {[selectedLogistics.city, selectedLogistics.state].filter(Boolean).join(", ") || "N/A"}</p>
+                  <p>
+                    <span className="text-muted-foreground">Email:</span>{" "}
+                    {selectedLogistics.email}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Phone:</span>{" "}
+                    {selectedLogistics.phone || "N/A"}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">
+                      Contact Person:
+                    </span>{" "}
+                    {selectedLogistics.contactPersonName || "N/A"}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Location:</span>{" "}
+                    {[selectedLogistics.city, selectedLogistics.state]
+                      .filter(Boolean)
+                      .join(", ") || "N/A"}
+                  </p>
                 </div>
                 {selectedLogistics.businessAddress ? (
-                  <p className="mt-2"><span className="text-muted-foreground">Address:</span> {selectedLogistics.businessAddress}</p>
+                  <p className="mt-2">
+                    <span className="text-muted-foreground">Address:</span>{" "}
+                    {selectedLogistics.businessAddress}
+                  </p>
                 ) : null}
                 {selectedLogistics.description ? (
-                  <p className="mt-2"><span className="text-muted-foreground">Description:</span> {selectedLogistics.description}</p>
+                  <p className="mt-2">
+                    <span className="text-muted-foreground">Description:</span>{" "}
+                    {selectedLogistics.description}
+                  </p>
                 ) : null}
               </div>
 
@@ -264,32 +354,65 @@ export default function LogisticsPage() {
                   <div className="space-y-3">
                     {nationwidePricing ? (
                       <div className="rounded-md border border-border/40 p-3">
-                        <p className="mb-2 font-medium text-foreground">Nationwide pricing</p>
+                        <p className="mb-2 font-medium text-foreground">
+                          Nationwide pricing
+                        </p>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                          <p>Minimum fee: NGN {nationwidePricing.minimumFee.toLocaleString()}</p>
-                          <p>Additional unit fee: NGN {nationwidePricing.additionalUnitFee.toLocaleString()}</p>
-                          <p>Weight unit size: {nationwidePricing.weightUnitSizeKg ?? 0}kg</p>
-                          <p>Volumetric divisor: {nationwidePricing.volumetricDivisor.toLocaleString()}</p>
+                          <p>
+                            Minimum fee: NGN{" "}
+                            {nationwidePricing.minimumFee.toLocaleString()}
+                          </p>
+                          <p>
+                            Additional unit fee: NGN{" "}
+                            {nationwidePricing.additionalUnitFee.toLocaleString()}
+                          </p>
+                          <p>
+                            Weight unit size:{" "}
+                            {nationwidePricing.weightUnitSizeKg ?? 0}kg
+                          </p>
+                          <p>
+                            Volumetric divisor:{" "}
+                            {nationwidePricing.volumetricDivisor.toLocaleString()}
+                          </p>
                         </div>
                       </div>
                     ) : null}
                     {statePricing.length > 0 ? (
                       <div className="space-y-2">
-                        <p className="font-medium text-foreground">Regional state pricing</p>
+                        <p className="font-medium text-foreground">
+                          Regional state pricing
+                        </p>
                         <div className="space-y-2">
                           {statePricing.map((pricing) => (
-                            <div key={pricing.id} className="rounded-md border border-border/40 p-3">
+                            <div
+                              key={pricing.id}
+                              className="rounded-md border border-border/40 p-3"
+                            >
                               <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="font-medium text-foreground">{pricing.state || "State pricing"}</p>
+                                <p className="font-medium text-foreground">
+                                  {pricing.state || "State pricing"}
+                                </p>
                                 <Badge variant="outline">
                                   {pricing.isActive ? "Active" : "Inactive"}
                                 </Badge>
                               </div>
                               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                                <p>Minimum fee: NGN {pricing.minimumFee.toLocaleString()}</p>
-                                <p>Additional unit fee: NGN {pricing.additionalUnitFee.toLocaleString()}</p>
-                                <p>Weight unit size: {pricing.weightUnitSizeKg ?? 0}kg</p>
-                                <p>Volumetric divisor: {pricing.volumetricDivisor.toLocaleString()}</p>
+                                <p>
+                                  Minimum fee: NGN{" "}
+                                  {pricing.minimumFee.toLocaleString()}
+                                </p>
+                                <p>
+                                  Additional unit fee: NGN{" "}
+                                  {pricing.additionalUnitFee.toLocaleString()}
+                                </p>
+                                <p>
+                                  Weight unit size:{" "}
+                                  {pricing.weightUnitSizeKg ?? 0}kg
+                                </p>
+                                <p>
+                                  Volumetric divisor:{" "}
+                                  {pricing.volumetricDivisor.toLocaleString()}
+                                </p>
                               </div>
                             </div>
                           ))}
@@ -298,7 +421,9 @@ export default function LogisticsPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">Pricing has not been configured.</p>
+                  <p className="text-muted-foreground">
+                    Pricing has not been configured.
+                  </p>
                 )}
               </div>
 
@@ -309,7 +434,9 @@ export default function LogisticsPage() {
                     <p className="text-foreground">
                       Coverage type:{" "}
                       <span className="font-medium">
-                        {selectedLogistics.coverageType === "NATIONWIDE" ? "Nationwide" : "Regional"}
+                        {selectedLogistics.coverageType === "NATIONWIDE"
+                          ? "Nationwide"
+                          : "Regional"}
                       </span>
                     </p>
                     {selectedLogistics.coveredStates.length > 0 ? (
@@ -323,23 +450,36 @@ export default function LogisticsPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">No coverage areas configured.</p>
+                  <p className="text-muted-foreground">
+                    No coverage areas configured.
+                  </p>
                 )}
               </div>
 
               <div className="flex flex-wrap gap-2 border-t border-border/30 pt-2">
                 {selectedLogistics.verificationStatus !== "VERIFIED" ? (
-                  <Button disabled={isUpdating} onClick={() => void handleAction("verify")}>
+                  <Button
+                    disabled={isUpdating}
+                    onClick={() => void handleAction("verify")}
+                  >
                     Verify
                   </Button>
                 ) : null}
                 {selectedLogistics.verificationStatus !== "SUSPENDED" ? (
-                  <Button disabled={isUpdating} variant="destructive" onClick={() => void handleAction("suspend")}>
+                  <Button
+                    disabled={isUpdating}
+                    variant="destructive"
+                    onClick={() => void handleAction("suspend")}
+                  >
                     Suspend
                   </Button>
                 ) : null}
                 {selectedLogistics.verificationStatus === "SUSPENDED" ? (
-                  <Button disabled={isUpdating} variant="outline" onClick={() => void handleAction("reactivate")}>
+                  <Button
+                    disabled={isUpdating}
+                    variant="outline"
+                    onClick={() => void handleAction("reactivate")}
+                  >
                     Reactivate
                   </Button>
                 ) : null}

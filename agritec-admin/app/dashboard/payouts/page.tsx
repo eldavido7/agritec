@@ -201,7 +201,10 @@ export default function PayoutsPage() {
             Manage seller disbursements and payments
           </p>
         </div>
-        <Button variant="outline" className="w-full gap-2 md:w-auto">
+        <Button
+          variant="outline"
+          className="w-full gap-2 md:w-auto dark:hover:text-white dark:hover:bg-secondary/50"
+        >
           <Download className="h-4 w-4" />
           Export
         </Button>
@@ -227,7 +230,8 @@ export default function PayoutsPage() {
               {formatCurrency(completedAmount)}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              {payouts.filter((payout) => payout.status === "COMPLETED").length} success
+              {payouts.filter((payout) => payout.status === "COMPLETED").length}{" "}
+              success
             </p>
           </CardContent>
         </Card>
@@ -239,7 +243,8 @@ export default function PayoutsPage() {
               {formatCurrency(pendingAmount)}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              {payouts.filter((payout) => payout.status === "PENDING").length} awaiting
+              {payouts.filter((payout) => payout.status === "PENDING").length}{" "}
+              awaiting
             </p>
           </CardContent>
         </Card>
@@ -251,11 +256,14 @@ export default function PayoutsPage() {
               {
                 payouts.filter(
                   (payout) =>
-                    payout.status === "APPROVED" || payout.status === "PROCESSING",
+                    payout.status === "APPROVED" ||
+                    payout.status === "PROCESSING",
                 ).length
               }
             </p>
-            <p className="mt-2 text-xs text-muted-foreground">Being processed</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Being processed
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -276,7 +284,7 @@ export default function PayoutsPage() {
               <Button
                 variant={filterStatus === "all" ? "default" : "outline"}
                 onClick={() => setFilterStatus("all")}
-                className="gap-2"
+                className="gap-2 text-white dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 <Filter className="h-4 w-4" />
                 All
@@ -284,18 +292,21 @@ export default function PayoutsPage() {
               <Button
                 variant={filterStatus === "PENDING" ? "default" : "outline"}
                 onClick={() => setFilterStatus("PENDING")}
+                className="gap-2 text-white dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 Pending
               </Button>
               <Button
                 variant={filterStatus === "PROCESSING" ? "default" : "outline"}
                 onClick={() => setFilterStatus("PROCESSING")}
+                className="gap-2 text-white dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 Processing
               </Button>
               <Button
                 variant={filterStatus === "COMPLETED" ? "default" : "outline"}
                 onClick={() => setFilterStatus("COMPLETED")}
+                className="gap-2 text-white dark:hover:text-white dark:hover:bg-secondary/50"
               >
                 Completed
               </Button>
@@ -385,15 +396,23 @@ export default function PayoutsPage() {
                     <td className="px-6 py-4">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setDetailPayout(payout)}>
+                          <DropdownMenuItem
+                            onClick={() => setDetailPayout(payout)}
+                          >
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => downloadReceipt(payout)}>
+                          <DropdownMenuItem
+                            onClick={() => downloadReceipt(payout)}
+                          >
                             Download Receipt
                           </DropdownMenuItem>
                           {payout.status === "PENDING" ? (
@@ -497,7 +516,9 @@ export default function PayoutsPage() {
               <div className="flex items-center justify-between border-b border-border/50 pb-3">
                 <div>
                   <p className="font-semibold">AgriTec Payout</p>
-                  <p className="text-sm text-muted-foreground">{detailPayout.id}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {detailPayout.id}
+                  </p>
                 </div>
                 <Badge
                   variant="outline"
@@ -510,13 +531,19 @@ export default function PayoutsPage() {
                 ["Recipient", detailPayout.sellerName],
                 ["Farm", detailPayout.farmName],
                 ["Amount", formatCurrency(detailPayout.amount)],
-                ["Bank", `${detailPayout.bankName} - ${detailPayout.accountNumber}`],
+                [
+                  "Bank",
+                  `${detailPayout.bankName} - ${detailPayout.accountNumber}`,
+                ],
                 ["Account Name", detailPayout.accountName],
                 [
                   "Transfer Reference",
                   detailPayout.paystackTransferReference || "Pending",
                 ],
-                ["Transfer Code", detailPayout.paystackTransferCode || "Pending"],
+                [
+                  "Transfer Code",
+                  detailPayout.paystackTransferCode || "Pending",
+                ],
                 [
                   "Transfer Status",
                   detailPayout.paystackTransferStatus || detailPayout.status,
@@ -538,7 +565,10 @@ export default function PayoutsPage() {
           ) : null}
           <DialogFooter>
             {detailPayout ? (
-              <Button onClick={() => downloadReceipt(detailPayout)} className="gap-2">
+              <Button
+                onClick={() => downloadReceipt(detailPayout)}
+                className="gap-2"
+              >
                 <Download className="h-4 w-4" />
                 Download Receipt
               </Button>
@@ -556,7 +586,8 @@ export default function PayoutsPage() {
             <DialogTitle>Approve Pending Payout</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will initiate a Paystack transfer for {approveDialog.farmerName}.
+            This will initiate a Paystack transfer for{" "}
+            {approveDialog.farmerName}.
           </p>
           <div className="rounded-md border border-border/50 p-3 text-sm">
             <p className="font-medium">{approveDialog.payoutId}</p>
@@ -570,7 +601,10 @@ export default function PayoutsPage() {
             >
               Cancel
             </Button>
-            <Button onClick={() => void handleApprovePayout()} disabled={isUpdating}>
+            <Button
+              onClick={() => void handleApprovePayout()}
+              disabled={isUpdating}
+            >
               {isUpdating ? <Spinner className="mr-2 size-4" /> : null}
               Approve and Initiate
             </Button>
@@ -587,8 +621,8 @@ export default function PayoutsPage() {
             <DialogTitle>Reject Pending Payout</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will reject the payout request for {rejectDialog.farmerName} and
-            return the funds to the seller&apos;s available balance.
+            This will reject the payout request for {rejectDialog.farmerName}{" "}
+            and return the funds to the seller&apos;s available balance.
           </p>
           <div className="rounded-md border border-border/50 p-3 text-sm">
             <p className="font-medium">{rejectDialog.payoutId}</p>

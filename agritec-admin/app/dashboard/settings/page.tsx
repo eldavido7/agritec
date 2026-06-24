@@ -534,7 +534,7 @@ export default function SettingsPage() {
                   disabled={isCreatingAdmin}
                 />
               </div>
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
                   Phone
                 </label>
@@ -543,7 +543,7 @@ export default function SettingsPage() {
                   onChange={(event) => setNewAdminPhone(event.target.value)}
                   disabled={isCreatingAdmin}
                 />
-              </div>
+              </div> */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
                   Password

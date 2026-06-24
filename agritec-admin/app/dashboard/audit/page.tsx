@@ -105,7 +105,7 @@ export default function AuditLogsPage() {
         </div>
         <Button
           variant="outline"
-          className="w-full gap-2 md:w-auto"
+          className="w-full gap-2 md:w-auto dark:hover:text-white dark:hover:bg-secondary/50"
           onClick={() => setExportOpen(true)}
         >
           <Download className="h-4 w-4" />
@@ -116,14 +116,18 @@ export default function AuditLogsPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="border-border/50">
           <CardContent className="pt-6">
-            <p className="mb-1 text-sm text-muted-foreground">Current Page Logs</p>
+            <p className="mb-1 text-sm text-muted-foreground">
+              Current Page Logs
+            </p>
             <p className="text-3xl font-bold text-foreground">{logs.length}</p>
           </CardContent>
         </Card>
         <Card className="border-border/50">
           <CardContent className="pt-6">
             <p className="mb-1 text-sm text-muted-foreground">Total Logs</p>
-            <p className="text-3xl font-bold text-primary">{pagination.total}</p>
+            <p className="text-3xl font-bold text-primary">
+              {pagination.total}
+            </p>
           </CardContent>
         </Card>
         <Card className="border-border/50">
@@ -185,12 +189,24 @@ export default function AuditLogsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/30 bg-muted/30">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Action</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Admin</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Target Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Target ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Metadata</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Timestamp</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Action
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Admin
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Target Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Target ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Metadata
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
+                    Timestamp
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -210,11 +226,17 @@ export default function AuditLogsPage() {
                         {log.admin?.email || ""}
                       </p>
                     </td>
-                    <td className="px-6 py-4 text-sm text-foreground">{log.targetType}</td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">{log.targetId || "-"}</td>
+                    <td className="px-6 py-4 text-sm text-foreground">
+                      {log.targetType}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                      {log.targetId || "-"}
+                    </td>
                     <td className="max-w-sm px-6 py-4 text-xs text-muted-foreground">
-                      <div className="line-clamp-3 break-words">
-                        {log.metadata ? JSON.stringify(log.metadata) : "No metadata"}
+                      <div className="line-clamp-3 wrap-break-word">
+                        {log.metadata
+                          ? JSON.stringify(log.metadata)
+                          : "No metadata"}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">
@@ -273,7 +295,8 @@ export default function AuditLogsPage() {
             <DialogTitle>Export Current Audit View</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This exports the logs currently loaded on this page with the active filters.
+            This exports the logs currently loaded on this page with the active
+            filters.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setExportOpen(false)}>
