@@ -1,4 +1,5 @@
 import {
+  NotificationType,
   SupportAssignmentEventType,
   UserRole,
 } from "@prisma/client";
@@ -12,13 +13,14 @@ import {
   deriveCurrentSupportAssignment,
   getSupportConversationWithHistory,
   isSupportConversationType,
+  listActiveAdminUsers,
   lockSupportConversation,
   reopenSupportConversation,
   resolveSupportConversation,
   serializeSupportAssignmentEvent,
   unassignSupportConversation,
 } from "@/lib/support-utils";
-import { createAuditLog } from "@/lib/wallet-utils";
+import { createAuditLog, createNotification } from "@/lib/wallet-utils";
 
 const assignmentSchema = z.object({
   action: z.enum(["claim", "assign", "reassign", "unassign", "resolve", "reopen"]),
@@ -134,6 +136,53 @@ export async function POST(
             previousAssignedAdminId: currentAssignment.assignedAdminId,
           },
         });
+
+        if (
+          (payload.action === "assign" || payload.action === "reassign") &&
+          created?.assignedAdminId
+        ) {
+          await createNotification(tx, {
+            userId: created.assignedAdminId,
+            type: NotificationType.SYSTEM,
+            title:
+              payload.action === "reassign"
+                ? "Support conversation reassigned"
+                : "Support conversation assigned",
+            body:
+              payload.action === "reassign"
+                ? "A support conversation has been reassigned to you."
+                : "A support conversation has been assigned to you.",
+            targetType: "conversation",
+            targetId: id,
+            metadata: {
+              conversationId: id,
+              assignmentId: created.id,
+              action: payload.action,
+            },
+          });
+        }
+
+        if (payload.action === "unassign") {
+          const activeAdmins = await listActiveAdminUsers(tx, {
+            excludeUserIds: [admin.id],
+          });
+
+          for (const activeAdmin of activeAdmins) {
+            await createNotification(tx, {
+              userId: activeAdmin.id,
+              type: NotificationType.SYSTEM,
+              title: "Support conversation returned to queue",
+              body: "A support conversation is available in the unassigned queue.",
+              targetType: "conversation",
+              targetId: id,
+              metadata: {
+                conversationId: id,
+                assignmentId: created?.id ?? null,
+                action: payload.action,
+              },
+            });
+          }
+        }
 
         const refreshed = await getSupportConversationWithHistory(tx, id);
         return {

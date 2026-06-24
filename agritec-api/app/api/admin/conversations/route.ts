@@ -12,6 +12,7 @@ import {
 } from "@/lib/conversation-utils";
 import prisma from "@/lib/prisma";
 import { assignSupportConversation } from "@/lib/support-utils";
+import { createAuditLog } from "@/lib/wallet-utils";
 
 const createSchema = z.object({
   participantType: z.enum(["buyer", "seller"]),
@@ -152,14 +153,26 @@ export async function POST(request: Request) {
         });
 
         if (payload.initialMessage) {
-          const message = await createConversationMessage(tx, {
+          const createdMessage = await createConversationMessage(tx, {
             conversationId: supportConversation.id,
             senderId: admin.id,
             body: payload.initialMessage,
             relatedParentOrderId: payload.relatedParentOrderId ?? null,
           });
-          createdMessageId = message.id;
+          createdMessageId = createdMessage.message.id;
         }
+
+        await createAuditLog(tx, {
+          adminId: admin.id,
+          action: "support.conversation.created",
+          targetType: "conversation",
+          targetId: supportConversation.id,
+          metadata: {
+            participantType: "buyer",
+            participantId: payload.participantId,
+            initialMessageCreated: Boolean(payload.initialMessage),
+          },
+        });
 
         return { conversation: supportConversation, createdMessageId };
       }
@@ -187,14 +200,26 @@ export async function POST(request: Request) {
       });
 
       if (payload.initialMessage) {
-        const message = await createConversationMessage(tx, {
+        const createdMessage = await createConversationMessage(tx, {
           conversationId: supportConversation.id,
           senderId: admin.id,
           body: payload.initialMessage,
           relatedParentOrderId: payload.relatedParentOrderId ?? null,
         });
-        createdMessageId = message.id;
+        createdMessageId = createdMessage.message.id;
       }
+
+      await createAuditLog(tx, {
+        adminId: admin.id,
+        action: "support.conversation.created",
+        targetType: "conversation",
+        targetId: supportConversation.id,
+        metadata: {
+          participantType: "seller",
+          participantId: payload.participantId,
+          initialMessageCreated: Boolean(payload.initialMessage),
+        },
+      });
 
       return { conversation: supportConversation, createdMessageId };
     });

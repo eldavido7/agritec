@@ -1,5 +1,6 @@
 import {
   ConversationType,
+  NotificationType,
   SupportAssignmentEventType,
   SupportConversationStatus,
   UserRole,
@@ -18,8 +19,10 @@ import {
   deriveSupportTriedAdminIds,
   findAvailableSupportAdmin,
   isSupportConversationType,
+  listActiveAdminUsers,
   unassignSupportConversation,
 } from "@/lib/support-utils";
+import { createNotification } from "@/lib/wallet-utils";
 
 const SUPPORT_AUTO_REPLY_MARKER = "AUTO_REPLY_FOR_MESSAGE:";
 const SUPPORT_AUTO_REPLY_BODY =
@@ -150,6 +153,19 @@ async function processOverdueAssignments() {
             eventType: SupportAssignmentEventType.REASSIGN,
             note: "Reassigned automatically after response deadline elapsed.",
           });
+          await createNotification(tx, {
+            userId: nextAdmin.id,
+            type: NotificationType.SYSTEM,
+            title: "Support conversation reassigned",
+            body: "A support conversation has been reassigned to you.",
+            targetType: "conversation",
+            targetId: conversation.id,
+            metadata: {
+              conversationId: conversation.id,
+              assignmentId: assignment.id,
+              action: "reassign",
+            },
+          });
           queuedAssignmentId = assignment.id;
 
           return {
@@ -165,6 +181,22 @@ async function processOverdueAssignments() {
           assignedByUserId: null,
           note: "Returned to queue automatically after response deadline elapsed.",
         });
+
+        const activeAdmins = await listActiveAdminUsers(tx);
+        for (const activeAdmin of activeAdmins) {
+          await createNotification(tx, {
+            userId: activeAdmin.id,
+            type: NotificationType.SYSTEM,
+            title: "Support conversation returned to queue",
+            body: "A support conversation is available in the unassigned queue.",
+            targetType: "conversation",
+            targetId: conversation.id,
+            metadata: {
+              conversationId: conversation.id,
+              action: "unassign",
+            },
+          });
+        }
 
         return {
           conversationId: conversation.id,
@@ -228,11 +260,11 @@ async function processOverdueAssignments() {
           });
         }
 
-        autoReplyMessageId = createdMessage.id;
+        autoReplyMessageId = createdMessage.message.id;
         return {
           conversationId: conversation.id,
           action: "auto_reply_sent",
-          messageId: createdMessage.id,
+          messageId: createdMessage.message.id,
         };
       });
 

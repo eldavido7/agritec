@@ -302,6 +302,7 @@ export async function createConversationMessage(tx: TxClient, args: {
   }>;
   skipSupportAssignmentAutomation?: boolean;
 }) {
+  let supportAssignmentAlertAssignmentId: string | null = null;
   const conversation = await tx.conversation.findUnique({
     where: { id: args.conversationId },
     include: {
@@ -388,10 +389,11 @@ export async function createConversationMessage(tx: TxClient, args: {
       }
 
       if (!currentAssignment.assignedAdminId) {
-        await autoAssignSupportConversation(tx, {
+        const assignment = await autoAssignSupportConversation(tx, {
           conversationId: conversation.id,
           note: "Assigned automatically after inbound support message.",
         });
+        supportAssignmentAlertAssignmentId = assignment?.id ?? null;
       } else {
         await refreshSupportResponseDeadline(tx, {
           conversationId: conversation.id,
@@ -520,7 +522,10 @@ export async function createConversationMessage(tx: TxClient, args: {
     });
   }
 
-  return message;
+  return {
+    message,
+    supportAssignmentAlertAssignmentId,
+  };
 }
 
 const CHAT_EMAIL_THROTTLE_MINUTES = 30;
@@ -620,6 +625,13 @@ export function queueConversationMessageEmailAlerts(messageId: string) {
       await Promise.all(
         recipients.map(async (participant) => {
           const recipient = participant.user;
+
+          if (
+            isSupportConversationType(message.conversation.type) &&
+            recipient.role === UserRole.ADMIN
+          ) {
+            return;
+          }
 
           if (
             currentSupportAssignment &&

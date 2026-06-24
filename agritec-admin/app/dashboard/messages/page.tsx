@@ -100,6 +100,25 @@ function getQueueLabel(conversation: AdminConversationRecord, currentAdminId: st
   return "unassigned";
 }
 
+function getSupportActionSuccessMessage(
+  action: "claim" | "assign" | "reassign" | "unassign" | "resolve" | "reopen",
+) {
+  switch (action) {
+    case "claim":
+      return "Conversation claimed";
+    case "assign":
+      return "Conversation assigned";
+    case "reassign":
+      return "Conversation reassigned";
+    case "unassign":
+      return "Conversation returned to queue";
+    case "resolve":
+      return "Conversation resolved";
+    case "reopen":
+      return "Conversation reopened";
+  }
+}
+
 export default function MessagesPage() {
   const searchParams = useSearchParams();
   const adminToken = useAdminAuthStore((state) => state.token);
@@ -341,6 +360,7 @@ export default function MessagesPage() {
       setNewChatMode(false);
       setParticipantSearch("");
       await fetchConversationDetail(conversation.id, { force: true });
+      toast.success("Support conversation created");
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -362,6 +382,7 @@ export default function MessagesPage() {
             ? assignmentTargetAdminId || null
             : null,
       });
+      toast.success(getSupportActionSuccessMessage(action));
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to update support queue",
@@ -374,6 +395,7 @@ export default function MessagesPage() {
     try {
       await addInternalComment(selectedConversationId, internalCommentInput);
       setInternalCommentInput("");
+      toast.success("Internal note added");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to add internal note",
@@ -475,6 +497,7 @@ export default function MessagesPage() {
       cleanupPendingAttachments(pendingAttachments);
       setPendingAttachments([]);
       window.setTimeout(() => scrollMessagesToBottom("smooth"), 0);
+      toast.success("Reply sent");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to send message",

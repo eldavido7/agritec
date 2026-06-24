@@ -77,6 +77,7 @@ export function DiscountFormModal({
   const [draft, setDraft] = useState<DiscountDraft>(defaultDraft);
   const [productSearch, setProductSearch] = useState("");
   const [variantSearch, setVariantSearch] = useState("");
+  const [variantProductId, setVariantProductId] = useState<string>("");
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -99,8 +100,23 @@ export function DiscountFormModal({
     }
     setProductSearch("");
     setVariantSearch("");
+    const initialVariantProductId =
+      mode === "edit" && discount
+        ? products.find((product) =>
+            (product.variants || []).some((variant) =>
+              discount.variantIds.includes(
+                String(variant.id || `${product.id}-${variant.name}`),
+              ),
+            ),
+          )?.id ||
+          discount.productIds.find((productId) =>
+            (products.find((product) => product.id === productId)?.variants?.length || 0) > 0,
+          ) ||
+          ""
+        : "";
+    setVariantProductId(initialVariantProductId);
     setFormError(null);
-  }, [discount, mode, open]);
+  }, [discount, mode, open, products]);
 
   const allVariants = useMemo(
     () =>
@@ -130,10 +146,27 @@ export function DiscountFormModal({
     });
   }, [draft.variantIds, productSearch, products]);
 
+  const variantProduct = useMemo(
+    () => products.find((product) => product.id === variantProductId) ?? null,
+    [products, variantProductId],
+  );
+
+  const variantCandidates = useMemo(() => {
+    if (!variantProduct) return [];
+    return (variantProduct.variants || []).map((variant) => ({
+      ...variant,
+      key: String(variant.id || `${variantProduct.id}-${variant.name}`),
+      productId: variantProduct.id,
+      productName: variantProduct.name,
+    }));
+  }, [variantProduct]);
+
+  const selectedVariantProductHasVariants = variantCandidates.length > 0;
+
   const filteredVariants = useMemo(() => {
     const query = variantSearch.trim().toLowerCase();
-    if (query.length < 2) return [];
-    return allVariants.filter(
+    if (!variantProduct) return [];
+    return variantCandidates.filter(
       (variant) =>
         !draft.productIds.includes(variant.productId) &&
         (variant.name.toLowerCase().includes(query) ||
@@ -141,11 +174,13 @@ export function DiscountFormModal({
           variant.key.toLowerCase().includes(query) ||
           variant.sku?.toLowerCase().includes(query)),
     );
-  }, [allVariants, draft.productIds, variantSearch]);
+  }, [draft.productIds, variantCandidates, variantProduct, variantSearch]);
 
   const addProduct = (productId: string) => {
     const product = products.find((item) => item.id === productId);
     const variantKeys = (product?.variants || []).map((variant) => String(variant.id || ""));
+    setVariantProductId(productId);
+    setVariantSearch("");
     setDraft((current) => ({
       ...current,
       productIds: current.productIds.includes(productId)
@@ -157,6 +192,9 @@ export function DiscountFormModal({
 
   const addVariant = (variantKey: string) => {
     const variant = allVariants.find((item) => item.key === variantKey);
+    if (variant) {
+      setVariantProductId(variant.productId);
+    }
     setDraft((current) => ({
       ...current,
       productIds: variant
@@ -351,7 +389,7 @@ export function DiscountFormModal({
               id="product-search"
               value={productSearch}
               onChange={(event) => setProductSearch(event.target.value)}
-              placeholder="Search this seller's products"
+              placeholder="Search and select a product to apply discount or unlock its variants"
             />
             {filteredProducts.length > 0 && (
               <div className="max-h-36 overflow-y-auto rounded-md border p-2">
@@ -375,14 +413,18 @@ export function DiscountFormModal({
                     {product?.name || id}
                     <X
                       className="ml-1 h-3 w-3 cursor-pointer"
-                      onClick={() =>
+                      onClick={() => {
+                        if (variantProductId === id) {
+                          setVariantProductId("");
+                          setVariantSearch("");
+                        }
                         setDraft({
                           ...draft,
                           productIds: draft.productIds.filter(
                             (productId) => productId !== id,
                           ),
-                        })
-                      }
+                        });
+                      }}
                     />
                   </Badge>
                 );
@@ -396,8 +438,27 @@ export function DiscountFormModal({
               id="variant-search"
               value={variantSearch}
               onChange={(event) => setVariantSearch(event.target.value)}
-              placeholder="Search variants by product, name, SKU, or ID"
+              placeholder={
+                !variantProduct
+                  ? "Select a product first"
+                  : !selectedVariantProductHasVariants
+                    ? "Selected product has no variants"
+                    : "Search selected product variants"
+              }
+              disabled={!variantProduct || !selectedVariantProductHasVariants}
+              className={
+                !variantProduct || !selectedVariantProductHasVariants
+                  ? "cursor-not-allowed opacity-60"
+                  : undefined
+              }
             />
+            <p className="text-xs text-muted-foreground">
+              {!variantProduct
+                ? "Select a product from the field above before searching for its variants."
+                : !selectedVariantProductHasVariants
+                  ? `${variantProduct.name} does not have variants yet.`
+                  : `Showing variants for ${variantProduct.name}.`}
+            </p>
             {filteredVariants.length > 0 && (
               <div className="max-h-36 overflow-y-auto rounded-md border p-2">
                 {filteredVariants.map((variant) => (

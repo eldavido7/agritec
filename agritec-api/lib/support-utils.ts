@@ -539,13 +539,11 @@ export async function autoAssignSupportConversation(
     return null;
   }
 
-  await assignSupportConversation(tx, {
+  return assignSupportConversation(tx, {
     conversationId: args.conversationId,
     assignedAdminId: nextAdmin.id,
-    assignedByUserId: args.assignedByUserId ?? nextAdmin.id,
+    assignedByUserId: args.assignedByUserId ?? null,
     eventType: SupportAssignmentEventType.AUTO_ASSIGN,
     note: args.note ?? "Assigned automatically.",
   });
-
-  return nextAdmin;
 }

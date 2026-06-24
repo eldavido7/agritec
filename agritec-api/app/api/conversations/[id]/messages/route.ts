@@ -6,9 +6,11 @@ import {
   createConversationMessage,
   getConversationForUser,
   queueConversationMessageEmailAlerts,
+  queueSupportAssignmentAlertEmail,
   serializeConversationMessage,
 } from "@/lib/conversation-utils";
 import prisma from "@/lib/prisma";
+import { createAuditLog } from "@/lib/wallet-utils";
 
 const createMessageSchema = z
   .object({
@@ -168,8 +170,8 @@ export async function POST(
       return NextResponse.json({ success: false, message: "Conversation not found" }, { status: 404 });
     }
 
-    const message = await prisma.$transaction(async (tx) => {
-      return createConversationMessage(tx, {
+    const result = await prisma.$transaction(async (tx) => {
+      const created = await createConversationMessage(tx, {
         conversationId: id,
         senderId: user.id,
         body: payload.body?.trim() || null,
@@ -183,11 +185,35 @@ export async function POST(
           mimeType: attachment.mimeType ?? null,
         })),
       });
+
+      if (
+        user.role === UserRole.ADMIN &&
+        conversation.type !== ConversationType.BUYER_SELLER
+      ) {
+        await createAuditLog(tx, {
+          adminId: user.id,
+          action: "support.public_reply.sent",
+          targetType: "conversation",
+          targetId: id,
+          metadata: {
+            messageId: created.message.id,
+          },
+        });
+      }
+
+      return created;
     });
 
-    queueConversationMessageEmailAlerts(message.id);
+    if (result.supportAssignmentAlertAssignmentId) {
+      queueSupportAssignmentAlertEmail({
+        conversationId: id,
+        assignmentId: result.supportAssignmentAlertAssignmentId,
+      });
+    }
 
-    return NextResponse.json({ success: true, message: serializeConversationMessage(message) });
+    queueConversationMessageEmailAlerts(result.message.id);
+
+    return NextResponse.json({ success: true, message: serializeConversationMessage(result.message) });
   } catch (error) {
     console.error("[CONVERSATION_MESSAGES_POST_ERROR]", error);
     if (error instanceof z.ZodError) {
