@@ -6,14 +6,16 @@ type OrderStatusAlertContext = {
   operationStartedAt: Date;
   description?: string | null;
   logLabel: string;
-  sellerOrderGroup: {
-    id: string;
-    parentOrderId: string;
-    status: string;
-    farmNameSnapshot: string;
-    productSubtotal: number;
-    shippingFee: number;
-    groupTotal: number;
+    sellerOrderGroup: {
+      id: string;
+      parentOrderId: string;
+      status: string;
+      farmNameSnapshot: string;
+      sellerNameSnapshot?: string | null;
+      logisticsCompanyNameSnapshot?: string | null;
+      productSubtotal: number;
+      shippingFee: number;
+      groupTotal: number;
     deliveryRegion?: string | null;
     seller?: {
       userId: string;
@@ -78,6 +80,10 @@ export async function deliverOrderStatusAlerts(
         parentOrderId: result.parentOrderId,
         sellerOrderGroupId: result.id,
         farmName: result.farmNameSnapshot,
+        sellerName: result.sellerNameSnapshot ?? null,
+        actorLabel: result.logisticsCompanyNameSnapshot?.trim().isNotEmpty == true
+            ? result.logisticsCompanyNameSnapshot
+            : null,
         status: result.status as any,
         description: args.description ?? null,
         productSubtotal: result.productSubtotal,

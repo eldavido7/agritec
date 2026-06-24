@@ -34,7 +34,7 @@ export function DeleteDiscountModal({
           <DialogTitle>Delete Discount</DialogTitle>
           <DialogDescription>
             This will permanently remove {" "}
-            <span className="font-semibold">{discount?.code}</span> from this
+            <span className="font-semibold">{discount?.code} </span> from this
             seller&apos;s discounts.
           </DialogDescription>
         </DialogHeader>

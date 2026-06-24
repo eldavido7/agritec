@@ -43,22 +43,29 @@ function statusLabel(status: SellerOrderGroupStatus) {
   }
 }
 
-function statusMessage(status: SellerOrderGroupStatus, farmName: string) {
+function statusMessage(
+  status: SellerOrderGroupStatus,
+  args: {
+    farmName: string;
+    actorLabel?: string | null;
+  },
+) {
+  const actor = args.actorLabel?.trim() || args.farmName;
   switch (status) {
     case SellerOrderGroupStatus.CONFIRMED:
-      return `${farmName} has confirmed its part of your order.`;
+      return `${args.farmName} has confirmed this part of your order.`;
     case SellerOrderGroupStatus.PROCESSING:
-      return `${farmName} is now preparing your items.`;
+      return `${args.farmName} is now preparing your items.`;
     case SellerOrderGroupStatus.SHIPPED:
-      return `${farmName} has shipped its part of your order.`;
+      return `${actor} has marked this delivery as shipped.`;
     case SellerOrderGroupStatus.DELIVERED:
-      return `${farmName} has completed delivery for this order group.`;
+      return `${actor} has marked this delivery as completed.`;
     case SellerOrderGroupStatus.CANCELLED:
-      return `${farmName} could not complete this order group and it has been cancelled.`;
+      return `${actor} could not complete this delivery and it has been cancelled.`;
     case SellerOrderGroupStatus.REFUNDED:
-      return `${farmName} has marked this order group as refunded.`;
+      return `This order group has been refunded.`;
     default:
-      return `There is an update on your order from ${farmName}.`;
+      return `There is an update on your order from ${args.farmName}.`;
   }
 }
 
@@ -110,6 +117,8 @@ export async function sendBuyerOrderGroupStatusEmail(args: {
   parentOrderId: string;
   sellerOrderGroupId: string;
   farmName: string;
+  sellerName?: string | null;
+  actorLabel?: string | null;
   status: SellerOrderGroupStatus;
   description?: string | null;
   productSubtotal: number;
@@ -123,7 +132,10 @@ export async function sendBuyerOrderGroupStatusEmail(args: {
   const from = process.env.GMAIL_USER as string;
   const brand = process.env.MARKETPLACE_NAME || process.env.STORE_NAME || "Agritec";
   const readableStatus = statusLabel(args.status);
-  const message = statusMessage(args.status, args.farmName);
+  const message = statusMessage(args.status, {
+    farmName: args.farmName,
+    actorLabel: args.actorLabel ?? null,
+  });
 
   await transporter.sendMail({
     from: `"${brand}" <${from}>`,
@@ -151,11 +163,13 @@ export async function sendBuyerOrderGroupStatusEmail(args: {
           <h2 style="margin: 0 0 16px; font-size: 18px; color: #111827;">Seller group summary</h2>
           <div style="display: grid; gap: 8px; font-size: 14px; color: #374151;">
             <div><strong>Farm:</strong> ${args.farmName}</div>
+            ${args.sellerName?.trim() ? `<div><strong>Seller:</strong> ${args.sellerName.trim()}</div>` : ""}
             <div><strong>Order group:</strong> ${args.sellerOrderGroupId}</div>
             <div><strong>Product subtotal:</strong> ${currency(args.productSubtotal)}</div>
             <div><strong>Shipping fee:</strong> ${currency(args.shippingFee)}</div>
             <div><strong>Group total:</strong> ${currency(args.groupTotal)}</div>
             ${args.deliveryRegion ? `<div><strong>Delivery region:</strong> ${args.deliveryRegion}</div>` : ""}
+            ${args.actorLabel?.trim() ? `<div><strong>Updated by:</strong> ${args.actorLabel.trim()}</div>` : ""}
           </div>
         </div>
 

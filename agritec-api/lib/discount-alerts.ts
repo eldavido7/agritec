@@ -14,6 +14,7 @@ export async function broadcastDiscountCreated(args: {
   farmName: string;
   code: string;
   description?: string | null;
+  targetSummary?: string | null;
 }) {
   const buyers = await prisma.user.findMany({
     where: {
@@ -36,9 +37,12 @@ export async function broadcastDiscountCreated(args: {
   const notificationIds = await prisma.$transaction(async (tx) => {
     const createdIds: string[] = [];
     const title = "New discount available";
+    const targetText = args.targetSummary?.trim()
+      ? ` for ${args.targetSummary.trim()}`
+      : "";
     const body = args.description?.trim()
-      ? `${args.farmName} created discount ${args.code}. ${args.description.trim()}`
-      : `${args.farmName} created discount ${args.code}.`;
+      ? `${args.farmName} created discount ${args.code}${targetText}. ${args.description.trim()}`
+      : `${args.farmName} created discount ${args.code}${targetText}.`;
 
     for (const buyer of buyers) {
       const notification = await createNotification(tx, {
@@ -54,6 +58,7 @@ export async function broadcastDiscountCreated(args: {
           sellerName: args.sellerName,
           farmName: args.farmName,
           code: args.code,
+          targetSummary: args.targetSummary ?? null,
         }),
       });
       createdIds.push(notification.id);

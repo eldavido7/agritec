@@ -86,6 +86,19 @@ export async function POST(request: Request) {
       });
     });
 
+    const [discount] = await attachDiscountTargets([created]);
+    const productTitles = (discount.products ?? [])
+      .map((product: any) => `${product.title ?? ""}`.trim())
+      .filter((title: string) => title.length > 0);
+    const variantTitles = (discount.variants ?? [])
+      .map((variant: any) => `${variant.name ?? ""}`.trim())
+      .filter((title: string) => title.length > 0);
+    const targetSummary = variantTitles.length > 0
+      ? variantTitles.slice(0, 2).join(", ")
+      : productTitles.length > 0
+        ? productTitles.slice(0, 2).join(", ")
+        : null;
+
     await broadcastDiscountCreated({
       discountId: created.id,
       sellerId: sellerProfile.id,
@@ -93,9 +106,14 @@ export async function POST(request: Request) {
       farmName: sellerProfile.farmName,
       code: created.code,
       description: created.description,
+      targetSummary:
+        targetSummary == null
+          ? null
+          : (variantTitles.length + productTitles.length) > 2
+            ? `${targetSummary} and more`
+            : targetSummary,
     });
 
-    const [discount] = await attachDiscountTargets([created]);
     return NextResponse.json({ success: true, discount }, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
