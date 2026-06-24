@@ -1,5 +1,6 @@
 import 'package:agritec_mobile/core/logistics/logistics_models.dart';
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
+import 'package:agritec_mobile/core/utils/wat_time.dart';
 import 'package:agritec_mobile/features/account/application/address_providers.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/auth/data/auth_service.dart';
@@ -104,8 +105,10 @@ class OrderStatusHistoryEntry {
     return OrderStatusHistoryEntry(
       id: json['id'] as String? ?? '',
       status: json['status'] as String? ?? 'PENDING',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
-          DateTime.fromMillisecondsSinceEpoch(0),
+      createdAt: parseWatDateTime(
+        json['createdAt'] as String?,
+        fallback: DateTime.fromMillisecondsSinceEpoch(0),
+      ),
       description: json['description'] as String?,
       updatedByRole: json['updatedByRole'] as String?,
       updatedByUserName: json['updatedByUserName'] as String?,
@@ -310,7 +313,7 @@ MarketplaceOrder _marketplaceOrderFromJson(Map<String, dynamic> json) {
     id: json['id'] as String,
     buyerUserId: (json['buyerUserId'] as String?) ?? 'guest',
     paymentReference: (json['paymentReference'] as String?) ?? '',
-    createdAt: DateTime.parse(json['createdAt'] as String),
+    createdAt: parseWatDateTime(json['createdAt'] as String?),
     buyerAddress: BuyerAddress.fromJson(json['buyerAddress'] as Map<String, dynamic>),
     productSubtotal: (json['productSubtotal'] as num).toInt(),
     totalShippingFee: (json['totalShippingFee'] as num).toInt(),
@@ -370,7 +373,7 @@ MarketplaceOrder orderFromApiJson(
     id: json['id'] as String,
     buyerUserId: buyerId,
     paymentReference: (paymentJson?['reference'] as String?) ?? '',
-    createdAt: DateTime.parse(json['createdAt'] as String),
+    createdAt: parseWatDateTime(json['createdAt'] as String?),
     buyerAddress: BuyerAddress(
       id: 'order-${json['id']}-address',
       label: 'Delivery',
@@ -406,10 +409,10 @@ MarketplaceOrder orderFromApiJson(
             (entryJson) => OrderStatusHistoryEntry(
               id: entryJson['id'] as String? ?? '',
               status: (entryJson['status'] as String?) ?? 'PENDING',
-              createdAt: DateTime.tryParse(
-                    entryJson['createdAt'] as String? ?? '',
-                  ) ??
-                  DateTime.fromMillisecondsSinceEpoch(0),
+              createdAt: parseWatDateTime(
+                entryJson['createdAt'] as String?,
+                fallback: DateTime.fromMillisecondsSinceEpoch(0),
+              ),
               description: entryJson['description'] as String?,
               updatedByRole: entryJson['updatedByRole'] as String?,
               updatedByUserName:

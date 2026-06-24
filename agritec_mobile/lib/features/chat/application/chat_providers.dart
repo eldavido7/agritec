@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:agritec_mobile/core/api/mobile_api.dart';
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
+import 'package:agritec_mobile/core/utils/wat_time.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/auth/data/auth_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,7 +41,7 @@ class ChatAttachment {
       publicId: '${json['publicId'] ?? ''}',
       mimeType: json['mimeType'] as String?,
       createdAt: json['createdAt'] is String
-          ? DateTime.tryParse(json['createdAt'] as String)
+          ? parseWatDateTime(json['createdAt'] as String)
           : null,
     );
   }
@@ -129,11 +130,11 @@ class ChatMessage {
         orElse: () => ChatParticipantRole.seller,
       ),
       text: '${json['text'] ?? ''}',
-      sentAt: DateTime.tryParse('${json['sentAt'] ?? ''}') ?? DateTime.now(),
+      sentAt: parseWatDateTime('${json['sentAt'] ?? ''}'),
       isMine: json['isMine'] as bool? ?? false,
       relatedOrderId: json['relatedOrderId'] as String?,
       readAt: json['readAt'] is String
-          ? DateTime.tryParse(json['readAt'] as String)
+          ? parseWatDateTime(json['readAt'] as String)
           : null,
       attachments: (json['attachments'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
@@ -246,7 +247,7 @@ class ChatConversation {
       participantSubtitle: json['participantSubtitle'] as String?,
       relatedOrderId: json['relatedOrderId'] as String?,
       lastMessageAt: json['lastMessageAt'] is String
-          ? DateTime.tryParse(json['lastMessageAt'] as String)
+          ? parseWatDateTime(json['lastMessageAt'] as String)
           : null,
       latestMessage: json['latestMessage'] is Map<String, dynamic>
           ? ChatMessage.fromJson(json['latestMessage'] as Map<String, dynamic>)
@@ -795,10 +796,12 @@ ChatConversation _conversationFromApiJson(
     relatedOrderId: json['relatedParentOrderId']?.toString() ??
         latestMessageJson?['relatedParentOrderId']?.toString() ??
         previous?.relatedOrderId,
-    lastMessageAt: DateTime.tryParse(
-          '${json['lastMessageAt'] ?? json['updatedAt'] ?? ''}',
-        ) ??
-        previous?.lastMessageAt,
+    lastMessageAt: json['lastMessageAt'] != null || json['updatedAt'] != null
+        ? parseWatDateTime(
+            '${json['lastMessageAt'] ?? json['updatedAt'] ?? ''}',
+            fallback: previous?.lastMessageAt,
+          )
+        : previous?.lastMessageAt,
     latestMessage: latestMessageJson == null
         ? previous?.latestMessage
         : _messageFromConversationPreview(latestMessageJson, currentUserId),
@@ -818,7 +821,7 @@ ChatMessage _messageFromConversationPreview(
     senderName: '${json['senderName'] ?? 'Unknown'}',
     senderRole: _roleFromApi('${json['senderRole'] ?? ''}'),
     text: '${json['body'] ?? ''}',
-    sentAt: DateTime.tryParse('${json['createdAt'] ?? ''}') ?? DateTime.now(),
+    sentAt: parseWatDateTime('${json['createdAt'] ?? ''}'),
     isMine: senderId == currentUserId,
     relatedOrderId: json['relatedParentOrderId']?.toString(),
     attachments: (json['attachments'] as List<dynamic>? ?? const [])
@@ -842,7 +845,7 @@ ChatMessage _messageFromApiJson(
     senderName: '${sender['fullName'] ?? 'Unknown'}',
     senderRole: _roleFromApi('${sender['role'] ?? ''}'),
     text: '${json['body'] ?? ''}',
-    sentAt: DateTime.tryParse('${json['createdAt'] ?? ''}') ?? DateTime.now(),
+    sentAt: parseWatDateTime('${json['createdAt'] ?? ''}'),
     isMine: senderId == currentUserId,
     relatedOrderId: json['relatedParentOrderId']?.toString(),
     attachments: (json['attachments'] as List<dynamic>? ?? const [])

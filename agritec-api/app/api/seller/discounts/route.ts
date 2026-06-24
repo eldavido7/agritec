@@ -2,6 +2,7 @@
 import { Prisma, UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { requireAuthenticatedUser } from "@/lib/auth";
+import { broadcastDiscountCreated } from "@/lib/discount-alerts";
 import {
   buildDiscountCreateInput,
   parseSellerDiscountPayload,
@@ -83,6 +84,15 @@ export async function POST(request: Request) {
       return tx.discount.create({
         data: buildDiscountCreateInput(sellerProfile.id, payload, discountId),
       });
+    });
+
+    await broadcastDiscountCreated({
+      discountId: created.id,
+      sellerId: sellerProfile.id,
+      sellerName: user.fullName,
+      farmName: sellerProfile.farmName,
+      code: created.code,
+      description: created.description,
     });
 
     const [discount] = await attachDiscountTargets([created]);

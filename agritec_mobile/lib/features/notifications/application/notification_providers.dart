@@ -1,4 +1,5 @@
 import 'package:agritec_mobile/core/storage/cache_providers.dart';
+import 'package:agritec_mobile/core/utils/wat_time.dart';
 import 'package:agritec_mobile/features/auth/application/local_auth_provider.dart';
 import 'package:agritec_mobile/features/auth/data/auth_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,7 +68,7 @@ class BuyerNotification {
       ),
       title: '${json['title'] ?? ''}',
       body: '${json['body'] ?? ''}',
-      createdAt: DateTime.parse('${json['createdAt']}'),
+      createdAt: parseWatDateTime('${json['createdAt']}'),
       read: json['read'] as bool? ?? false,
       buyerUserId: (json['buyerUserId'] as String?) ?? '',
       relatedOrderId: json['relatedOrderId'] as String?,
@@ -87,7 +88,7 @@ class BuyerNotification {
       type: _typeFromApi('${json['type'] ?? ''}'),
       title: '${json['title'] ?? ''}',
       body: '${json['body'] ?? ''}',
-      createdAt: DateTime.tryParse('${json['createdAt'] ?? ''}') ?? DateTime.now(),
+      createdAt: parseWatDateTime('${json['createdAt'] ?? ''}'),
       read: json['isRead'] as bool? ?? false,
       buyerUserId: buyerUserId,
       relatedOrderId: targetType == 'parentOrder'

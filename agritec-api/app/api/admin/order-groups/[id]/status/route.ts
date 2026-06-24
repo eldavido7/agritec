@@ -3,7 +3,7 @@ import { z } from "zod";
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { sendBuyerOrderGroupStatusEmail } from "@/lib/email";
+import { deliverOrderStatusAlerts } from "@/lib/order-status-alerts";
 import { initiateSellerOrderGroupRefund } from "@/lib/refund-utils";
 import { updateSellerOrderGroupStatus } from "@/lib/seller-order-group-utils";
 
@@ -24,6 +24,7 @@ export async function PATCH(
 
     const { id } = await params;
     const payload = statusSchema.parse(await request.json());
+    const operationStartedAt = new Date();
 
     if (payload.status === SellerOrderGroupStatus.REFUNDED) {
       return NextResponse.json(
@@ -82,28 +83,12 @@ export async function PATCH(
     });
 
     const result = refreshedOrderGroup ?? sellerOrderGroup;
-    const buyerUser = result.parentOrder?.buyer?.user;
-    const addressSnapshot = result.parentOrder?.addressSnapshot;
-
-    if (buyerUser?.email) {
-      sendBuyerOrderGroupStatusEmail({
-        toEmail: buyerUser.email,
-        buyerName: buyerUser.fullName,
-        parentOrderId: result.parentOrderId,
-        sellerOrderGroupId: result.id,
-        farmName: result.farmNameSnapshot,
-        status: result.status,
-        description: payload.description ?? null,
-        productSubtotal: result.productSubtotal,
-        shippingFee: result.shippingFee,
-        groupTotal: result.groupTotal,
-        deliveryRegion: result.deliveryRegion,
-        addressLine: addressSnapshot?.addressLine ?? null,
-        fullAddress: addressSnapshot?.fullAddress ?? null,
-      }).catch((error) => {
-        console.error("[ORDER_GROUP_STATUS_EMAIL_ERROR]", error);
-      });
-    }
+    await deliverOrderStatusAlerts({
+      operationStartedAt,
+      description: payload.description ?? null,
+      logLabel: "ADMIN_ORDER_GROUP_STATUS",
+      sellerOrderGroup: result,
+    });
 
     return NextResponse.json({
       success: true,
