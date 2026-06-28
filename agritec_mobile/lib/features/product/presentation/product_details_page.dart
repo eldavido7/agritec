@@ -4,6 +4,7 @@ import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/chat/application/chat_providers.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
 import 'package:agritec_mobile/features/home/application/home_providers.dart';
+import 'package:agritec_mobile/features/home/domain/home_models.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/product/application/product_details_providers.dart';
 import 'package:agritec_mobile/features/seller/presentation/seller_details_page.dart';
@@ -26,16 +27,32 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
   final PageController _imageController = PageController();
   int _imageIndex = 0;
 
+  HomeProduct? _findProduct(List<HomeProduct> products, int productId) {
+    for (final product in products) {
+      if (product.id == productId) {
+        return product;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final products = ref.watch(homeFeaturedProductsProvider);
-    final product = products.firstWhere(
-      (p) => p.id == widget.productId,
-      orElse: () => products.first,
-    );
+    final product = _findProduct(products, widget.productId);
+    final productDetailsAsync = ref.watch(productDetailsProvider(widget.productId));
+
+    if (products.isEmpty || product == null) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFEAF1ED),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final seller = ref.watch(homeSellerByIdProvider(product.sellerId));
-    final productDetails = ref.watch(productDetailsProvider(product.id)).asData?.value;
-    final variants = ref.watch(productVariantsProvider(product.id));
+    final productDetails = productDetailsAsync.asData?.value;
+    final isLoadingDetails = productDetails == null && productDetailsAsync.isLoading;
+    final variants = productDetails?.variants ?? const <ProductVariant>[];
     final selectedVariant = variants.isNotEmpty
         ? variants[_selectedVariant.clamp(0, variants.length - 1)]
         : null;
@@ -44,11 +61,13 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
       product.categorySlug,
       product.category,
     );
-    final discount = ref.watch(productDiscountProvider((
-      sellerId: product.sellerId,
-      productId: product.id,
-      variantId: selectedVariant?.id,
-    )));
+    final discount = productDetails == null
+        ? null
+        : ref.watch(productDiscountProvider((
+            sellerId: product.sellerId,
+            productId: product.id,
+            variantId: selectedVariant?.id,
+          )));
     final description = productDetails?.description?.trim();
     final cart = ref.watch(cartProvider).quantities;
     final authenticated = isBuyerAuthenticated(ref);
@@ -242,54 +261,85 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                Text(
-                  ref.tr('product.variants'),
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (var i = 0; i < variants.length; i++)
-                      ChoiceChip(
-                        label: Text(variants[i].name),
-                        selected: _selectedVariant == i,
-                        onSelected: (_) => setState(() => _selectedVariant = i),
-                      ),
-                  ],
-                ),
-                if (selectedVariant != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    '${ref.tr('product.stock')}: ${selectedVariant.inventory}',
-                    style: const TextStyle(color: Color(0xFF6C7872)),
-                  ),
-                ],
-                const SizedBox(height: 18),
-                if (description != null && description.isNotEmpty) ...[
-                  Text(
-                    ref.tr('product.description'),
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-                  ),
-                  const SizedBox(height: 8),
+                if (isLoadingDetails) ...[
                   Card(
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Text(
-                        description,
-                        style: const TextStyle(
-                          color: Color(0xFF24312C),
-                          height: 1.5,
-                        ),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.4),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Loading product details...',
+                              style: TextStyle(color: Color(0xFF5C6862)),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 18),
+                ] else ...[
+                  if (variants.isNotEmpty) ...[
+                    Text(
+                      ref.tr('product.variants'),
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (var i = 0; i < variants.length; i++)
+                          ChoiceChip(
+                            label: Text(variants[i].name),
+                            selected: _selectedVariant == i,
+                            onSelected: (_) => setState(() => _selectedVariant = i),
+                          ),
+                      ],
+                    ),
+                    if (selectedVariant != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '${ref.tr('product.stock')}: ${selectedVariant.inventory}',
+                        style: const TextStyle(color: Color(0xFF6C7872)),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                  ],
+                  if (description != null && description.isNotEmpty) ...[
+                    Text(
+                      ref.tr('product.description'),
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                    ),
+                    const SizedBox(height: 8),
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Text(
+                          description,
+                          style: const TextStyle(
+                            color: Color(0xFF24312C),
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                  ],
                 ],
                 Text(
                   ref.tr('product.seller'),
