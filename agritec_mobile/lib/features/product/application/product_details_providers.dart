@@ -1,5 +1,6 @@
 import 'package:agritec_mobile/core/logistics/logistics_models.dart';
-import 'package:agritec_mobile/features/auth/data/auth_service.dart';
+import 'package:agritec_mobile/features/home/application/home_providers.dart';
+import 'package:agritec_mobile/features/home/domain/home_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ProductVariant {
@@ -70,79 +71,54 @@ class MarketplaceProductDetails {
   final List<ProductDiscount> discounts;
 }
 
-final productDetailsProvider = FutureProvider.family<MarketplaceProductDetails, int>((ref, productId) async {
-  final api = ref.read(mobileApiClientProvider);
-  final productPayload = await api.get('/api/products/$productId');
-  final productJson = productPayload['product'] as Map<String, dynamic>;
-  final sellerId = productJson['sellerId'] as String;
-  final discountsPayload = await api.get('/api/discounts', queryParameters: {
-    'sellerId': sellerId,
-    'productId': '$productId',
-  });
-
-  final variants = ((productJson['variants'] as List<dynamic>?) ?? const <dynamic>[])
-      .whereType<Map<String, dynamic>>()
-      .map(
-        (variant) => ProductVariant(
-          id: variant['id'] as String,
-          name: (variant['name'] as String?) ?? 'Variant',
-          price: (variant['price'] as num?)?.toInt() ?? 0,
-          inventory: (variant['inventory'] as num?)?.toInt() ?? 0,
-          logistics: LogisticsMetadata(
-            salesUnit: salesUnitFromJson(variant['salesUnit'] ?? productJson['salesUnit']),
-            unitWeightKg: (variant['unitWeightKg'] as num?)?.toDouble() ??
-                (productJson['unitWeightKg'] as num?)?.toDouble() ??
-                1,
-            unitLengthCm: (variant['unitLengthCm'] as num?)?.toDouble() ??
-                (productJson['unitLengthCm'] as num?)?.toDouble(),
-            unitWidthCm: (variant['unitWidthCm'] as num?)?.toDouble() ??
-                (productJson['unitWidthCm'] as num?)?.toDouble(),
-            unitHeightCm: (variant['unitHeightCm'] as num?)?.toDouble() ??
-                (productJson['unitHeightCm'] as num?)?.toDouble(),
-            packageType: packageTypeFromJson(variant['packageType'] ?? productJson['packageType']),
-          ),
-        ),
-      )
-      .toList();
-
-  final discounts = ((discountsPayload['discounts'] as List<dynamic>?) ?? const <dynamic>[])
-      .whereType<Map<String, dynamic>>()
-      .map(
-        (discount) => ProductDiscount(
-          id: discount['id'] as String,
-          sellerId: discount['sellerId'] as String,
-          code: (discount['code'] as String?) ?? '',
-          description: (discount['description'] as String?) ?? '',
-          type: ((discount['type'] as String?) ?? '').toLowerCase(),
-          value: (discount['value'] as num?)?.toInt() ?? 0,
-          productIds: ((discount['productIds'] as List<dynamic>?) ?? const <dynamic>[])
-              .map((item) => int.tryParse('$item'))
-              .whereType<int>()
-              .toList(),
-          variantIds: ((discount['variantIds'] as List<dynamic>?) ?? const <dynamic>[])
-              .map((item) => '$item')
-              .toList(),
-          isActive: discount['currentlyActive'] as bool? ?? (discount['isActive'] as bool? ?? false),
-        ),
-      )
-      .toList();
-
-  final description = (productJson['description'] as String?)?.trim();
-
+MarketplaceProductDetails? _detailsFromHomeProduct(HomeProduct? product) {
+  if (product == null) return null;
   return MarketplaceProductDetails(
-    description: description != null && description.isNotEmpty ? description : null,
-    variants: variants,
-    discounts: discounts,
+    description: product.description,
+    variants: product.variants
+        .map(
+          (variant) => ProductVariant(
+            id: variant.id,
+            name: variant.name,
+            price: variant.price,
+            inventory: variant.inventory,
+            logistics: variant.logistics,
+          ),
+        )
+        .toList(),
+    discounts: product.discounts
+        .map(
+          (discount) => ProductDiscount(
+            id: discount.id,
+            sellerId: discount.sellerId,
+            code: discount.code,
+            description: discount.description,
+            type: discount.type,
+            value: discount.value,
+            productIds: discount.productIds,
+            variantIds: discount.variantIds,
+            isActive: discount.isActive,
+          ),
+        )
+        .toList(),
   );
+}
+
+final productDetailsProvider = Provider.family<MarketplaceProductDetails?, int>((ref, productId) {
+  final product = ref
+      .watch(homeFeaturedProductsProvider)
+      .where((item) => item.id == productId)
+      .firstOrNull;
+  return _detailsFromHomeProduct(product);
 });
 
 final productVariantsProvider = Provider.family<List<ProductVariant>, int>((ref, productId) {
-  final details = ref.watch(productDetailsProvider(productId)).asData?.value;
+  final details = ref.watch(productDetailsProvider(productId));
   return details?.variants ?? const [];
 });
 
 final marketplaceDiscountsProvider = Provider.family<List<ProductDiscount>, int>((ref, productId) {
-  final details = ref.watch(productDetailsProvider(productId)).asData?.value;
+  final details = ref.watch(productDetailsProvider(productId));
   return details?.discounts ?? const [];
 });
 

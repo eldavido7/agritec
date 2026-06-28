@@ -441,6 +441,7 @@ MarketplaceOrder orderFromApiJson(
           name: (itemJson['variantTitleSnapshot'] as String?)?.trim().isNotEmpty == true
               ? '${itemJson['productTitleSnapshot']} - ${itemJson['variantTitleSnapshot']}'
               : (itemJson['productTitleSnapshot'] as String?) ?? fallback?.name ?? 'Product',
+          description: fallback?.description,
           categorySlug: fallback?.categorySlug ?? 'other',
           category: fallback?.category ?? 'Other',
           categoryNote: fallback?.categoryNote,
@@ -451,6 +452,8 @@ MarketplaceOrder orderFromApiJson(
               : (fallback?.images ?? const ['']),
           hasDiscount: false,
           discountLabel: null,
+          variants: const <HomeProductVariant>[],
+          discounts: const <HomeProductDiscount>[],
           logistics: LogisticsMetadata(
             salesUnit: salesUnitFromJson(itemJson['salesUnitSnapshot']),
             unitWeightKg: (itemJson['unitWeightKgSnapshot'] as num?)?.toDouble() ??

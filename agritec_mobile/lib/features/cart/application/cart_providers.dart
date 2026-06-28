@@ -138,6 +138,7 @@ HomeProduct buildHomeProductFromApi({
         (apiProduct['categorySlug'] as String?) ??
         fallback?.categorySlug ??
         'other',
+    description: (apiProduct['description'] as String?) ?? fallback?.description,
     category: (categoryJson?['name'] as String?) ??
         (apiProduct['categoryName'] as String?) ??
         fallback?.category ??
@@ -148,6 +149,8 @@ HomeProduct buildHomeProductFromApi({
     images: images,
     hasDiscount: fallback?.hasDiscount ?? false,
     discountLabel: fallback?.discountLabel,
+    variants: fallback?.variants ?? const <HomeProductVariant>[],
+    discounts: fallback?.discounts ?? const <HomeProductDiscount>[],
     logistics: _logisticsFromApi(apiVariant ?? apiProduct, fallback?.logistics),
   );
 }
@@ -323,6 +326,7 @@ class CartNotifier extends Notifier<CartState> {
             sellerId: product.sellerId,
             createdAt: product.createdAt,
             name: '${product.name} - ${variant.name}',
+            description: product.description,
             categorySlug: product.categorySlug,
             category: product.category,
             categoryNote: product.categoryNote,
@@ -331,6 +335,8 @@ class CartNotifier extends Notifier<CartState> {
             images: product.images,
             hasDiscount: product.hasDiscount,
             discountLabel: product.discountLabel,
+            variants: product.variants,
+            discounts: product.discounts,
             logistics: variant.logistics ?? product.logistics,
           );
 

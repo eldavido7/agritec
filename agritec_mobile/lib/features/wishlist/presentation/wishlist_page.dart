@@ -2,6 +2,7 @@
 import 'package:agritec_mobile/core/localization/app_localizations.dart';
 import 'package:agritec_mobile/core/localization/localized_text.dart';
 import 'package:agritec_mobile/features/auth/application/auth_prompt.dart';
+import 'package:agritec_mobile/features/home/application/home_providers.dart';
 import 'package:agritec_mobile/features/home/application/shell_navigation_provider.dart';
 import 'package:agritec_mobile/features/wishlist/application/wishlist_providers.dart';
 import 'package:flutter/material.dart';
@@ -39,6 +40,8 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
       );
     }
     final products = ref.watch(wishlistProductsProvider);
+    final allProducts = ref.watch(homeFeaturedProductsProvider);
+    final wishlistIds = ref.watch(wishlistProvider);
     final money = NumberFormat.currency(
       locale: 'en_NG',
       symbol: 'NGN ',
@@ -78,7 +81,9 @@ class _WishlistPageState extends ConsumerState<WishlistPage> {
           ),
         ),
         child: SafeArea(
-              child: products.isEmpty
+              child: (wishlistIds.isNotEmpty && allProducts.isEmpty)
+              ? const Center(child: CircularProgressIndicator())
+              : products.isEmpty
               ? Center(
                   child: Text(
                     ref.tr('wishlist.empty'),

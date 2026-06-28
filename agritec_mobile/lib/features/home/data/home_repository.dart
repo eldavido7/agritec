@@ -39,7 +39,7 @@ class HomeDataSnapshot {
 class HomeRepository {
   HomeRepository(this._cacheService, this._apiClient);
 
-  static const cacheKey = 'cache_home_snapshot_v5';
+  static const cacheKey = 'cache_home_snapshot_v6';
   final LocalCacheService _cacheService;
   final MobileApiClient _apiClient;
 
@@ -65,6 +65,7 @@ class HomeRepository {
 
     final discountCodesByProduct = <String, String>{};
     final discountCodesByVariant = <String, String>{};
+    final discountRecords = <HomeProductDiscount>[];
     final discounts = discountsPayload['discounts'];
     if (discounts is List<dynamic>) {
       for (final item in discounts) {
@@ -77,12 +78,30 @@ class HomeRepository {
         for (final variantId in (item['variantIds'] as List<dynamic>? ?? const <dynamic>[])) {
           discountCodesByVariant['$variantId'] = code;
         }
+        discountRecords.add(
+          HomeProductDiscount(
+            id: item['id'] as String? ?? '',
+            sellerId: item['sellerId'] as String? ?? '',
+            code: code,
+            description: (item['description'] as String?)?.trim() ?? '',
+            type: ((item['type'] as String?) ?? '').toLowerCase(),
+            value: (item['value'] as num?)?.toInt() ?? 0,
+            productIds: ((item['productIds'] as List<dynamic>?) ?? const <dynamic>[])
+                .map((entry) => int.tryParse('$entry'))
+                .whereType<int>()
+                .toList(),
+            variantIds: ((item['variantIds'] as List<dynamic>?) ?? const <dynamic>[])
+                .map((entry) => '$entry')
+                .toList(),
+            isActive: item['currentlyActive'] as bool? ?? (item['isActive'] as bool? ?? false),
+          ),
+        );
       }
     }
 
     final productList = (productsPayload['products'] as List<dynamic>? ?? const <dynamic>[])
         .whereType<Map<String, dynamic>>()
-        .map((product) => _mapProduct(product, discountCodesByProduct, discountCodesByVariant))
+        .map((product) => _mapProduct(product, discountCodesByProduct, discountCodesByVariant, discountRecords))
         .toList();
 
     final categoryCounts = <String, int>{};
@@ -151,12 +170,17 @@ class HomeRepository {
     Map<String, dynamic> product,
     Map<String, String> discountCodesByProduct,
     Map<String, String> discountCodesByVariant,
+    List<HomeProductDiscount> discountRecords,
   ) {
     final productId = int.tryParse('${product['id']}') ?? -1;
     final images = _parseImages(product['images']);
     final variants = (product['variants'] as List<dynamic>? ?? const <dynamic>[])
         .whereType<Map<String, dynamic>>()
         .toList();
+    final variantIds = variants
+        .map((variant) => variant['id'] as String?)
+        .whereType<String>()
+        .toSet();
     String? discountCode = discountCodesByProduct['${product['id']}'];
     if (discountCode == null) {
       for (final variant in variants) {
@@ -167,6 +191,24 @@ class HomeRepository {
         }
       }
     }
+    final description = (product['description'] as String?)?.trim();
+    final mappedVariants = variants
+        .map(
+          (variant) => HomeProductVariant(
+            id: variant['id'] as String? ?? '',
+            name: (variant['name'] as String?) ?? 'Variant',
+            price: (variant['price'] as num?)?.toInt() ?? 0,
+            inventory: (variant['inventory'] as num?)?.toInt() ?? 0,
+            logistics: _mapLogistics(variant),
+          ),
+        )
+        .toList();
+    final applicableDiscounts = discountRecords.where((discount) {
+      if (discount.sellerId != (product['sellerId'] as String? ?? '')) return false;
+      if (discount.productIds.contains(productId)) return true;
+      if (discount.variantIds.any(variantIds.contains)) return true;
+      return false;
+    }).toList();
 
     return HomeProduct(
       id: productId,
@@ -174,6 +216,7 @@ class HomeRepository {
       createdAt: DateTime.tryParse((product['createdAt'] as String?) ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       name: (product['title'] as String?) ?? 'Product',
+      description: description != null && description.isNotEmpty ? description : null,
       categorySlug: (product['categorySlug'] as String?) ?? 'other',
       category: (product['category']?['label'] as String?) ?? 'Other',
       categoryNote: product['categoryNote'] as String?,
@@ -182,6 +225,8 @@ class HomeRepository {
       images: images,
       hasDiscount: discountCode != null,
       discountLabel: discountCode,
+      variants: mappedVariants,
+      discounts: applicableDiscounts,
       logistics: _mapLogistics(product),
     );
   }

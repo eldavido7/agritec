@@ -14,9 +14,10 @@ class SellerDetailsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final seller = ref.watch(homeSellerByIdProvider(sellerId));
-    final products = ref
-        .watch(homeFeaturedProductsProvider)
+    final sellers = ref.watch(homeSellersProvider);
+    final allProducts = ref.watch(homeFeaturedProductsProvider);
+    final seller = sellers.where((item) => item.id == sellerId).firstOrNull;
+    final products = allProducts
         .where((product) => product.sellerId == sellerId)
         .toList();
     final money = NumberFormat.currency(
@@ -24,6 +25,25 @@ class SellerDetailsPage extends ConsumerWidget {
       symbol: 'NGN ',
       decimalDigits: 0,
     );
+
+    if (sellers.isEmpty && allProducts.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFEAF1ED),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (seller == null) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFEAF1ED),
+        body: Center(
+          child: Text(
+            'Seller unavailable right now.',
+            style: TextStyle(color: Color(0xFF65706B)),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFEAF1ED),

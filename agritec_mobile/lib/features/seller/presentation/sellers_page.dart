@@ -21,6 +21,14 @@ class _SellersPageState extends ConsumerState<SellersPage> {
   @override
   Widget build(BuildContext context) {
     final sellers = ref.watch(homeSellersProvider);
+
+    if (sellers.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFDDE8E1),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final states = <String>{
       'All',
       ...sellers
