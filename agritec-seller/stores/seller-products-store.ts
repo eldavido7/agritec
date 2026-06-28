@@ -27,7 +27,7 @@ export type SellerProductRecord = ProductLogistics & {
   id: string;
   sellerId?: string;
   name: string;
-  description: string;
+  description: string | null;
   category: string;
   categorySlug: string;
   categoryNote?: string | null;
@@ -156,7 +156,10 @@ const mapApiProduct = (product: any): SellerProductRecord => ({
   id: String(product.id),
   sellerId: product.sellerId ? String(product.sellerId) : undefined,
   name: product.title,
-  description: product.description,
+  description:
+    typeof product.description === "string" && product.description.trim()
+      ? product.description.trim()
+      : null,
   category:
     product.category?.label ||
     product.categoryLabel ||
@@ -231,7 +234,7 @@ const buildProductPayload = (product: Partial<SellerProductRecord>) => {
 
   return {
     title: product.name?.trim() || "",
-    description: product.description?.trim() || product.name?.trim() || "",
+    description: product.description?.trim() || null,
     status: statusToApi(product.status),
     categorySlug: category,
     categoryNote:

@@ -81,8 +81,9 @@ export async function deliverOrderStatusAlerts(
         sellerOrderGroupId: result.id,
         farmName: result.farmNameSnapshot,
         sellerName: result.sellerNameSnapshot ?? null,
-        actorLabel: result.logisticsCompanyNameSnapshot?.trim().isNotEmpty == true
-            ? result.logisticsCompanyNameSnapshot
+        actorLabel:
+          (result.logisticsCompanyNameSnapshot?.trim().length ?? 0) > 0
+            ? result.logisticsCompanyNameSnapshot ?? null
             : null,
         status: result.status as any,
         description: args.description ?? null,

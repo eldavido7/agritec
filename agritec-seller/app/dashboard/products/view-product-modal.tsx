@@ -136,6 +136,15 @@ export function ViewProductModal({
             </div>
           </div>
 
+          {product.description ? (
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Description</p>
+              <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                {product.description}
+              </p>
+            </div>
+          ) : null}
+
           {product.variants && product.variants.length > 0 && (
             <div>
               <p className="text-sm font-semibold text-foreground mb-3">

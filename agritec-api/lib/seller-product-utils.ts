@@ -16,6 +16,15 @@ const nullableNumericString = z
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
   });
+const optionalTrimmedText = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((value) => {
+    if (typeof value !== "string") {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  });
 
 const imageInputSchema = z.union([
   z.string().trim().min(1).transform((secureUrl) => ({
@@ -55,7 +64,7 @@ const variantSchema = z.object({
 
 const productSchema = z.object({
   title: z.string().trim().min(1),
-  description: z.string().trim().min(1),
+  description: optionalTrimmedText,
   status: productStatusEnum.optional().default(ProductStatus.ACTIVE),
   categorySlug: z.string().trim().min(1),
   categoryNote: z.string().trim().min(1).nullable().optional(),
@@ -168,7 +177,7 @@ export function buildProductCreateInput(
     id: ids.productId,
     seller: { connect: { id: sellerId } },
     title: payload.title,
-    description: payload.description,
+    description: payload.description ?? null,
     status: payload.status,
     category: { connect: { slug: payload.categorySlug } },
     categoryNote: payload.categoryNote ?? null,
@@ -204,7 +213,7 @@ export function buildProductUpdateInput(
 
   return {
     title: payload.title,
-    description: payload.description,
+    description: payload.description ?? null,
     status: payload.status,
     category: { connect: { slug: payload.categorySlug } },
     categoryNote: payload.categoryNote ?? null,

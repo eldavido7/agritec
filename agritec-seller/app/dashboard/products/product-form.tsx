@@ -1,6 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Plus, X, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -222,6 +223,25 @@ export function ProductForm({
           }
           placeholder="Enter product name"
         />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-foreground">
+          Description
+        </label>
+        <Textarea
+          value={formData.description || ""}
+          onChange={(e) =>
+            onFormDataChange({ ...formData, description: e.target.value })
+          }
+          placeholder="Describe quality, freshness, storage method, handling notes, temperature requirements, grade, or other important details."
+          rows={5}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Optional. Describe product quality, freshness, storage method,
+          handling notes, temperature requirements, grade, or other important
+          details.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -985,5 +1005,4 @@ export function ProductForm({
 }
 
 export { defaultLogistics, parseOptionalNumber, buildVariantLogisticsDraft };
-
 

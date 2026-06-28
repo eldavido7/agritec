@@ -34,6 +34,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
       orElse: () => products.first,
     );
     final seller = ref.watch(homeSellerByIdProvider(product.sellerId));
+    final productDetails = ref.watch(productDetailsProvider(product.id)).asData?.value;
     final variants = ref.watch(productVariantsProvider(product.id));
     final selectedVariant = variants.isNotEmpty
         ? variants[_selectedVariant.clamp(0, variants.length - 1)]
@@ -48,6 +49,7 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
       productId: product.id,
       variantId: selectedVariant?.id,
     )));
+    final description = productDetails?.description?.trim();
     final cart = ref.watch(cartProvider).quantities;
     final authenticated = isBuyerAuthenticated(ref);
     final relatedProducts = products
@@ -265,6 +267,30 @@ class _ProductDetailsPageState extends ConsumerState<ProductDetailsPage> {
                   ),
                 ],
                 const SizedBox(height: 18),
+                if (description != null && description.isNotEmpty) ...[
+                  Text(
+                    ref.tr('product.description'),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Text(
+                        description,
+                        style: const TextStyle(
+                          color: Color(0xFF24312C),
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                ],
                 Text(
                   ref.tr('product.seller'),
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),

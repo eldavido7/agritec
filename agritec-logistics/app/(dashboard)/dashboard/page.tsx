@@ -4,11 +4,14 @@ import { useEffect } from 'react';
 import { KPICards } from '@/components/dashboard/kpi-cards';
 import { ChartsGrid, StatusBreakdownChart } from '@/components/dashboard/charts';
 import { RecentDeliveriesTable } from '@/components/dashboard/recent-deliveries-table';
+import { Spinner } from '@/components/ui/spinner';
 import { motion } from 'framer-motion';
 import { useLogisticsStore } from '@/lib/store/logistics-store';
 
 export default function DashboardPage() {
   const fetchDeliveries = useLogisticsStore((state) => state.fetchDeliveries);
+  const isLoadingDeliveries = useLogisticsStore((state) => state.isLoadingDeliveries);
+  const deliveries = useLogisticsStore((state) => state.deliveries);
 
   useEffect(() => {
     void fetchDeliveries().catch(() => undefined);
@@ -34,6 +37,14 @@ export default function DashboardPage() {
       },
     },
   };
+
+  if (isLoadingDeliveries && deliveries.length === 0) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    );
+  }
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-8">

@@ -16,6 +16,7 @@ import {
 import { useLogisticsStore } from '@/lib/store/logistics-store';
 import { motion } from 'framer-motion';
 import { Filter, Search } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import type { DeliveryStatus } from '@/lib/types';
 
 const statusColors: Record<DeliveryStatus, string> = {
@@ -98,6 +99,14 @@ export default function DeliveriesPage() {
       },
     },
   };
+
+  if (isLoadingDeliveries && deliveries.length === 0) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    );
+  }
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">

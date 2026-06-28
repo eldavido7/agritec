@@ -53,7 +53,7 @@ type SellerSettingsState = {
   fetchBanks: (options?: { force?: boolean }) => Promise<void>;
   updateProfile: (payload: {
     fullName: string;
-    email: string;
+    email?: string;
     phone?: string | null;
     farmName: string;
     description?: string | null;

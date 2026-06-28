@@ -371,7 +371,7 @@ model Product {
   sellerId           String
   seller             SellerProfile       @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   title              String
-  description        String
+  description        String?
   status             ProductStatus       @default(ACTIVE)
   isDeleted          Boolean             @default(false)
   deletedAt          DateTime?

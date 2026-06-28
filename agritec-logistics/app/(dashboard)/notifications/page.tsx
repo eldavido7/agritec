@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
 import { useLogisticsStore } from '@/lib/store/logistics-store';
 import { motion } from 'framer-motion';
 import { Bell, CheckCircle, MessageSquare, Package, Truck } from 'lucide-react';
@@ -26,6 +27,7 @@ export default function NotificationsPage() {
   const fetchNotifications = useLogisticsStore((state) => state.fetchNotifications);
   const markAsRead = useLogisticsStore((state) => state.markNotificationAsRead);
   const markAllAsRead = useLogisticsStore((state) => state.markAllNotificationsAsRead);
+  const isLoadingNotifications = useLogisticsStore((state) => state.isLoadingNotifications);
 
   useEffect(() => {
     void fetchNotifications({ force: true }).catch(() => undefined);
@@ -67,6 +69,14 @@ export default function NotificationsPage() {
       },
     },
   };
+
+  if (isLoadingNotifications && notifications.length === 0) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    );
+  }
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">

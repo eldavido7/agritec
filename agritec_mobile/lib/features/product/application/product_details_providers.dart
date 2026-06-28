@@ -60,10 +60,12 @@ class ProductDiscount {
 
 class MarketplaceProductDetails {
   const MarketplaceProductDetails({
+    required this.description,
     required this.variants,
     required this.discounts,
   });
 
+  final String? description;
   final List<ProductVariant> variants;
   final List<ProductDiscount> discounts;
 }
@@ -125,7 +127,13 @@ final productDetailsProvider = FutureProvider.family<MarketplaceProductDetails, 
       )
       .toList();
 
-  return MarketplaceProductDetails(variants: variants, discounts: discounts);
+  final description = (productJson['description'] as String?)?.trim();
+
+  return MarketplaceProductDetails(
+    description: description != null && description.isNotEmpty ? description : null,
+    variants: variants,
+    discounts: discounts,
+  );
 });
 
 final productVariantsProvider = Provider.family<List<ProductVariant>, int>((ref, productId) {

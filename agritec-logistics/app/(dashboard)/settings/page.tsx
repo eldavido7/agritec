@@ -18,6 +18,7 @@ import { DollarSign, MapPin, Save, Search, User } from 'lucide-react';
 import { nigeriaLocations } from '@/lib/data/nigeria-locations';
 import { useLogisticsStore } from '@/lib/store/logistics-store';
 import { useLogisticsAuthStore } from '@/lib/store/logistics-auth-store';
+import { Spinner } from '@/components/ui/spinner';
 import type { CoverageType } from '@/lib/types';
 
 const itemVariants = {
@@ -255,6 +256,14 @@ export default function SettingsPage() {
     },
   };
 
+  if (isLoadingProfile && !profile) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    );
+  }
+
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       <motion.div variants={itemVariants}>
@@ -268,15 +277,24 @@ export default function SettingsPage() {
         <Card className="p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-6 grid w-full grid-cols-3">
-              <TabsTrigger value="profile" className="flex items-center gap-2">
+              <TabsTrigger
+                value="profile"
+                className="flex items-center gap-2 dark:data-active:border-primary/50 dark:data-active:bg-primary/20 dark:data-active:text-white"
+              >
                 <User className="h-4 w-4" />
                 Profile
               </TabsTrigger>
-              <TabsTrigger value="pricing" className="flex items-center gap-2">
+              <TabsTrigger
+                value="pricing"
+                className="flex items-center gap-2 dark:data-active:border-primary/50 dark:data-active:bg-primary/20 dark:data-active:text-white"
+              >
                 <DollarSign className="h-4 w-4" />
                 Pricing
               </TabsTrigger>
-              <TabsTrigger value="coverage" className="flex items-center gap-2">
+              <TabsTrigger
+                value="coverage"
+                className="flex items-center gap-2 dark:data-active:border-primary/50 dark:data-active:bg-primary/20 dark:data-active:text-white"
+              >
                 <MapPin className="h-4 w-4" />
                 Coverage
               </TabsTrigger>
