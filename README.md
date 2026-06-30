@@ -43,6 +43,7 @@ Buyers use only the Flutter app.
 They can:
 
 - browse as guest
+- browse cached marketplace data offline after the app snapshot hydrates
 - sign up, sign in, reset password
 - manage wishlist, cart, profile, and delivery addresses
 - checkout through Paystack
@@ -58,7 +59,7 @@ Sellers use only the seller dashboard.
 
 They can:
 
-- manage products, variants, and Cloudinary product images
+- manage products, variants, optional product descriptions, and Cloudinary product images
 - manage seller discounts
 - view only their seller order groups
 - view assigned logistics company and delivery timeline
@@ -71,6 +72,7 @@ Important seller restrictions:
 - sellers do not manage delivery pricing or coverage
 - sellers do not perform normal delivery status updates
 - seller APIs must not expose buyer email or phone
+- seller must add a complete farm/pickup location before creating or activating products
 
 ### Admin
 
@@ -181,6 +183,39 @@ Support workflow includes:
 - timeout-based reassignment
 - one-time auto acknowledgement for unassigned conversations
 - protected cron sweep endpoint
+
+### Mobile Marketplace Snapshot / Offline
+
+Buyer marketplace browsing is snapshot-first.
+
+The Flutter app hydrates a cached marketplace snapshot containing:
+
+- categories
+- sellers
+- products
+- product descriptions
+- product variants
+- applicable product discount metadata
+
+Browse surfaces should read from that snapshot first:
+
+- home
+- catalog
+- product details
+- seller details
+- sellers list
+- wishlist
+
+These browsing pages should not add ad hoc per-page marketplace fetches unless the snapshot model is intentionally being expanded.
+
+Transactional or user-specific flows stay live:
+
+- cart sync
+- checkout and logistics eligibility
+- orders
+- notifications
+- chat
+- payment verification
 
 ## Main Backend Models
 
@@ -539,6 +574,8 @@ If you only want static validation for mobile, use:
 flutter analyze
 ```
 
+Marketplace browsing in the mobile app now uses a cached snapshot-first model. On first launch after install or cache reset, let the app hydrate once online so home, catalog, product details, seller details, sellers list, and wishlist have local marketplace data available afterward.
+
 ## Validation Commands
 
 ### Backend
@@ -640,6 +677,7 @@ For a fork, you must also regenerate and own:
 - Google Maps mobile keys
 - optionally `MOBILE_API_BASE_URL` passed via `--dart-define` in your run/build pipeline
 - mobile deep-link / callback behavior testing against your API
+- an initial online marketplace snapshot refresh before relying on offline browse behavior
 
 ## Scheduled Jobs
 
@@ -775,3 +813,4 @@ Do not commit:
 - this repo currently uses `prisma db push`, not Prisma migrations
 - support scheduling already has a repo-level GitHub Actions pattern; reuse it
 - mobile static verification should use `flutter analyze`
+- buyer marketplace pages should prefer the cached home snapshot over one-off product/seller detail fetches
