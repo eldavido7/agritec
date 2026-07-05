@@ -24,7 +24,8 @@ import {
 } from "@/lib/support-utils";
 import { createNotification } from "@/lib/wallet-utils";
 
-const SUPPORT_AUTO_REPLY_MARKER = "AUTO_REPLY_FOR_MESSAGE:";
+const SUPPORT_AUTO_REPLY_MARKER = "AUTO_REPLY_FOR_UNASSIGNED_CYCLE";
+const LEGACY_SUPPORT_AUTO_REPLY_MARKER = "AUTO_REPLY_FOR_MESSAGE:";
 const SUPPORT_AUTO_REPLY_BODY =
   "We have received your message. A support admin will pick this up as soon as one is available.";
 
@@ -40,15 +41,21 @@ function isAuthorized(request: Request) {
 
 function appendAutoReplyMarker(
   note: string | null | undefined,
-  messageId: string,
 ) {
-  const marker = `${SUPPORT_AUTO_REPLY_MARKER}${messageId}`;
-  if ((note ?? "").includes(marker)) {
+  if ((note ?? "").includes(SUPPORT_AUTO_REPLY_MARKER)) {
     return note ?? null;
   }
 
-  const nextNote = [note?.trim(), marker].filter(Boolean).join(" | ");
-  return nextNote || marker;
+  const nextNote = [note?.trim(), SUPPORT_AUTO_REPLY_MARKER].filter(Boolean).join(" | ");
+  return nextNote || SUPPORT_AUTO_REPLY_MARKER;
+}
+
+function unassignedCycleAlreadyAcknowledged(note: string | null | undefined) {
+  const value = note ?? "";
+  return (
+    value.includes(SUPPORT_AUTO_REPLY_MARKER) ||
+    value.includes(LEGACY_SUPPORT_AUTO_REPLY_MARKER)
+  );
 }
 
 async function processOverdueAssignments() {
@@ -225,10 +232,9 @@ async function processOverdueAssignments() {
       continue;
     }
 
-    const alreadyMarked =
-      latestAssignment?.note?.includes(
-        `${SUPPORT_AUTO_REPLY_MARKER}${latestMessage?.id ?? ""}`,
-      ) ?? false;
+    const alreadyMarked = unassignedCycleAlreadyAcknowledged(
+      latestAssignment?.note,
+    );
     const adminParticipant = conversation.participants.find(
       (participant) => participant.user.role === UserRole.ADMIN,
     );
@@ -259,14 +265,14 @@ async function processOverdueAssignments() {
           await tx.supportConversationAssignment.update({
             where: { id: latest.id },
             data: {
-              note: appendAutoReplyMarker(latest.note, latestMessage.id),
+              note: appendAutoReplyMarker(latest.note),
             },
           });
         } else {
           await unassignSupportConversation(tx, {
             conversationId: conversation.id,
             assignedByUserId: null,
-            note: appendAutoReplyMarker(null, latestMessage.id),
+            note: appendAutoReplyMarker(null),
           });
         }
 
