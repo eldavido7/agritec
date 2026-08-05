@@ -10,7 +10,7 @@ Current apps in this repo:
 - `agritec-logistics` - logistics company dashboard
 - `agritec_mobile` - Flutter buyer app
 
-The system now includes:
+The system includes:
 
 - multivendor checkout with one buyer payment and seller-level order groups
 - logistics-company-owned coverage and pricing
@@ -138,7 +138,7 @@ Current seller-group statuses:
 
 ### Logistics Pricing and Coverage
 
-Shipping is now logistics-company-driven.
+Shipping is logistics-company-driven.
 
 Coverage model:
 
@@ -166,8 +166,6 @@ One-company-for-all behavior:
 Legacy `ShippingSettings` still exists in the backend as fallback/legacy data, but it is no longer the main shipping configuration model.
 
 ### Support / Chat
-
-Buyer-seller chat remains unchanged.
 
 Admin-handled support conversations now include:
 
@@ -206,7 +204,7 @@ Browse surfaces should read from that snapshot first:
 - sellers list
 - wishlist
 
-These browsing pages should not add ad hoc per-page marketplace fetches unless the snapshot model is intentionally being expanded.
+Browsing these pages should not add ad hoc per-page marketplace fetches unless the snapshot model is intentionally being expanded.
 
 Transactional or user-specific flows stay live:
 
@@ -477,12 +475,6 @@ npx prisma generate
 npx prisma db push
 ```
 
-Not:
-
-```bash
-npx prisma migrate dev
-```
-
 ## Seeded Demo Accounts
 
 The seed creates useful local test accounts.
@@ -574,7 +566,7 @@ If you only want static validation for mobile, use:
 flutter analyze
 ```
 
-Marketplace browsing in the mobile app now uses a cached snapshot-first model. On first launch after install or cache reset, let the app hydrate once online so home, catalog, product details, seller details, sellers list, and wishlist have local marketplace data available afterward.
+Marketplace browsing in the mobile app uses a cached snapshot-first model. On first launch after install or cache reset, let the app hydrate once online so home, catalog, product details, seller details, sellers list, and wishlist have local marketplace data available afterward.
 
 ## Validation Commands
 
